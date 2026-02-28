@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDate, cn } from "@/lib/utils";
-import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, ExternalLink, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ProjectModal, type ProjectForModal } from "./project-modal";
 
@@ -25,9 +25,11 @@ const priorityConfig = {
 export function ProjectsList({
   projects,
   clients,
+  currentUserId,
 }: {
   projects: ProjectForModal[];
   clients: Client[];
+  currentUserId?: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<string>("all");
@@ -129,7 +131,10 @@ export function ProjectsList({
                   </div>
 
                   <div className="flex items-start justify-between mb-3 pr-20">
-                    <h3 className="font-semibold text-slate-900 line-clamp-1">{project.name}</h3>
+                    <h3 className="font-semibold text-slate-900 line-clamp-1 flex items-center gap-1.5">
+                      {project.privacy === "private" && <Lock className="w-3 h-3 text-slate-400 flex-shrink-0" />}
+                      {project.name}
+                    </h3>
                     <span className={cn("ml-2 text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap flex-shrink-0", status.className)}>
                       {status.label}
                     </span>

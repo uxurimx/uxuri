@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder } from "lucide-react";
+import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDate, formatDateTime, cn } from "@/lib/utils";
 
 const schema = z.object({
   title: z.string().min(1, "El título es requerido"),
@@ -28,6 +28,15 @@ export type TaskForModal = {
   dueDate: string | null;
   projectId?: string | null;
   projectName?: string | null;
+  createdBy?: string | null;
+};
+
+type Comment = {
+  id: string;
+  userId: string;
+  userName: string | null;
+  content: string;
+  createdAt: string;
 };
 
 type Project = { id: string; name: string };
@@ -38,6 +47,7 @@ interface TaskModalProps {
   task?: TaskForModal | null;
   projectId?: string;
   projects?: Project[];
+  currentUserId?: string;
   initialMode?: "view" | "edit" | "create";
 }
 
@@ -59,13 +69,30 @@ function today() {
   return new Date().toISOString().split("T")[0];
 }
 
-export function TaskModal({ open, onClose, task, projectId, projects, initialMode }: TaskModalProps) {
+export function TaskModal({
+  open,
+  onClose,
+  task,
+  projectId,
+  projects,
+  currentUserId,
+  initialMode,
+}: TaskModalProps) {
   const router = useRouter();
   const isExisting = !!task;
+  const isOwner = !task?.createdBy || task.createdBy === currentUserId;
+
   const defaultMode = initialMode ?? (isExisting ? "view" : "create");
   const [mode, setMode] = useState<"view" | "edit" | "create">(defaultMode);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Comments state
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
+  const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -89,6 +116,17 @@ export function TaskModal({ open, onClose, task, projectId, projects, initialMod
       reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "" });
     }
   }, [open, task, initialMode, projectId, reset]);
+
+  // Cargar comentarios cuando se abre en modo vista
+  useEffect(() => {
+    if (!open || !task?.id || mode !== "view") return;
+    setCommentsLoading(true);
+    fetch(`/api/tasks/${task.id}/comments`)
+      .then((r) => r.json())
+      .then((data) => setComments(Array.isArray(data) ? data : []))
+      .catch(() => setComments([]))
+      .finally(() => setCommentsLoading(false));
+  }, [open, task?.id, mode]);
 
   async function onSubmit(data: FormData) {
     setIsLoading(true);
@@ -124,6 +162,26 @@ export function TaskModal({ open, onClose, task, projectId, projects, initialMod
     }
   }
 
+  async function sendComment() {
+    if (!task || !commentText.trim()) return;
+    setSendingComment(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: commentText.trim() }),
+      });
+      if (res.ok) {
+        const comment = await res.json();
+        setComments((prev) => [...prev, comment]);
+        setCommentText("");
+        setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      }
+    } finally {
+      setSendingComment(false);
+    }
+  }
+
   if (!open) return null;
 
   const taskProjectName = task?.projectName
@@ -133,10 +191,10 @@ export function TaskModal({ open, onClose, task, projectId, projects, initialMod
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md">
+      <div className="relative bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             {mode === "edit" && isExisting && (
               <button onClick={() => setMode("view")} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -154,60 +212,125 @@ export function TaskModal({ open, onClose, task, projectId, projects, initialMod
 
         {/* VIEW MODE */}
         {mode === "view" && task && (
-          <div className="p-5 space-y-4">
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold text-slate-900 leading-snug">{task.title}</h3>
-              {taskProjectName && (
-                <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                  <Folder className="w-3 h-3" />
-                  {taskProjectName}
-                </p>
-              )}
-            </div>
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Task info */}
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900 leading-snug">{task.title}</h3>
+                {taskProjectName && (
+                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                    <Folder className="w-3 h-3" />
+                    {taskProjectName}
+                  </p>
+                )}
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium", statusConfig[task.status].className)}>
-                {statusConfig[task.status].label}
-              </span>
-              <span className={cn("flex items-center gap-1 text-xs font-medium", priorityConfig[task.priority].color)}>
-                <Flag className="w-3 h-3" />
-                {priorityConfig[task.priority].label}
-              </span>
-              {task.dueDate && (
-                <span className="flex items-center gap-1 text-xs text-slate-500">
-                  <Calendar className="w-3 h-3" />
-                  {formatDate(task.dueDate)}
+              <div className="flex flex-wrap gap-2">
+                <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium", statusConfig[task.status].className)}>
+                  {statusConfig[task.status].label}
                 </span>
+                <span className={cn("flex items-center gap-1 text-xs font-medium", priorityConfig[task.priority].color)}>
+                  <Flag className="w-3 h-3" />
+                  {priorityConfig[task.priority].label}
+                </span>
+                {task.dueDate && (
+                  <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <Calendar className="w-3 h-3" />
+                    {formatDate(task.dueDate)}
+                  </span>
+                )}
+              </div>
+
+              {task.description && (
+                <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
               )}
-            </div>
 
-            {task.description && (
-              <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
-            )}
+              {/* Actions — solo el creador puede editar/eliminar */}
+              <div className="flex gap-3 pt-2 border-t border-slate-100">
+                {isOwner && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {isDeleting ? "Eliminando..." : "Eliminar"}
+                  </button>
+                )}
+                {isOwner && (
+                  <button
+                    onClick={() => setMode("edit")}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Editar
+                  </button>
+                )}
+                {!isOwner && (
+                  <p className="text-xs text-slate-400 flex items-center gap-1">
+                    Solo el creador puede editar o eliminar esta tarea
+                  </p>
+                )}
+              </div>
 
-            <div className="flex gap-3 pt-2 border-t border-slate-100">
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {isDeleting ? "Eliminando..." : "Eliminar"}
-              </button>
-              <button
-                onClick={() => setMode("edit")}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Editar
-              </button>
+              {/* Comments */}
+              <div className="pt-2">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3">
+                  <MessageSquare className="w-4 h-4 text-slate-400" />
+                  Comentarios
+                  {comments.length > 0 && (
+                    <span className="text-xs font-normal text-slate-400">({comments.length})</span>
+                  )}
+                </h4>
+
+                {commentsLoading ? (
+                  <p className="text-xs text-slate-400 py-2">Cargando...</p>
+                ) : comments.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-2">Sin comentarios aún.</p>
+                ) : (
+                  <div className="space-y-3 mb-3">
+                    {comments.map((c) => (
+                      <div key={c.id} className="bg-slate-50 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-xs font-semibold text-slate-700">{c.userName ?? "Usuario"}</span>
+                          <span className="text-xs text-slate-400">·</span>
+                          <span className="text-xs text-slate-400">{formatDateTime(c.createdAt)}</span>
+                        </div>
+                        <p className="text-sm text-slate-600 leading-relaxed">{c.content}</p>
+                      </div>
+                    ))}
+                    <div ref={commentsEndRef} />
+                  </div>
+                )}
+
+                {/* Add comment */}
+                <div className="flex gap-2 mt-2">
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); }
+                    }}
+                    rows={2}
+                    placeholder="Escribe un comentario... (Enter para enviar)"
+                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 resize-none"
+                  />
+                  <button
+                    onClick={sendComment}
+                    disabled={sendingComment || !commentText.trim()}
+                    className="px-3 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors disabled:opacity-40 flex items-center"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* EDIT / CREATE MODE */}
         {(mode === "edit" || mode === "create") && (
-          <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4 overflow-y-auto flex-1">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Título *</label>
               <input

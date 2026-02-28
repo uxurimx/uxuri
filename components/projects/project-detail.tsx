@@ -12,9 +12,11 @@ type ProjectWithClient = {
   clientId: string | null;
   status: "planning" | "active" | "paused" | "completed" | "cancelled";
   priority: "low" | "medium" | "high";
+  privacy: string;
   startDate: string | null;
   endDate: string | null;
   createdAt: Date;
+  createdBy: string | null;
   clientName: string | null;
 };
 
@@ -30,10 +32,12 @@ export function ProjectDetail({
   project,
   tasks,
   projects,
+  currentUserId,
 }: {
   project: ProjectWithClient;
   tasks: TaskWithProject[];
   projects?: { id: string; name: string }[];
+  currentUserId?: string;
 }) {
   const status = statusConfig[project.status];
 
@@ -93,6 +97,7 @@ export function ProjectDetail({
           projectId={project.id}
           showProjectName={false}
           projects={projects}
+          currentUserId={currentUserId}
         />
       </div>
     </div>

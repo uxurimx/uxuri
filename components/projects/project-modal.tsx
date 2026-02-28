@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink } from "lucide-react";
+import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -14,6 +14,7 @@ const schema = z.object({
   clientId: z.string().optional(),
   status: z.enum(["planning", "active", "paused", "completed", "cancelled"]),
   priority: z.enum(["low", "medium", "high"]),
+  privacy: z.enum(["public", "private"]),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -28,8 +29,10 @@ export type ProjectForModal = {
   clientName: string | null;
   status: "planning" | "active" | "paused" | "completed" | "cancelled";
   priority: "low" | "medium" | "high";
+  privacy: string;
   startDate: string | null;
   endDate: string | null;
+  createdBy?: string | null;
 };
 
 type Client = { id: string; name: string };
@@ -75,6 +78,7 @@ export function ProjectModal({ open, onClose, project, clients, initialMode = "v
       clientId: project.clientId ?? "",
       status: project.status,
       priority: project.priority,
+      privacy: (project.privacy as "public" | "private") ?? "public",
       startDate: project.startDate ?? new Date().toISOString().split("T")[0],
       endDate: project.endDate ?? "",
     });
@@ -150,6 +154,17 @@ export function ProjectModal({ open, onClose, project, clients, initialMode = "v
                 <Flag className="w-3 h-3" />
                 {priorityConfig[project.priority].label}
               </span>
+              {project.privacy === "private" ? (
+                <span className="flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3" />
+                  Solo yo
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs font-medium text-slate-400">
+                  <Globe className="w-3 h-3" />
+                  Público
+                </span>
+              )}
             </div>
 
             {project.description && (
@@ -242,6 +257,24 @@ export function ProjectModal({ open, onClose, project, clients, initialMode = "v
                   <option value="medium">Media</option>
                   <option value="high">Alta</option>
                 </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Privacidad</label>
+              <div className="flex gap-4 mt-1">
+                {[
+                  { value: "public",  label: "Público",  desc: "Visible para todos" },
+                  { value: "private", label: "Solo yo",  desc: "Solo tú lo ves" },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
+                    <input {...register("privacy")} type="radio" value={opt.value} className="mt-0.5 accent-[#1e3a5f]" />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-700">{opt.label}</span>
+                      <span className="block text-xs text-slate-400">{opt.desc}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
 

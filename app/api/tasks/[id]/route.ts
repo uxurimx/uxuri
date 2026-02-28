@@ -39,6 +39,14 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+
+  // Solo el creador puede editar la tarea
+  const [existing] = await db.select({ createdBy: tasks.createdBy }).from(tasks).where(eq(tasks.id, id));
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (existing.createdBy && existing.createdBy !== userId) {
+    return NextResponse.json({ error: "Solo el creador puede editar esta tarea" }, { status: 403 });
+  }
+
   const body = await req.json();
   const parsed = updateTaskSchema.safeParse(body);
   if (!parsed.success) {
@@ -52,7 +60,6 @@ export async function PATCH(
 
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Trigger Pusher event
   if (updated.projectId) {
     await pusherServer.trigger(`project-${updated.projectId}`, "task:updated", updated);
   }
@@ -68,6 +75,14 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+
+  // Solo el creador puede eliminar la tarea
+  const [existing] = await db.select({ createdBy: tasks.createdBy }).from(tasks).where(eq(tasks.id, id));
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (existing.createdBy && existing.createdBy !== userId) {
+    return NextResponse.json({ error: "Solo el creador puede eliminar esta tarea" }, { status: 403 });
+  }
+
   await db.delete(tasks).where(eq(tasks.id, id));
   return NextResponse.json({ success: true });
 }

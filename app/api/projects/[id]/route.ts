@@ -11,6 +11,7 @@ const updateProjectSchema = z.object({
   clientId: z.string().uuid().optional().nullable(),
   status: z.enum(["planning", "active", "paused", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
+  privacy: z.enum(["public", "private"]).optional(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
 });
@@ -25,6 +26,9 @@ export async function GET(
   const { id } = await params;
   const [project] = await db.select().from(projects).where(eq(projects.id, id));
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (project.privacy === "private" && project.createdBy !== userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   return NextResponse.json(project);
 }
@@ -60,7 +64,6 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  // Desvincular tareas antes de eliminar para evitar FK violations
   await db.update(tasks).set({ projectId: null }).where(eq(tasks.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
   return NextResponse.json({ success: true });

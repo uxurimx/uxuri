@@ -13,6 +13,7 @@ const schema = z.object({
   clientId: z.string().optional(),
   status: z.enum(["planning", "active", "paused", "completed", "cancelled"]),
   priority: z.enum(["low", "medium", "high"]),
+  privacy: z.enum(["public", "private"]),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -32,6 +33,7 @@ export function ProjectForm({ clients }: { clients: Client[] }) {
     defaultValues: {
       status: "planning",
       priority: "medium",
+      privacy: "public",
       startDate: new Date().toISOString().split("T")[0],
     },
   });
@@ -135,6 +137,26 @@ export function ProjectForm({ clients }: { clients: Client[] }) {
             <option value="medium">Media</option>
             <option value="high">Alta</option>
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Privacidad
+          </label>
+          <div className="flex gap-3 mt-1">
+            {[
+              { value: "public",  label: "Público",  desc: "Visible para todos" },
+              { value: "private", label: "Solo yo",  desc: "Solo tú lo ves" },
+            ].map((opt) => (
+              <label key={opt.value} className="flex items-start gap-2 cursor-pointer flex-1">
+                <input {...register("privacy")} type="radio" value={opt.value} className="mt-0.5 accent-[#1e3a5f]" />
+                <span>
+                  <span className="block text-sm font-medium text-slate-700">{opt.label}</span>
+                  <span className="block text-xs text-slate-400">{opt.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
 
         <div>

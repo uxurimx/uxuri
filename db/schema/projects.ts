@@ -27,6 +27,7 @@ export const projects = pgTable("projects", {
   clientId: uuid("client_id").references(() => clients.id),
   status: projectStatusEnum("status").default("planning").notNull(),
   priority: priorityEnum("priority").default("medium").notNull(),
+  privacy: varchar("privacy", { length: 10 }).default("public").notNull(),
   startDate: date("start_date"),
   endDate: date("end_date"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),

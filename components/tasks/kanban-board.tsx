@@ -17,6 +17,7 @@ export type TaskWithProject = {
   priority: "low" | "medium" | "high" | "urgent";
   dueDate: string | null;
   createdAt: Date;
+  createdBy: string | null;
   projectName: string | null;
 };
 
@@ -39,9 +40,10 @@ interface KanbanBoardProps {
   projectId?: string;
   showProjectName?: boolean;
   projects?: { id: string; name: string }[];
+  currentUserId?: string;
 }
 
-export function KanbanBoard({ initialTasks, projectId, showProjectName = true, projects }: KanbanBoardProps) {
+export function KanbanBoard({ initialTasks, projectId, showProjectName = true, projects, currentUserId }: KanbanBoardProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -229,6 +231,7 @@ export function KanbanBoard({ initialTasks, projectId, showProjectName = true, p
         projectId={projectId}
         task={selectedTask}
         projects={projects}
+        currentUserId={currentUserId}
         initialMode={modalInitialMode}
       />
     </>

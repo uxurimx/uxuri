@@ -6,7 +6,13 @@ import { TaskModal } from "./task-modal";
 
 type Project = { id: string; name: string };
 
-export function TasksHeader({ projects }: { projects?: Project[] }) {
+export function TasksHeader({
+  projects,
+  currentUserId,
+}: {
+  projects?: Project[];
+  currentUserId?: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -24,7 +30,12 @@ export function TasksHeader({ projects }: { projects?: Project[] }) {
           Nueva tarea
         </button>
       </div>
-      <TaskModal open={open} onClose={() => setOpen(false)} projects={projects} />
+      <TaskModal
+        open={open}
+        onClose={() => setOpen(false)}
+        projects={projects}
+        currentUserId={currentUserId}
+      />
     </>
   );
 }
