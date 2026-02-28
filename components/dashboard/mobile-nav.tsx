@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  Briefcase,
-  CheckSquare,
-  UserCog,
-} from "lucide-react";
-import type { Role } from "@/lib/auth";
-import { rolePermissions } from "@/lib/permissions";
+import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Home",      icon: LayoutDashboard },
@@ -21,17 +13,15 @@ const navItems = [
   { href: "/users",     label: "Usuarios",  icon: UserCog },
 ];
 
-export function MobileNav({ role }: { role: Role | null }) {
+export function MobileNav({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
-  const allowed = role ? rolePermissions[role] : ["/dashboard"];
-  const visibleItems = navItems.filter((item) => allowed.includes(item.href));
+  const visibleItems = navItems.filter((item) => permissions.includes(item.href));
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-40">
       <div className="flex items-center justify-around py-2">
         {visibleItems.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}

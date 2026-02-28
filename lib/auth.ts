@@ -1,10 +1,11 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { canAccessPath } from "@/lib/permissions";
 
-export type Role = "admin" | "manager" | "client";
+export type Role = string;
 
 export async function getAuthUser() {
   const user = await currentUser();
@@ -12,31 +13,49 @@ export async function getAuthUser() {
   return user;
 }
 
-export async function getRole(): Promise<Role | null> {
+/** Devuelve el nombre del rol del usuario actual (JWT → fallback DB). */
+export async function getRole(): Promise<string | null> {
   const { userId, sessionClaims } = await auth();
-
-  // JWT claim: rápido, no necesita DB (disponible cuando Clerk publicMetadata está sincronizado)
-  const claimRole = (sessionClaims?.metadata as { role?: Role })?.role;
+  const claimRole = (sessionClaims?.metadata as { role?: string })?.role;
   if (claimRole) return claimRole;
-
-  // Fallback a DB: cubre usuarios sin publicMetadata configurado
   if (!userId) return null;
-  const [user] = await db
-    .select({ role: users.role })
-    .from(users)
-    .where(eq(users.id, userId));
+  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
   return user?.role ?? null;
 }
 
-export async function checkRole(role: Role): Promise<boolean> {
-  const userRole = await getRole();
-  if (!userRole) return false;
-  if (role === "admin") return userRole === "admin";
-  if (role === "manager") return userRole === "admin" || userRole === "manager";
-  return true;
+/** Devuelve nombre del rol + permisos del usuario actual. */
+export async function getUserRoleData(): Promise<{ roleName: string; permissions: string[] } | null> {
+  const roleName = await getRole();
+  if (!roleName) return null;
+
+  const [roleRecord] = await db
+    .select({ permissions: roles.permissions })
+    .from(roles)
+    .where(eq(roles.name, roleName));
+
+  // Fallback: si el rol no está en la tabla, /dashboard siempre visible
+  const permissions = roleRecord?.permissions ?? ["/dashboard"];
+  return { roleName, permissions };
 }
 
-export async function requireRole(role: Role) {
-  const hasRole = await checkRole(role);
+/** Redirige a /dashboard si el usuario no tiene acceso al path dado. */
+export async function requireAccess(path: string) {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const data = await getUserRoleData();
+  if (!data || !canAccessPath(data.permissions, path)) {
+    redirect("/dashboard");
+  }
+}
+
+// Backward compat: checkRole/requireRole basados en nombre de rol
+export async function checkRole(roleName: string): Promise<boolean> {
+  const userRole = await getRole();
+  return userRole === roleName;
+}
+
+export async function requireRole(roleName: string) {
+  const hasRole = await checkRole(roleName);
   if (!hasRole) redirect("/dashboard");
 }

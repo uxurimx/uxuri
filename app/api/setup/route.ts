@@ -1,13 +1,30 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-/**
- * Endpoint de bootstrap: convierte al usuario actual en admin.
- * Solo funciona si no existe ningún admin en la DB.
- */
+const DEFAULT_ROLES = [
+  {
+    name: "admin",
+    label: "Administrador",
+    permissions: ["/dashboard", "/clients", "/projects", "/tasks", "/users"],
+    isDefault: false,
+  },
+  {
+    name: "manager",
+    label: "Manager",
+    permissions: ["/dashboard", "/clients", "/projects", "/tasks"],
+    isDefault: false,
+  },
+  {
+    name: "client",
+    label: "Cliente",
+    permissions: ["/dashboard"],
+    isDefault: true,
+  },
+];
+
 export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,6 +40,11 @@ export async function POST() {
     return NextResponse.json({ error: "Ya existe un administrador" }, { status: 403 });
   }
 
+  // Crear roles por defecto si no existen
+  for (const role of DEFAULT_ROLES) {
+    await db.insert(roles).values(role).onConflictDoNothing();
+  }
+
   // Promover al usuario actual
   const [updated] = await db
     .update(users)
@@ -34,7 +56,7 @@ export async function POST() {
     return NextResponse.json({ error: "Usuario no encontrado en DB" }, { status: 404 });
   }
 
-  // Sincronizar a Clerk para que el JWT se actualice en el próximo login
+  // Sincronizar a Clerk
   const clerk = await clerkClient();
   await clerk.users.updateUserMetadata(userId, { publicMetadata: { role: "admin" } });
 

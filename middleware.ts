@@ -1,7 +1,6 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import type { Role } from "@/lib/auth";
-import { canAccessPath } from "@/lib/permissions";
+import { createRouteMatcher } from "@clerk/nextjs/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -9,25 +8,15 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/setup",
   "/api/webhooks(.*)",
+  "/api/setup",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
-  const { userId, sessionClaims } = await auth();
-
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.redirect(new URL("/sign-in", req.url));
-  }
-
-  const role = (sessionClaims?.metadata as { role?: Role })?.role ?? null;
-  const path = req.nextUrl.pathname;
-
-  // Redirige si el JWT ya tiene rol y no tiene acceso.
-  // Si el JWT no tiene rol (role === null) se deja pasar: getRole() en la página
-  // hará el fallback a DB y requireRole() redirigirá si corresponde.
-  if (role !== null && !canAccessPath(role, path)) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   return NextResponse.next();
