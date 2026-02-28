@@ -30,10 +30,9 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const projectTasks = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.projectId, id));
+  // Incluir projectName para que sea compatible con TaskWithProject en KanbanBoard
+  const rawTasks = await db.select().from(tasks).where(eq(tasks.projectId, id));
+  const projectTasks = rawTasks.map((t) => ({ ...t, projectName: project.name }));
 
   return <ProjectDetail project={project} tasks={projectTasks} />;
 }

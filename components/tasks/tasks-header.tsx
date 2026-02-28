@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { TaskCreateModal } from "./task-create-modal";
+import { TaskModal } from "./task-modal";
 
 export function TasksHeader() {
   const [open, setOpen] = useState(false);
@@ -12,9 +12,7 @@ export function TasksHeader() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tareas</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Tablero kanban de todas las tareas
-          </p>
+          <p className="text-slate-500 text-sm mt-1">Tablero kanban de todas las tareas</p>
         </div>
         <button
           onClick={() => setOpen(true)}
@@ -24,7 +22,7 @@ export function TasksHeader() {
           Nueva tarea
         </button>
       </div>
-      <TaskCreateModal open={open} onClose={() => setOpen(false)} />
+      <TaskModal open={open} onClose={() => setOpen(false)} />
     </>
   );
 }
