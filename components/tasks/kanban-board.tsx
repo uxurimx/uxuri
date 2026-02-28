@@ -45,17 +45,26 @@ export function KanbanBoard({ initialTasks, projectId, showProjectName = true }:
   const [tasks, setTasks] = useState(initialTasks);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<TaskForModal | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskForModal | null>(null);
+  const [modalInitialMode, setModalInitialMode] = useState<"view" | "edit" | "create">("create");
 
   useEffect(() => { setTasks(initialTasks); }, [initialTasks]);
 
   function openCreate() {
-    setEditingTask(null);
+    setSelectedTask(null);
+    setModalInitialMode("create");
+    setModalOpen(true);
+  }
+
+  function openView(task: TaskWithProject) {
+    setSelectedTask(task);
+    setModalInitialMode("view");
     setModalOpen(true);
   }
 
   function openEdit(task: TaskWithProject) {
-    setEditingTask(task);
+    setSelectedTask(task);
+    setModalInitialMode("edit");
     setModalOpen(true);
   }
 
@@ -68,7 +77,7 @@ export function KanbanBoard({ initialTasks, projectId, showProjectName = true }:
 
   function handleModalClose() {
     setModalOpen(false);
-    setEditingTask(null);
+    setSelectedTask(null);
     router.refresh();
   }
 
@@ -148,12 +157,13 @@ export function KanbanBoard({ initialTasks, projectId, showProjectName = true }:
                       draggable
                       onDragStart={(e) => handleDragStart(e, task.id)}
                       onDragEnd={handleDragEnd}
+                      onClick={() => openView(task)}
                       className={cn(
-                        "group bg-white rounded-xl border border-slate-200 p-3 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all",
+                        "group bg-white rounded-xl border border-slate-200 p-3 cursor-pointer hover:shadow-sm hover:border-slate-300 transition-all",
                         draggingId === task.id && "opacity-50 shadow-lg"
                       )}
                     >
-                      {/* Actions — visible on hover */}
+                      {/* Title + action buttons */}
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <p className="text-sm font-medium text-slate-900 leading-snug flex-1">
                           {task.title}
@@ -216,7 +226,8 @@ export function KanbanBoard({ initialTasks, projectId, showProjectName = true }:
         open={modalOpen}
         onClose={handleModalClose}
         projectId={projectId}
-        task={editingTask}
+        task={selectedTask}
+        initialMode={modalInitialMode}
       />
     </>
   );

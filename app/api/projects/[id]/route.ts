@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects } from "@/db/schema";
+import { projects, tasks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -60,6 +60,8 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  // Desvincular tareas antes de eliminar para evitar FK violations
+  await db.update(tasks).set({ projectId: null }).where(eq(tasks.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
   return NextResponse.json({ success: true });
 }

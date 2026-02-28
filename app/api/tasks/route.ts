@@ -9,13 +9,13 @@ import { pusherServer } from "@/lib/pusher";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
-  description: z.string().optional(),
-  projectId: z.string().uuid().optional(),
-  clientId: z.string().uuid().optional(),
-  assignedTo: z.string().optional(),
+  description: z.string().nullish(),
+  projectId: z.string().uuid().nullish(),
+  clientId: z.string().uuid().nullish(),
+  assignedTo: z.string().nullish(),
   status: z.enum(["todo", "in_progress", "review", "done"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  dueDate: z.string().optional(),
+  dueDate: z.string().nullish(),
 });
 
 export async function GET(req: Request) {
