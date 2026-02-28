@@ -36,11 +36,12 @@ const priorityConfig = {
 
 interface KanbanBoardProps {
   initialTasks: TaskWithProject[];
-  projectId?: string;       // cuando se pasa, muestra botón "Nueva tarea" en el header del board
-  showProjectName?: boolean; // mostrar el nombre del proyecto en la tarjeta (default: true)
+  projectId?: string;
+  showProjectName?: boolean;
+  projects?: { id: string; name: string }[];
 }
 
-export function KanbanBoard({ initialTasks, projectId, showProjectName = true }: KanbanBoardProps) {
+export function KanbanBoard({ initialTasks, projectId, showProjectName = true, projects }: KanbanBoardProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -227,6 +228,7 @@ export function KanbanBoard({ initialTasks, projectId, showProjectName = true }:
         onClose={handleModalClose}
         projectId={projectId}
         task={selectedTask}
+        projects={projects}
         initialMode={modalInitialMode}
       />
     </>

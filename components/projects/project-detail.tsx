@@ -29,9 +29,11 @@ const statusConfig = {
 export function ProjectDetail({
   project,
   tasks,
+  projects,
 }: {
   project: ProjectWithClient;
   tasks: TaskWithProject[];
+  projects?: { id: string; name: string }[];
 }) {
   const status = statusConfig[project.status];
 
@@ -90,6 +92,7 @@ export function ProjectDetail({
           initialTasks={tasks}
           projectId={project.id}
           showProjectName={false}
+          projects={projects}
         />
       </div>
     </div>

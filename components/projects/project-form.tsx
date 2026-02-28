@@ -29,7 +29,11 @@ export function ProjectForm({ clients }: { clients: Client[] }) {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { status: "planning", priority: "medium" },
+    defaultValues: {
+      status: "planning",
+      priority: "medium",
+      startDate: new Date().toISOString().split("T")[0],
+    },
   });
 
   async function onSubmit(data: FormData) {

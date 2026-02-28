@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft } from "lucide-react";
+import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ const schema = z.object({
   status: z.enum(["todo", "in_progress", "review", "done"]),
   priority: z.enum(["low", "medium", "high", "urgent"]),
   dueDate: z.string().optional(),
+  projectId: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -29,11 +30,14 @@ export type TaskForModal = {
   projectName?: string | null;
 };
 
+type Project = { id: string; name: string };
+
 interface TaskModalProps {
   open: boolean;
   onClose: () => void;
   task?: TaskForModal | null;
   projectId?: string;
+  projects?: Project[];
   initialMode?: "view" | "edit" | "create";
 }
 
@@ -51,7 +55,11 @@ const priorityConfig = {
   urgent: { label: "Urgente", color: "text-red-500" },
 };
 
-export function TaskModal({ open, onClose, task, projectId, initialMode }: TaskModalProps) {
+function today() {
+  return new Date().toISOString().split("T")[0];
+}
+
+export function TaskModal({ open, onClose, task, projectId, projects, initialMode }: TaskModalProps) {
   const router = useRouter();
   const isExisting = !!task;
   const defaultMode = initialMode ?? (isExisting ? "view" : "create");
@@ -75,20 +83,23 @@ export function TaskModal({ open, onClose, task, projectId, initialMode }: TaskM
         status: task.status,
         priority: task.priority,
         dueDate: task.dueDate ?? "",
+        projectId: task.projectId ?? "",
       });
     } else {
-      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: "" });
+      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "" });
     }
-  }, [open, task, initialMode, reset]);
+  }, [open, task, initialMode, projectId, reset]);
 
   async function onSubmit(data: FormData) {
     setIsLoading(true);
     try {
       const url = isExisting ? `/api/tasks/${task.id}` : "/api/tasks";
       const method = isExisting ? "PATCH" : "POST";
-      const body = isExisting
-        ? { ...data, dueDate: data.dueDate || null }
-        : { ...data, dueDate: data.dueDate || null, projectId };
+      const body = {
+        ...data,
+        dueDate: data.dueDate || null,
+        projectId: data.projectId || null,
+      };
 
       const res = await fetch(url, {
         method,
@@ -115,6 +126,10 @@ export function TaskModal({ open, onClose, task, projectId, initialMode }: TaskM
 
   if (!open) return null;
 
+  const taskProjectName = task?.projectName
+    ?? projects?.find((p) => p.id === task?.projectId)?.name
+    ?? null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -140,13 +155,14 @@ export function TaskModal({ open, onClose, task, projectId, initialMode }: TaskM
         {/* VIEW MODE */}
         {mode === "view" && task && (
           <div className="p-5 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-slate-900 leading-snug">{task.title}</h3>
-                {task.projectName && (
-                  <p className="text-xs text-slate-400 mt-0.5">{task.projectName}</p>
-                )}
-              </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-semibold text-slate-900 leading-snug">{task.title}</h3>
+              {taskProjectName && (
+                <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                  <Folder className="w-3 h-3" />
+                  {taskProjectName}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -233,6 +249,18 @@ export function TaskModal({ open, onClose, task, projectId, initialMode }: TaskM
                 </select>
               </div>
             </div>
+
+            {projects && projects.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Proyecto</label>
+                <select {...register("projectId")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                  <option value="">Sin proyecto</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Fecha límite</label>

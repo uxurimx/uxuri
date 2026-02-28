@@ -75,7 +75,7 @@ export function ProjectModal({ open, onClose, project, clients, initialMode = "v
       clientId: project.clientId ?? "",
       status: project.status,
       priority: project.priority,
-      startDate: project.startDate ?? "",
+      startDate: project.startDate ?? new Date().toISOString().split("T")[0],
       endDate: project.endDate ?? "",
     });
   }, [open, project, initialMode, reset]);

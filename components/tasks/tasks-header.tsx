@@ -4,7 +4,9 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { TaskModal } from "./task-modal";
 
-export function TasksHeader() {
+type Project = { id: string; name: string };
+
+export function TasksHeader({ projects }: { projects?: Project[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -22,7 +24,7 @@ export function TasksHeader() {
           Nueva tarea
         </button>
       </div>
-      <TaskModal open={open} onClose={() => setOpen(false)} />
+      <TaskModal open={open} onClose={() => setOpen(false)} projects={projects} />
     </>
   );
 }

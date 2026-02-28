@@ -11,28 +11,30 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
 
-  const [project] = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      description: projects.description,
-      clientId: projects.clientId,
-      status: projects.status,
-      priority: projects.priority,
-      startDate: projects.startDate,
-      endDate: projects.endDate,
-      createdAt: projects.createdAt,
-      clientName: clients.name,
-    })
-    .from(projects)
-    .leftJoin(clients, eq(projects.clientId, clients.id))
-    .where(eq(projects.id, id));
+  const [[project], rawTasks, allProjects] = await Promise.all([
+    db
+      .select({
+        id: projects.id,
+        name: projects.name,
+        description: projects.description,
+        clientId: projects.clientId,
+        status: projects.status,
+        priority: projects.priority,
+        startDate: projects.startDate,
+        endDate: projects.endDate,
+        createdAt: projects.createdAt,
+        clientName: clients.name,
+      })
+      .from(projects)
+      .leftJoin(clients, eq(projects.clientId, clients.id))
+      .where(eq(projects.id, id)),
+    db.select().from(tasks).where(eq(tasks.projectId, id)),
+    db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(projects.name),
+  ]);
 
   if (!project) notFound();
 
-  // Incluir projectName para que sea compatible con TaskWithProject en KanbanBoard
-  const rawTasks = await db.select().from(tasks).where(eq(tasks.projectId, id));
   const projectTasks = rawTasks.map((t) => ({ ...t, projectName: project.name }));
 
-  return <ProjectDetail project={project} tasks={projectTasks} />;
+  return <ProjectDetail project={project} tasks={projectTasks} projects={allProjects} />;
 }
