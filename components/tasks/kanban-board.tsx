@@ -7,6 +7,7 @@ import { Flag, Pencil, Trash2, UserCircle } from "lucide-react";
 import { TaskModal, type TaskForModal } from "./task-modal";
 import { TasksToolbar } from "./tasks-toolbar";
 import { TaskListView } from "./task-list-view";
+import { getPusherClient } from "@/lib/pusher";
 
 export type TaskWithProject = {
   id: string;
@@ -79,6 +80,19 @@ export function KanbanBoard({
   const [view, setView] = useState<"kanban" | "list">("kanban");
 
   useEffect(() => { setTasks(initialTasks); }, [initialTasks]);
+
+  // Real-time updates via Pusher — refresh board when tasks change in this project
+  useEffect(() => {
+    if (!projectId) return;
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe(`project-${projectId}`);
+    channel.bind("task:created", () => router.refresh());
+    channel.bind("task:updated", () => router.refresh());
+    return () => {
+      channel.unbind_all();
+      pusher.unsubscribe(`project-${projectId}`);
+    };
+  }, [projectId, router]);
 
   const filteredTasks = tasks.filter((t) => {
     const matchSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());

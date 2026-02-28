@@ -6,6 +6,7 @@ import { eq, or, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
+import { sendPushToUser } from "@/lib/web-push";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -57,11 +58,20 @@ export async function POST(req: Request) {
   // Notificar al usuario asignado
   if (task.assignedTo && task.assignedTo !== userId) {
     const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
-    await pusherServer.trigger(`private-user-${task.assignedTo}`, "task:assigned", {
-      taskId: task.id,
-      taskTitle: task.title,
-      assignedByName: creator?.name ?? "Alguien",
-    }).catch(() => {});
+    const assignedByName = creator?.name ?? "Alguien";
+    await Promise.all([
+      pusherServer.trigger(`private-user-${task.assignedTo}`, "task:assigned", {
+        taskId: task.id,
+        taskTitle: task.title,
+        assignedByName,
+      }).catch(() => {}),
+      sendPushToUser(task.assignedTo, {
+        title: "Nueva tarea asignada",
+        body: `"${task.title}" — por ${assignedByName}`,
+        url: `/projects/${task.projectId ?? ""}`,
+        tag: `task-assigned-${task.id}`,
+      }).catch(() => {}),
+    ]);
   }
 
   if (task.projectId) {

@@ -12,11 +12,31 @@ interface Toast {
   type: ToastType;
 }
 
-interface ToastContextValue {
-  addToast: (message: string, type?: ToastType) => void;
+export interface Notification {
+  id: string;
+  message: string;
+  type: ToastType;
+  timestamp: Date;
+  read: boolean;
 }
 
-const ToastContext = createContext<ToastContextValue>({ addToast: () => {} });
+interface ToastContextValue {
+  addToast: (message: string, type?: ToastType) => void;
+  addNotification: (message: string, type?: ToastType) => void;
+  notifications: Notification[];
+  unreadCount: number;
+  markAllRead: () => void;
+  clearNotifications: () => void;
+}
+
+const ToastContext = createContext<ToastContextValue>({
+  addToast: () => {},
+  addNotification: () => {},
+  notifications: [],
+  unreadCount: 0,
+  markAllRead: () => {},
+  clearNotifications: () => {},
+});
 
 export function useToast() {
   return useContext(ToastContext);
@@ -36,6 +56,7 @@ const styles = {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const addToast = useCallback((message: string, type: ToastType = "info") => {
     const id = Math.random().toString(36).slice(2);
@@ -43,10 +64,32 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
   }, []);
 
+  const addNotification = useCallback((message: string, type: ToastType = "info") => {
+    const id = Math.random().toString(36).slice(2);
+    // Add to persistent notification list
+    setNotifications((prev) => [
+      { id, message, type, timestamp: new Date(), read: false },
+      ...prev.slice(0, 49), // keep max 50
+    ]);
+    // Also show ephemeral toast
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
   const dismiss = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   return (
-    <ToastContext.Provider value={{ addToast }}>
+    <ToastContext.Provider value={{ addToast, addNotification, notifications, unreadCount, markAllRead, clearNotifications }}>
       {children}
       <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
         {toasts.map((toast) => (

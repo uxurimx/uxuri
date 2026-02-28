@@ -1,6 +1,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { currentUser } from "@clerk/nextjs/server";
-import { Bell } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { PushSetup } from "@/components/notifications/push-setup";
 
 export async function Topbar() {
   const user = await currentUser();
@@ -17,9 +18,8 @@ export async function Topbar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors">
-          <Bell className="w-4 h-4 text-slate-500" />
-        </button>
+        <PushSetup />
+        <NotificationBell />
         <UserButton afterSignOutUrl="/" />
       </div>
     </header>

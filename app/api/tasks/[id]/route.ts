@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
+import { sendPushToUser } from "@/lib/web-push";
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
@@ -80,21 +81,39 @@ export async function PATCH(
     existing.createdBy
   ) {
     const [changer] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
-    await pusherServer.trigger(`private-user-${existing.createdBy}`, "task:completed", {
-      taskId: id,
-      taskTitle: existing.title,
-      completedByName: changer?.name ?? "El usuario asignado",
-    }).catch(() => {});
+    const completedByName = changer?.name ?? "El usuario asignado";
+    await Promise.all([
+      pusherServer.trigger(`private-user-${existing.createdBy}`, "task:completed", {
+        taskId: id,
+        taskTitle: existing.title,
+        completedByName,
+      }).catch(() => {}),
+      sendPushToUser(existing.createdBy, {
+        title: "Tarea completada",
+        body: `"${existing.title}" fue marcada como hecha por ${completedByName}`,
+        url: updated.projectId ? `/projects/${updated.projectId}` : "/tasks",
+        tag: `task-completed-${id}`,
+      }).catch(() => {}),
+    ]);
   }
 
   // Notificar cuando se reasigna la tarea
   if (isCreator && parsed.data.assignedTo && parsed.data.assignedTo !== existing.assignedTo && parsed.data.assignedTo !== userId) {
     const [assigner] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
-    await pusherServer.trigger(`private-user-${parsed.data.assignedTo}`, "task:assigned", {
-      taskId: id,
-      taskTitle: existing.title,
-      assignedByName: assigner?.name ?? "Alguien",
-    }).catch(() => {});
+    const assignedByName = assigner?.name ?? "Alguien";
+    await Promise.all([
+      pusherServer.trigger(`private-user-${parsed.data.assignedTo}`, "task:assigned", {
+        taskId: id,
+        taskTitle: existing.title,
+        assignedByName,
+      }).catch(() => {}),
+      sendPushToUser(parsed.data.assignedTo, {
+        title: "Nueva tarea asignada",
+        body: `"${existing.title}" — por ${assignedByName}`,
+        url: updated.projectId ? `/projects/${updated.projectId}` : "/tasks",
+        tag: `task-assigned-${id}`,
+      }).catch(() => {}),
+    ]);
   }
 
   if (updated.projectId) {
