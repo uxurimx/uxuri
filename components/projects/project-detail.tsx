@@ -32,11 +32,13 @@ export function ProjectDetail({
   project,
   tasks,
   projects,
+  users,
   currentUserId,
 }: {
   project: ProjectWithClient;
   tasks: TaskWithProject[];
   projects?: { id: string; name: string }[];
+  users?: { id: string; name: string | null }[];
   currentUserId?: string;
 }) {
   const status = statusConfig[project.status];
@@ -97,6 +99,7 @@ export function ProjectDetail({
           projectId={project.id}
           showProjectName={false}
           projects={projects}
+          users={users}
           currentUserId={currentUserId}
         />
       </div>

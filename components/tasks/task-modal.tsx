@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send, MessageSquare } from "lucide-react";
+import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send, MessageSquare, UserCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ const schema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   dueDate: z.string().optional(),
   projectId: z.string().optional(),
+  assignedTo: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -28,6 +29,7 @@ export type TaskForModal = {
   dueDate: string | null;
   projectId?: string | null;
   projectName?: string | null;
+  assignedTo?: string | null;
   createdBy?: string | null;
 };
 
@@ -40,6 +42,7 @@ type Comment = {
 };
 
 type Project = { id: string; name: string };
+type User = { id: string; name: string | null };
 
 interface TaskModalProps {
   open: boolean;
@@ -47,6 +50,7 @@ interface TaskModalProps {
   task?: TaskForModal | null;
   projectId?: string;
   projects?: Project[];
+  users?: User[];
   currentUserId?: string;
   initialMode?: "view" | "edit" | "create";
 }
@@ -75,6 +79,7 @@ export function TaskModal({
   task,
   projectId,
   projects,
+  users,
   currentUserId,
   initialMode,
 }: TaskModalProps) {
@@ -111,9 +116,10 @@ export function TaskModal({
         priority: task.priority,
         dueDate: task.dueDate ?? "",
         projectId: task.projectId ?? "",
+        assignedTo: task.assignedTo ?? "",
       });
     } else {
-      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "" });
+      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", assignedTo: "" });
     }
   }, [open, task, initialMode, projectId, reset]);
 
@@ -137,6 +143,7 @@ export function TaskModal({
         ...data,
         dueDate: data.dueDate || null,
         projectId: data.projectId || null,
+        assignedTo: data.assignedTo || null,
       };
 
       const res = await fetch(url, {
@@ -188,6 +195,10 @@ export function TaskModal({
     ?? projects?.find((p) => p.id === task?.projectId)?.name
     ?? null;
 
+  const assignedUser = task?.assignedTo
+    ? (users?.find((u) => u.id === task.assignedTo) ?? null)
+    : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -237,6 +248,12 @@ export function TaskModal({
                   <span className="flex items-center gap-1 text-xs text-slate-500">
                     <Calendar className="w-3 h-3" />
                     {formatDate(task.dueDate)}
+                  </span>
+                )}
+                {assignedUser && (
+                  <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <UserCircle className="w-3 h-3" />
+                    {assignedUser.name ?? "Usuario"}
                   </span>
                 )}
               </div>
@@ -380,6 +397,18 @@ export function TaskModal({
                   <option value="">Sin proyecto</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {users && users.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Asignar a</label>
+                <select {...register("assignedTo")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                  <option value="">Sin asignar</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
                   ))}
                 </select>
               </div>

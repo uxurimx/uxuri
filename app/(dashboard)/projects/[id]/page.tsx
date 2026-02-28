@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks } from "@/db/schema";
+import { projects, clients, tasks, users } from "@/db/schema";
 import { eq, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ProjectDetail } from "@/components/projects/project-detail";
@@ -15,7 +15,7 @@ export default async function ProjectDetailPage({
 
   const { id } = await params;
 
-  const [[project], rawTasks, allProjects] = await Promise.all([
+  const [[project], rawTasks, allProjects, allUsers] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -40,11 +40,10 @@ export default async function ProjectDetailPage({
       .from(projects)
       .where(or(eq(projects.privacy, "public"), eq(projects.createdBy, userId)))
       .orderBy(projects.name),
+    db.select({ id: users.id, name: users.name }).from(users).orderBy(users.name),
   ]);
 
   if (!project) notFound();
-
-  // Bloquear acceso a proyectos privados de otros usuarios
   if (project.privacy === "private" && project.createdBy !== userId) notFound();
 
   const projectTasks = rawTasks.map((t) => ({ ...t, projectName: project.name }));
@@ -54,6 +53,7 @@ export default async function ProjectDetailPage({
       project={project}
       tasks={projectTasks}
       projects={allProjects}
+      users={allUsers}
       currentUserId={userId}
     />
   );

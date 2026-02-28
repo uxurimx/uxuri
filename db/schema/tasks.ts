@@ -6,6 +6,7 @@ import {
   timestamp,
   date,
   pgEnum,
+  integer,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { clients } from "./clients";
@@ -35,6 +36,7 @@ export const tasks = pgTable("tasks", {
   status: taskStatusEnum("status").default("todo").notNull(),
   priority: taskPriorityEnum("priority").default("medium").notNull(),
   dueDate: date("due_date"),
+  sortOrder: integer("sort_order"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

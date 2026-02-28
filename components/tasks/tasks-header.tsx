@@ -5,12 +5,15 @@ import { Plus } from "lucide-react";
 import { TaskModal } from "./task-modal";
 
 type Project = { id: string; name: string };
+type User = { id: string; name: string | null };
 
 export function TasksHeader({
   projects,
+  users,
   currentUserId,
 }: {
   projects?: Project[];
+  users?: User[];
   currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -34,6 +37,7 @@ export function TasksHeader({
         open={open}
         onClose={() => setOpen(false)}
         projects={projects}
+        users={users}
         currentUserId={currentUserId}
       />
     </>

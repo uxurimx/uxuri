@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks } from "@/db/schema";
+import { tasks, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,6 +15,7 @@ const updateTaskSchema = z.object({
   status: z.enum(["todo", "in_progress", "review", "done"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().optional().nullable(),
+  sortOrder: z.number().int().optional().nullable(),
 });
 
 export async function GET(
@@ -40,11 +41,17 @@ export async function PATCH(
 
   const { id } = await params;
 
-  // Solo el creador puede editar la tarea
-  const [existing] = await db.select({ createdBy: tasks.createdBy }).from(tasks).where(eq(tasks.id, id));
+  const [existing] = await db
+    .select({ createdBy: tasks.createdBy, assignedTo: tasks.assignedTo, title: tasks.title })
+    .from(tasks)
+    .where(eq(tasks.id, id));
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (existing.createdBy && existing.createdBy !== userId) {
-    return NextResponse.json({ error: "Solo el creador puede editar esta tarea" }, { status: 403 });
+
+  const isCreator = !existing.createdBy || existing.createdBy === userId;
+  const isAssigned = existing.assignedTo === userId;
+
+  if (!isCreator && !isAssigned) {
+    return NextResponse.json({ error: "Solo el creador o el usuario asignado puede modificar esta tarea" }, { status: 403 });
   }
 
   const body = await req.json();
@@ -53,15 +60,45 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  // Usuario asignado solo puede cambiar status y sortOrder
+  const updateData = isCreator
+    ? parsed.data
+    : { status: parsed.data.status, sortOrder: parsed.data.sortOrder };
+
   const [updated] = await db.update(tasks)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ ...updateData, updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning();
 
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Notificar al creador cuando el asignado marca como "done"
+  if (
+    parsed.data.status === "done" &&
+    isAssigned &&
+    !isCreator &&
+    existing.createdBy
+  ) {
+    const [changer] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+    await pusherServer.trigger(`private-user-${existing.createdBy}`, "task:completed", {
+      taskId: id,
+      taskTitle: existing.title,
+      completedByName: changer?.name ?? "El usuario asignado",
+    }).catch(() => {});
+  }
+
+  // Notificar cuando se reasigna la tarea
+  if (isCreator && parsed.data.assignedTo && parsed.data.assignedTo !== existing.assignedTo && parsed.data.assignedTo !== userId) {
+    const [assigner] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+    await pusherServer.trigger(`private-user-${parsed.data.assignedTo}`, "task:assigned", {
+      taskId: id,
+      taskTitle: existing.title,
+      assignedByName: assigner?.name ?? "Alguien",
+    }).catch(() => {});
+  }
+
   if (updated.projectId) {
-    await pusherServer.trigger(`project-${updated.projectId}`, "task:updated", updated);
+    await pusherServer.trigger(`project-${updated.projectId}`, "task:updated", updated).catch(() => {});
   }
 
   return NextResponse.json(updated);
@@ -76,7 +113,6 @@ export async function DELETE(
 
   const { id } = await params;
 
-  // Solo el creador puede eliminar la tarea
   const [existing] = await db.select({ createdBy: tasks.createdBy }).from(tasks).where(eq(tasks.id, id));
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (existing.createdBy && existing.createdBy !== userId) {
