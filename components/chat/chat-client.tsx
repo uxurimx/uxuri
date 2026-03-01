@@ -6,6 +6,8 @@ import { MessageSquare, Users, Briefcase, Hash, ArrowLeft, UserCircle2, Loader2 
 import { cn } from "@/lib/utils";
 import { MessageThread } from "./message-thread";
 import { getPusherClient } from "@/lib/pusher";
+import { getUnread, addUnread, removeUnread, UNREAD_EVENT } from "@/lib/unread-store";
+import type { Channel as PusherChannel } from "pusher-js";
 
 type Channel = {
   id: string;
@@ -48,11 +50,20 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [openingDm, setOpeningDm] = useState<string | null>(null);
   const [showThread, setShowThread] = useState(false);
-  const [unread, setUnread] = useState<Set<string>>(new Set());
 
-  // Keep a ref to activeChannelId so Pusher handlers can read the latest value
+  // Unread state reads from the persistent store
+  const [unread, setUnread] = useState<Set<string>>(() => getUnread());
+
+  // Keep activeChannelId accessible from Pusher handlers without causing re-subscriptions
   const activeChannelIdRef = useRef(activeChannelId);
   useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
+
+  // Sync unread state from the store (updated by useChatUnread or by ChatClient itself)
+  useEffect(() => {
+    function sync() { setUnread(new Set(getUnread())); }
+    window.addEventListener(UNREAD_EVENT, sync);
+    return () => window.removeEventListener(UNREAD_EVENT, sync);
+  }, []);
 
   // Fetch channels and members on mount
   useEffect(() => {
@@ -72,23 +83,27 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
       .then((data) => setMembers(Array.isArray(data) ? data : []));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Subscribe to ALL channels for unread tracking
+  // Subscribe to all channels for in-chat unread dots.
+  // Uses unbind (not unsubscribe) so useChatUnread and MessageThread keep their bindings.
   useEffect(() => {
     if (channels.length === 0) return;
     const pusher = getPusherClient();
+    const bound: Array<{ pCh: PusherChannel; handler: (msg: { userId: string }) => void }> = [];
 
     channels.forEach((ch) => {
       const pCh = pusher.subscribe(`chat-${ch.id}`);
-      pCh.bind("message:new", (msg: { userId: string }) => {
-        // Ignore own messages; ignore if this channel is already active
+      const handler = (msg: { userId: string }) => {
         if (msg.userId === currentUserId) return;
         if (activeChannelIdRef.current === ch.id) return;
-        setUnread((prev) => new Set([...prev, ch.id]));
-      });
+        addUnread(ch.id); // persists + dispatches UNREAD_EVENT → sync() picks it up
+      };
+      pCh.bind("message:new", handler);
+      bound.push({ pCh, handler });
     });
 
     return () => {
-      channels.forEach((ch) => pusher.unsubscribe(`chat-${ch.id}`));
+      bound.forEach(({ pCh, handler }) => pCh.unbind("message:new", handler));
+      // Never call pusher.unsubscribe() — other hooks still need these channels.
     };
   }, [channels, currentUserId]);
 
@@ -97,7 +112,7 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
   }, [activeChannelId]);
 
   function selectChannel(id: string) {
-    setUnread((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    removeUnread(id); // clears from store + dispatches event
     router.push(`/chat?ch=${id}`);
     setShowThread(true);
   }
@@ -141,45 +156,20 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
           ) : (
             <>
               {grouped.general.length > 0 && (
-                <ChannelGroup
-                  label="General"
-                  channels={grouped.general}
-                  activeId={activeChannelId}
-                  unread={unread}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="General" channels={grouped.general} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
               )}
               {grouped.direct.length > 0 && (
-                <ChannelGroup
-                  label="Mensajes directos"
-                  channels={grouped.direct}
-                  activeId={activeChannelId}
-                  unread={unread}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="Mensajes directos" channels={grouped.direct} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
               )}
               {grouped.client.length > 0 && (
-                <ChannelGroup
-                  label="Clientes"
-                  channels={grouped.client}
-                  activeId={activeChannelId}
-                  unread={unread}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="Clientes" channels={grouped.client} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
               )}
               {grouped.project.length > 0 && (
-                <ChannelGroup
-                  label="Proyectos"
-                  channels={grouped.project}
-                  activeId={activeChannelId}
-                  unread={unread}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="Proyectos" channels={grouped.project} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
               )}
             </>
           )}
 
-          {/* Users for new DMs */}
           {members.length > 0 && (
             <div>
               <p className="px-4 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
@@ -255,11 +245,7 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
 }
 
 function ChannelGroup({
-  label,
-  channels,
-  activeId,
-  unread,
-  onSelect,
+  label, channels, activeId, unread, onSelect,
 }: {
   label: string;
   channels: Channel[];

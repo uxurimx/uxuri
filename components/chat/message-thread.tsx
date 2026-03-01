@@ -136,16 +136,18 @@ export function MessageThread({
   // Pusher real-time
   useEffect(() => {
     const pusher = getPusherClient();
-    const channel = pusher.subscribe(`chat-${channelId}`);
-    channel.bind("message:new", (msg: ChatMessage) => {
+    const pCh = pusher.subscribe(`chat-${channelId}`);
+    const handler = (msg: ChatMessage) => {
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
-    });
+    };
+    pCh.bind("message:new", handler);
     return () => {
-      channel.unbind_all();
-      pusher.unsubscribe(`chat-${channelId}`);
+      // Unbind only our handler — do NOT call pusher.unsubscribe() because
+      // useChatUnread and ChatClient may still need this channel.
+      pCh.unbind("message:new", handler);
     };
   }, [channelId]);
 
