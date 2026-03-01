@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
 import { ArrowLeft, Calendar, User, Flag } from "lucide-react";
 import { KanbanBoard, type TaskWithProject } from "@/components/tasks/kanban-board";
+import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 
 type ProjectWithClient = {
   id: string;
@@ -103,6 +104,13 @@ export function ProjectDetail({
           currentUserId={currentUserId}
         />
       </div>
+
+      {/* Chat & Files */}
+      {currentUserId && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <EntityChatFiles entityId={project.id} currentUserId={currentUserId} />
+        </div>
+      )}
     </div>
   );
 }

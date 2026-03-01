@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Home",      icon: LayoutDashboard },
   { href: "/clients",   label: "Clientes",  icon: Users },
   { href: "/projects",  label: "Proyectos", icon: Briefcase },
   { href: "/tasks",     label: "Tareas",    icon: CheckSquare },
+  { href: "/chat",      label: "Chat",      icon: MessageSquare },
   { href: "/users",     label: "Usuarios",  icon: UserCog },
 ];
 

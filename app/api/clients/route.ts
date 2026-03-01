@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { clients } from "@/db/schema";
+import { clients, chatChannels } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -40,6 +40,14 @@ export async function POST(req: Request) {
     email: parsed.data.email || null,
     createdBy: userId,
   }).returning();
+
+  // Auto-create a chat channel for this client
+  await db.insert(chatChannels).values({
+    name: client.name,
+    entityType: "client",
+    entityId: client.id,
+    createdBy: userId,
+  }).onConflictDoNothing();
 
   return NextResponse.json(client, { status: 201 });
 }

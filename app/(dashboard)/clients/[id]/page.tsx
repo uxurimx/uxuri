@@ -1,3 +1,4 @@
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { clients, projects } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -9,6 +10,7 @@ export default async function ClientDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { userId } = await auth();
   const { id } = await params;
 
   const [client] = await db.select().from(clients).where(eq(clients.id, id));
@@ -19,5 +21,5 @@ export default async function ClientDetailPage({
     .from(projects)
     .where(eq(projects.clientId, id));
 
-  return <ClientDetail client={client} projects={clientProjects} />;
+  return <ClientDetail client={client} projects={clientProjects} currentUserId={userId ?? undefined} />;
 }

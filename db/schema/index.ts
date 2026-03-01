@@ -5,3 +5,5 @@ export * from "./tasks";
 export * from "./roles";
 export * from "./task-comments";
 export * from "./push-subscriptions";
+export * from "./chat-channels";
+export * from "./chat-messages";

@@ -7,6 +7,7 @@ export const SECTIONS = [
   { path: "/clients",   label: "Clientes" },
   { path: "/projects",  label: "Proyectos" },
   { path: "/tasks",     label: "Tareas" },
+  { path: "/chat",      label: "Chat" },
   { path: "/users",     label: "Usuarios" },
 ] as const;
 

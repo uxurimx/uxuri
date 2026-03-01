@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import type { Client, Project } from "@/db/schema";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Building2, Mail, Phone, FileText, ArrowLeft } from "lucide-react";
+import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 
 const statusConfig = {
   active: { label: "Activo", className: "bg-emerald-50 text-emerald-700" },
@@ -21,9 +24,10 @@ const projectStatusConfig = {
 interface ClientDetailProps {
   client: Client;
   projects: Project[];
+  currentUserId?: string;
 }
 
-export function ClientDetail({ client, projects }: ClientDetailProps) {
+export function ClientDetail({ client, projects, currentUserId }: ClientDetailProps) {
   const status = statusConfig[client.status];
 
   return (
@@ -139,6 +143,13 @@ export function ClientDetail({ client, projects }: ClientDetailProps) {
           )}
         </div>
       </div>
+
+      {/* Chat & Files */}
+      {currentUserId && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <EntityChatFiles entityId={client.id} currentUserId={currentUserId} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects } from "@/db/schema";
+import { projects, chatChannels } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
 import { or, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -50,6 +50,14 @@ export async function POST(req: Request) {
     privacy: parsed.data.privacy ?? "public",
     createdBy: userId,
   }).returning();
+
+  // Auto-create a chat channel for this project
+  await db.insert(chatChannels).values({
+    name: project.name,
+    entityType: "project",
+    entityId: project.id,
+    createdBy: userId,
+  }).onConflictDoNothing();
 
   return NextResponse.json(project, { status: 201 });
 }
