@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
 import { ArrowLeft, Calendar, User, Flag } from "lucide-react";
-import { KanbanBoard, type TaskWithProject } from "@/components/tasks/kanban-board";
+import { KanbanBoard, type TaskWithProject, type CustomColumn } from "@/components/tasks/kanban-board";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 
 type ProjectWithClient = {
@@ -37,6 +37,7 @@ export function ProjectDetail({
   projects,
   users,
   agents,
+  customColumns,
   currentUserId,
 }: {
   project: ProjectWithClient;
@@ -44,6 +45,7 @@ export function ProjectDetail({
   projects?: { id: string; name: string }[];
   users?: { id: string; name: string | null }[];
   agents?: AgentOption[];
+  customColumns?: CustomColumn[];
   currentUserId?: string;
 }) {
   const status = statusConfig[project.status];
@@ -101,6 +103,7 @@ export function ProjectDetail({
         </div>
         <KanbanBoard
           initialTasks={tasks}
+          initialCustomColumns={customColumns}
           projectId={project.id}
           showProjectName={false}
           projects={projects}

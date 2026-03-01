@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, projects, users, agents, userTaskPreferences } from "@/db/schema";
+import { tasks, projects, users, agents, userTaskPreferences, workflowColumns } from "@/db/schema";
 import { eq, or, isNull, and, sql } from "drizzle-orm";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TasksHeader } from "@/components/tasks/tasks-header";
@@ -9,7 +9,7 @@ export default async function TasksPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const [allTasks, allProjects, allUsers, allAgents] = await Promise.all([
+  const [allTasks, allProjects, allUsers, allAgents, allCustomColumns] = await Promise.all([
     db
       .select({
         id: tasks.id,
@@ -19,6 +19,7 @@ export default async function TasksPage() {
         clientId: tasks.clientId,
         assignedTo: tasks.assignedTo,
         agentId: tasks.agentId,
+        customColumnId: tasks.customColumnId,
         status: tasks.status,
         priority: tasks.priority,
         dueDate: tasks.dueDate,
@@ -53,12 +54,18 @@ export default async function TasksPage() {
       .from(agents)
       .where(eq(agents.isActive, true))
       .orderBy(agents.name),
+    db.select({
+      id: workflowColumns.id,
+      name: workflowColumns.name,
+      color: workflowColumns.color,
+      sortOrder: workflowColumns.sortOrder,
+    }).from(workflowColumns).orderBy(workflowColumns.sortOrder),
   ]);
 
   return (
     <div className="space-y-6">
       <TasksHeader projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
-      <KanbanBoard initialTasks={allTasks} projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
+      <KanbanBoard initialTasks={allTasks} initialCustomColumns={allCustomColumns} projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ const createTaskSchema = z.object({
   clientId: z.string().uuid().nullish(),
   assignedTo: z.string().nullish(),
   agentId: z.string().uuid().nullish(),
+  customColumnId: z.string().uuid().nullish(),
   status: z.enum(["todo", "in_progress", "review", "done"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().nullish(),
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
     clientId: parsed.data.clientId ?? null,
     assignedTo: parsed.data.assignedTo ?? null,
     agentId: parsed.data.agentId ?? null,
+    customColumnId: parsed.data.customColumnId ?? null,
     dueDate: parsed.data.dueDate || null,
     createdBy: userId,
   }).returning();

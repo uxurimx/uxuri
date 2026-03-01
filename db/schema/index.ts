@@ -1,6 +1,7 @@
 export * from "./users";
 export * from "./agents";
 export * from "./agent-sessions";
+export * from "./workflow-columns";
 export * from "./clients";
 export * from "./projects";
 export * from "./tasks";

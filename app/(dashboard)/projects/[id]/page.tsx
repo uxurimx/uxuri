@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks, users, agents, userTaskPreferences } from "@/db/schema";
+import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns } from "@/db/schema";
 import { eq, or, and, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ProjectDetail } from "@/components/projects/project-detail";
@@ -15,7 +15,7 @@ export default async function ProjectDetailPage({
 
   const { id } = await params;
 
-  const [[project], rawTasks, allProjects, allUsers, allAgents] = await Promise.all([
+  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -43,6 +43,7 @@ export default async function ProjectDetailPage({
         clientId: tasks.clientId,
         assignedTo: tasks.assignedTo,
         agentId: tasks.agentId,
+        customColumnId: tasks.customColumnId,
         status: tasks.status,
         priority: tasks.priority,
         dueDate: tasks.dueDate,
@@ -71,6 +72,12 @@ export default async function ProjectDetailPage({
       .from(agents)
       .where(eq(agents.isActive, true))
       .orderBy(agents.name),
+    db.select({
+      id: workflowColumns.id,
+      name: workflowColumns.name,
+      color: workflowColumns.color,
+      sortOrder: workflowColumns.sortOrder,
+    }).from(workflowColumns).orderBy(workflowColumns.sortOrder),
   ]);
 
   if (!project) notFound();
@@ -85,6 +92,7 @@ export default async function ProjectDetailPage({
       projects={allProjects}
       users={allUsers}
       agents={allAgents}
+      customColumns={allCustomColumns}
       currentUserId={userId}
     />
   );

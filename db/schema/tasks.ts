@@ -12,6 +12,7 @@ import { users } from "./users";
 import { clients } from "./clients";
 import { projects } from "./projects";
 import { agents } from "./agents";
+import { workflowColumns } from "./workflow-columns";
 
 export const taskStatusEnum = pgEnum("task_status", [
   "todo",
@@ -35,6 +36,7 @@ export const tasks = pgTable("tasks", {
   clientId: uuid("client_id").references(() => clients.id),
   assignedTo: varchar("assigned_to", { length: 255 }).references(() => users.id),
   agentId: uuid("agent_id").references(() => agents.id),
+  customColumnId: uuid("custom_column_id").references(() => workflowColumns.id),
   status: taskStatusEnum("status").default("todo").notNull(),
   priority: taskPriorityEnum("priority").default("medium").notNull(),
   dueDate: date("due_date"),

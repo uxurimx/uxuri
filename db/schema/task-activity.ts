@@ -12,6 +12,9 @@ export const taskActivityTypeEnum = pgEnum("task_activity_type", [
   "description_changed",
   "due_date_changed",
   "commented",
+  "session_started",
+  "session_paused",
+  "session_stopped",
 ]);
 
 export const taskActivity = pgTable("task_activity", {

@@ -14,6 +14,7 @@ const updateTaskSchema = z.object({
   clientId: z.string().uuid().optional().nullable(),
   assignedTo: z.string().optional().nullable(),
   agentId: z.string().uuid().optional().nullable(),
+  customColumnId: z.string().uuid().optional().nullable(),
   status: z.enum(["todo", "in_progress", "review", "done"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().optional().nullable(),

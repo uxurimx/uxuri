@@ -8,6 +8,7 @@ import {
   X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
   MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
   FileText, Clock, UserCheck, UserMinus, History, CheckCircle2,
+  Play, Pause, StopCircle,
 } from "lucide-react";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
@@ -55,7 +56,8 @@ type ActivityEvent = {
   userId: string | null;
   userName: string | null;
   type: "created" | "status_changed" | "priority_changed" | "assigned" | "unassigned" |
-        "title_changed" | "description_changed" | "due_date_changed" | "commented";
+        "title_changed" | "description_changed" | "due_date_changed" | "commented" |
+        "session_started" | "session_paused" | "session_stopped";
   oldValue: string | null;
   newValue: string | null;
   createdAt: string;
@@ -92,6 +94,15 @@ const priorityConfig = {
 };
 
 // ─── Activity helpers ────────────────────────────────────────────────────────
+
+function fmtSecs(secs: number): string {
+  if (secs < 60) return `${secs}s`;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m ${s}s`;
+}
 
 const activityMeta: Record<
   ActivityEvent["type"],
@@ -157,6 +168,27 @@ const activityMeta: Record<
     color: "text-indigo-500",
     label: (e) => `${e.userName ?? "Usuario"} comentó`,
   },
+  session_started: {
+    icon: Play,
+    color: "text-emerald-500",
+    label: (e) => `${e.userName ?? "Agente"} inició el trabajo`,
+  },
+  session_paused: {
+    icon: Pause,
+    color: "text-amber-500",
+    label: (e) => {
+      const secs = parseInt(e.newValue ?? "0");
+      return `${e.userName ?? "Agente"} pausó el trabajo${secs > 0 ? ` · ${fmtSecs(secs)} acumulados` : ""}`;
+    },
+  },
+  session_stopped: {
+    icon: StopCircle,
+    color: "text-blue-500",
+    label: (e) => {
+      const secs = parseInt(e.newValue ?? "0");
+      return `${e.userName ?? "Agente"} terminó la tarea${secs > 0 ? ` · Total: ${fmtSecs(secs)}` : ""}`;
+    },
+  },
 };
 
 function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loading: boolean }) {
@@ -191,9 +223,9 @@ function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loadin
             {/* Vertical line + icon */}
             <div className="flex flex-col items-center flex-shrink-0 w-6">
               <div className={cn("w-6 h-6 rounded-full flex items-center justify-center bg-white border-2 z-10 flex-shrink-0", {
-                "border-emerald-200":   event.type === "created",
-                "border-blue-200":      event.type === "status_changed",
-                "border-amber-200":     event.type === "priority_changed",
+                "border-emerald-200":   event.type === "created" || event.type === "session_started",
+                "border-blue-200":      event.type === "status_changed" || event.type === "session_stopped",
+                "border-amber-200":     event.type === "priority_changed" || event.type === "session_paused",
                 "border-violet-200":    event.type === "assigned",
                 "border-slate-200":     event.type === "unassigned" || event.type === "title_changed" || event.type === "description_changed",
                 "border-teal-200":      event.type === "due_date_changed",
