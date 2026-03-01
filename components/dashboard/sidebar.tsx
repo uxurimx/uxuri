@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare } from "lucide-react";
+import { useChatUnread } from "@/hooks/use-chat-unread";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard",  icon: LayoutDashboard },
@@ -14,8 +15,9 @@ const navItems = [
   { href: "/users",     label: "Usuarios",   icon: UserCog },
 ];
 
-export function Sidebar({ permissions }: { permissions: string[] }) {
+export function Sidebar({ permissions, currentUserId }: { permissions: string[]; currentUserId: string }) {
   const pathname = usePathname();
+  const hasUnread = useChatUnread(currentUserId);
   const visibleItems = navItems.filter((item) => permissions.includes(item.href));
 
   return (
@@ -30,6 +32,7 @@ export function Sidebar({ permissions }: { permissions: string[] }) {
       <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
         {visibleItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          const showDot = item.href === "/chat" && hasUnread && !isActive;
           return (
             <Link
               key={item.href}
@@ -39,7 +42,12 @@ export function Sidebar({ permissions }: { permissions: string[] }) {
                 isActive ? "bg-[#1e3a5f] text-white" : "hover:bg-slate-800 hover:text-white"
               )}
             >
-              <item.icon className="w-4 h-4 flex-shrink-0" />
+              <div className="relative">
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                {showDot && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+              </div>
               {item.label}
             </Link>
           );

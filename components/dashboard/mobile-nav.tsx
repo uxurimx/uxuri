@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare } from "lucide-react";
+import { useChatUnread } from "@/hooks/use-chat-unread";
 
 const navItems = [
   { href: "/dashboard", label: "Home",      icon: LayoutDashboard },
@@ -14,8 +15,9 @@ const navItems = [
   { href: "/users",     label: "Usuarios",  icon: UserCog },
 ];
 
-export function MobileNav({ permissions }: { permissions: string[] }) {
+export function MobileNav({ permissions, currentUserId }: { permissions: string[]; currentUserId: string }) {
   const pathname = usePathname();
+  const hasUnread = useChatUnread(currentUserId);
   const visibleItems = navItems.filter((item) => permissions.includes(item.href));
 
   return (
@@ -23,6 +25,7 @@ export function MobileNav({ permissions }: { permissions: string[] }) {
       <div className="flex items-center justify-around py-2">
         {visibleItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          const showDot = item.href === "/chat" && hasUnread && !isActive;
           return (
             <Link
               key={item.href}
@@ -32,7 +35,12 @@ export function MobileNav({ permissions }: { permissions: string[] }) {
                 isActive ? "text-[#1e3a5f]" : "text-slate-400"
               )}
             >
-              <item.icon className="w-5 h-5" />
+              <div className="relative">
+                <item.icon className="w-5 h-5" />
+                {showDot && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
+                )}
+              </div>
               <span className="text-[10px] font-medium">{item.label}</span>
             </Link>
           );
