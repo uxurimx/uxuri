@@ -33,7 +33,8 @@ export async function POST(req: Request) {
       "svix-timestamp": svix_timestamp,
       "svix-signature": svix_signature,
     }) as WebhookEvent;
-  } catch {
+  } catch (err) {
+    console.error("[webhook] Invalid signature:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
     const { id, email_addresses, first_name, last_name, image_url } = data;
     const email = email_addresses[0]?.email_address ?? "";
     const name = [first_name, last_name].filter(Boolean).join(" ") || null;
+    console.log("[webhook] user.created:", { id, email, name });
 
     // El primer usuario que se registra se convierte en admin automáticamente
     const [existingAdmin] = await db
