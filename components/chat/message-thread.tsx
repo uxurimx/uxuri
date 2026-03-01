@@ -17,6 +17,10 @@ function isImage(fileType: string | null): boolean {
   return !!fileType?.startsWith("image/");
 }
 
+function isAudio(fileType: string | null): boolean {
+  return !!fileType?.startsWith("audio/");
+}
+
 function Avatar({ name, isSelf }: { name: string; isSelf: boolean }) {
   const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   return (
@@ -41,6 +45,19 @@ function FileAttachment({ msg }: { msg: ChatMessage }) {
           className="max-w-[240px] max-h-48 rounded-lg object-cover border border-white/20 hover:opacity-90 transition-opacity"
         />
       </a>
+    );
+  }
+
+  if (isAudio(msg.fileType)) {
+    return (
+      <div className="mt-1">
+        <audio
+          src={msg.fileUrl}
+          controls
+          className="max-w-[240px] h-10"
+          style={{ colorScheme: "light" }}
+        />
+      </div>
     );
   }
 

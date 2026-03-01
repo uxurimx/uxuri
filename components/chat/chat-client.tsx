@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MessageSquare, Users, Briefcase, Hash, ArrowLeft, ImageIcon, FileText } from "lucide-react";
+import { MessageSquare, Users, Briefcase, Hash, ArrowLeft, UserCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageThread } from "./message-thread";
 
@@ -11,13 +11,30 @@ type Channel = {
   name: string;
   entityType: string;
   entityId: string | null;
+  dmKey: string | null;
   createdAt: string;
+};
+
+type Member = {
+  id: string;
+  name: string | null;
+  imageUrl: string | null;
 };
 
 function ChannelIcon({ type }: { type: string }) {
   if (type === "client") return <Users className="w-4 h-4 flex-shrink-0" />;
   if (type === "project") return <Briefcase className="w-4 h-4 flex-shrink-0" />;
+  if (type === "direct") return <UserCircle2 className="w-4 h-4 flex-shrink-0" />;
   return <Hash className="w-4 h-4 flex-shrink-0" />;
+}
+
+function MemberAvatar({ name }: { name: string | null }) {
+  const initials = (name ?? "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+  return (
+    <div className="w-6 h-6 rounded-full bg-slate-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+      {initials}
+    </div>
+  );
 }
 
 export function ChatClient({ currentUserId }: { currentUserId: string }) {
@@ -26,7 +43,9 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
   const activeChannelId = searchParams.get("ch");
 
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loadingChannels, setLoadingChannels] = useState(true);
+  const [openingDm, setOpeningDm] = useState<string | null>(null);
   const [showThread, setShowThread] = useState(false);
 
   useEffect(() => {
@@ -34,13 +53,16 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
       .then((r) => r.json())
       .then((data) => {
         setChannels(Array.isArray(data) ? data : []);
-        // Auto-select general channel if none selected
         if (!activeChannelId && Array.isArray(data) && data.length > 0) {
           const general = data.find((c: Channel) => c.entityType === "general") ?? data[0];
           router.replace(`/chat?ch=${general.id}`);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingChannels(false));
+
+    fetch("/api/chat/members")
+      .then((r) => r.json())
+      .then((data) => setMembers(Array.isArray(data) ? data : []));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -52,12 +74,22 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
     setShowThread(true);
   }
 
+  async function openDm(memberId: string) {
+    setOpeningDm(memberId);
+    const res = await fetch(`/api/chat/channels/direct?otherUserId=${memberId}`);
+    const channel: Channel = await res.json();
+    setChannels((prev) => prev.some((c) => c.id === channel.id) ? prev : [...prev, channel]);
+    setOpeningDm(null);
+    selectChannel(channel.id);
+  }
+
   const activeChannel = channels.find((c) => c.id === activeChannelId);
 
   const grouped = {
     general: channels.filter((c) => c.entityType === "general"),
     client: channels.filter((c) => c.entityType === "client"),
     project: channels.filter((c) => c.entityType === "project"),
+    direct: channels.filter((c) => c.entityType === "direct"),
   };
 
   return (
@@ -71,43 +103,52 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
         )}
       >
         <div className="h-14 flex items-center px-4 border-b border-slate-800">
-          <MessageSquare className="w-5 h-5 text-[#1e3a5f] mr-2" />
+          <MessageSquare className="w-5 h-5 text-[#4a7ab5] mr-2" />
           <span className="text-white font-semibold text-sm">Chat</span>
         </div>
 
         <div className="flex-1 overflow-y-auto py-3 space-y-4">
-          {loading ? (
+          {loadingChannels ? (
             <p className="text-slate-500 text-xs px-4">Cargando canales...</p>
           ) : (
             <>
-              {/* General */}
               {grouped.general.length > 0 && (
-                <ChannelGroup
-                  label="General"
-                  channels={grouped.general}
-                  activeId={activeChannelId}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="General" channels={grouped.general} activeId={activeChannelId} onSelect={selectChannel} />
               )}
-              {/* Clientes */}
+              {grouped.direct.length > 0 && (
+                <ChannelGroup label="Mensajes directos" channels={grouped.direct} activeId={activeChannelId} onSelect={selectChannel} />
+              )}
               {grouped.client.length > 0 && (
-                <ChannelGroup
-                  label="Clientes"
-                  channels={grouped.client}
-                  activeId={activeChannelId}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="Clientes" channels={grouped.client} activeId={activeChannelId} onSelect={selectChannel} />
               )}
-              {/* Proyectos */}
               {grouped.project.length > 0 && (
-                <ChannelGroup
-                  label="Proyectos"
-                  channels={grouped.project}
-                  activeId={activeChannelId}
-                  onSelect={selectChannel}
-                />
+                <ChannelGroup label="Proyectos" channels={grouped.project} activeId={activeChannelId} onSelect={selectChannel} />
               )}
             </>
+          )}
+
+          {/* Users for new DMs */}
+          {members.length > 0 && (
+            <div>
+              <p className="px-4 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Usuarios
+              </p>
+              {members.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => openDm(m.id)}
+                  disabled={openingDm === m.id}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-left"
+                >
+                  {openingDm === m.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  ) : (
+                    <MemberAvatar name={m.name} />
+                  )}
+                  <span className="truncate">{m.name ?? "Usuario"}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -120,7 +161,6 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
           showThread ? "flex" : "hidden"
         )}
       >
-        {/* Thread header */}
         <div className="h-14 flex items-center gap-3 px-4 bg-white border-b border-slate-200 flex-shrink-0">
           <button
             onClick={() => setShowThread(false)}
@@ -137,7 +177,9 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
                   ? "Canal general"
                   : activeChannel.entityType === "client"
                   ? "Cliente"
-                  : "Proyecto"}
+                  : activeChannel.entityType === "project"
+                  ? "Proyecto"
+                  : "Mensaje directo"}
               </span>
             </>
           )}

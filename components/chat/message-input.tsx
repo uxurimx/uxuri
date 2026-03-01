@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { Send, Paperclip, X, Loader2 } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-react";
 import { cn } from "@/lib/utils";
+import { VoiceRecorder } from "./voice-recorder";
+import { CameraCapture } from "./camera-capture";
 
 interface UploadedFile {
   url: string;
@@ -21,6 +23,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<UploadedFile | null>(null);
   const [sending, setSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { startUpload, isUploading } = useUploadThing("chatFile", {
@@ -47,6 +50,10 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleVoiceSend(file: UploadedFile) {
+    await onSend({ file });
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -82,56 +89,95 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        {/* File picker */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isBusy}
-          className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors disabled:opacity-40"
-          title="Adjuntar archivo"
-        >
-          <Paperclip className="w-4 h-4" />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) startUpload([file]);
-            e.target.value = "";
-          }}
-        />
+      {/* Voice recorder takes over the input row when active */}
+      {isRecording ? (
+        <div className="flex items-center gap-2">
+          <VoiceRecorder
+            onSend={async (file) => {
+              await handleVoiceSend(file);
+              setIsRecording(false);
+            }}
+            disabled={isBusy}
+          />
+          <button
+            type="button"
+            onClick={() => setIsRecording(false)}
+            className="text-xs text-slate-400 hover:text-slate-600 px-2"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-end gap-2">
+          {/* Attach file */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBusy}
+            className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors disabled:opacity-40"
+            title="Adjuntar archivo"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) startUpload([file]);
+              e.target.value = "";
+            }}
+          />
 
-        {/* Text input */}
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Escribe un mensaje..."
-          rows={1}
-          disabled={isBusy}
-          className={cn(
-            "flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 max-h-24",
-            isBusy && "opacity-50"
-          )}
-        />
+          {/* Camera */}
+          <CameraCapture onSend={handleVoiceSend} disabled={isBusy} />
 
-        {/* Send */}
-        <button
-          onClick={handleSend}
-          disabled={isBusy || (!text.trim() && !pendingFile)}
-          className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-colors disabled:opacity-40"
-        >
-          {sending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </button>
-      </div>
+          {/* Voice note */}
+          <button
+            type="button"
+            onClick={() => setIsRecording(true)}
+            disabled={isBusy}
+            title="Nota de voz"
+            className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors disabled:opacity-40"
+          >
+            {/* Mic SVG inline to avoid extra import conflict with VoiceRecorder */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" x2="12" y1="19" y2="22"/>
+            </svg>
+          </button>
+
+          {/* Text input */}
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Escribe un mensaje..."
+            rows={1}
+            disabled={isBusy}
+            className={cn(
+              "flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 max-h-24",
+              isBusy && "opacity-50"
+            )}
+          />
+
+          {/* Send */}
+          <button
+            onClick={handleSend}
+            disabled={isBusy || (!text.trim() && !pendingFile)}
+            className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-colors disabled:opacity-40"
+          >
+            {sending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

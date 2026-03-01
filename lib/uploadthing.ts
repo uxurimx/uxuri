@@ -17,6 +17,16 @@ export const ourFileRouter = {
     .onUploadComplete(({ file }) => {
       return { url: file.ufsUrl };
     }),
+
+  voiceNote: f({ blob: { maxFileSize: "8MB", maxFileCount: 1 } })
+    .middleware(async () => {
+      const { userId } = await auth();
+      if (!userId) throw new Error("Unauthorized");
+      return { userId };
+    })
+    .onUploadComplete(({ file }) => {
+      return { url: file.ufsUrl };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
