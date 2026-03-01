@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks, users, userTaskPreferences } from "@/db/schema";
+import { projects, clients, tasks, users, agents, userTaskPreferences } from "@/db/schema";
 import { eq, or, and, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ProjectDetail } from "@/components/projects/project-detail";
@@ -15,7 +15,7 @@ export default async function ProjectDetailPage({
 
   const { id } = await params;
 
-  const [[project], rawTasks, allProjects, allUsers] = await Promise.all([
+  const [[project], rawTasks, allProjects, allUsers, allAgents] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -42,6 +42,7 @@ export default async function ProjectDetailPage({
         projectId: tasks.projectId,
         clientId: tasks.clientId,
         assignedTo: tasks.assignedTo,
+        agentId: tasks.agentId,
         status: tasks.status,
         priority: tasks.priority,
         dueDate: tasks.dueDate,
@@ -66,6 +67,10 @@ export default async function ProjectDetailPage({
       .where(or(eq(projects.privacy, "public"), eq(projects.createdBy, userId)))
       .orderBy(projects.name),
     db.select({ id: users.id, name: users.name }).from(users).orderBy(users.name),
+    db.select({ id: agents.id, name: agents.name, avatar: agents.avatar, color: agents.color })
+      .from(agents)
+      .where(eq(agents.isActive, true))
+      .orderBy(agents.name),
   ]);
 
   if (!project) notFound();
@@ -79,6 +84,7 @@ export default async function ProjectDetailPage({
       tasks={projectTasks}
       projects={allProjects}
       users={allUsers}
+      agents={allAgents}
       currentUserId={userId}
     />
   );

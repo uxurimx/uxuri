@@ -6,14 +6,17 @@ import { TaskModal } from "./task-modal";
 
 type Project = { id: string; name: string };
 type User = { id: string; name: string | null };
+type AgentOption = { id: string; name: string; avatar: string; color: string };
 
 export function TasksHeader({
   projects,
   users,
+  agents,
   currentUserId,
 }: {
   projects?: Project[];
   users?: User[];
+  agents?: AgentOption[];
   currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -38,6 +41,7 @@ export function TasksHeader({
         onClose={() => setOpen(false)}
         projects={projects}
         users={users}
+        agents={agents}
         currentUserId={currentUserId}
       />
     </>

@@ -29,17 +29,21 @@ const statusConfig = {
   cancelled: { label: "Cancelado",  className: "bg-red-50 text-red-700" },
 };
 
+type AgentOption = { id: string; name: string; avatar: string; color: string };
+
 export function ProjectDetail({
   project,
   tasks,
   projects,
   users,
+  agents,
   currentUserId,
 }: {
   project: ProjectWithClient;
   tasks: TaskWithProject[];
   projects?: { id: string; name: string }[];
   users?: { id: string; name: string | null }[];
+  agents?: AgentOption[];
   currentUserId?: string;
 }) {
   const status = statusConfig[project.status];
@@ -101,6 +105,7 @@ export function ProjectDetail({
           showProjectName={false}
           projects={projects}
           users={users}
+          agents={agents}
           currentUserId={currentUserId}
         />
       </div>

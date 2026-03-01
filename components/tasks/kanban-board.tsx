@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatDate } from "@/lib/utils";
 import { Flag, Pencil, Trash2, UserCircle, User, Folder } from "lucide-react";
+import { AgentBadge } from "@/components/agents/agent-badge";
 import { TaskModal, type TaskForModal } from "./task-modal";
 import { TasksToolbar } from "./tasks-toolbar";
 import { TaskListView } from "./task-list-view";
@@ -16,6 +17,7 @@ export type TaskWithProject = {
   projectId: string | null;
   clientId: string | null;
   assignedTo: string | null;
+  agentId: string | null;
   status: "todo" | "in_progress" | "review" | "done";
   priority: "low" | "medium" | "high" | "urgent";
   dueDate: string | null;
@@ -29,6 +31,7 @@ export type TaskWithProject = {
 };
 
 type User = { id: string; name: string | null };
+type AgentOption = { id: string; name: string; avatar: string; color: string };
 
 const columns = [
   { id: "todo" as const,        label: "Por hacer",   color: "bg-slate-100",  headerColor: "text-slate-600" },
@@ -84,6 +87,7 @@ interface KanbanBoardProps {
   showProjectName?: boolean;
   projects?: { id: string; name: string }[];
   users?: User[];
+  agents?: AgentOption[];
   currentUserId?: string;
 }
 
@@ -93,6 +97,7 @@ export function KanbanBoard({
   showProjectName = true,
   projects,
   users,
+  agents,
   currentUserId,
 }: KanbanBoardProps) {
   const router = useRouter();
@@ -128,6 +133,7 @@ export function KanbanBoard({
 
     type RawTask = Omit<TaskWithProject, "projectName" | "createdAt" | "updatedAt" | "personalDone"> & {
       projectId: string | null;
+      agentId: string | null;
       createdAt: string | Date;
       updatedAt: string | Date;
     };
@@ -369,6 +375,7 @@ export function KanbanBoard({
                     const priority = priorityConfig[task.priority];
                     const isOwner = !task.createdBy || task.createdBy === currentUserId;
                     const assignedUser = users?.find((u) => u.id === task.assignedTo);
+                    const assignedAgent = agents?.find((a) => a.id === task.agentId);
                     const creatorName = task.createdBy ? (users?.find((u) => u.id === task.createdBy)?.name ?? null) : null;
                     const isDragTarget = dragOverTaskId === task.id && draggingId && draggingId !== task.id;
                     const hasFooter = creatorName || (showProjectName && task.projectName);
@@ -441,6 +448,13 @@ export function KanbanBoard({
                                 <span className="max-w-[60px] truncate">{assignedUser.name}</span>
                               </span>
                             )}
+                            {assignedAgent && (
+                              <AgentBadge
+                                avatar={assignedAgent.avatar}
+                                name={assignedAgent.name}
+                                color={assignedAgent.color}
+                              />
+                            )}
                           </div>
                         </div>
 
@@ -487,6 +501,7 @@ export function KanbanBoard({
         task={selectedTask}
         projects={projects}
         users={users}
+        agents={agents}
         currentUserId={currentUserId}
         initialMode={modalInitialMode}
       />

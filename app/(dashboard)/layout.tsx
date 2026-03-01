@@ -14,7 +14,13 @@ export default async function DashboardLayout({
 }) {
   const { userId } = await auth();
   const roleData = await getUserRoleData();
-  const permissions = roleData?.permissions ?? [];
+  const rawPermissions = roleData?.permissions ?? [];
+  // Compatibilidad con roles existentes: /agents se agrega automáticamente
+  // a cualquier rol que ya tenga /tasks (admin y manager)
+  const permissions =
+    rawPermissions.includes("/tasks") && !rawPermissions.includes("/agents")
+      ? [...rawPermissions, "/agents"]
+      : rawPermissions;
 
   return (
     <ToastProvider>

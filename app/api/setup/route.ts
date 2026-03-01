@@ -8,13 +8,13 @@ const DEFAULT_ROLES = [
   {
     name: "admin",
     label: "Administrador",
-    permissions: ["/dashboard", "/clients", "/projects", "/tasks", "/users"],
+    permissions: ["/dashboard", "/clients", "/projects", "/tasks", "/agents", "/users"],
     isDefault: false,
   },
   {
     name: "manager",
     label: "Manager",
-    permissions: ["/dashboard", "/clients", "/projects", "/tasks"],
+    permissions: ["/dashboard", "/clients", "/projects", "/tasks", "/agents"],
     isDefault: false,
   },
   {

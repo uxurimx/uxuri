@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, projects, users, userTaskPreferences } from "@/db/schema";
+import { tasks, projects, users, agents, userTaskPreferences } from "@/db/schema";
 import { eq, or, isNull, and, sql } from "drizzle-orm";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TasksHeader } from "@/components/tasks/tasks-header";
@@ -9,7 +9,7 @@ export default async function TasksPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const [allTasks, allProjects, allUsers] = await Promise.all([
+  const [allTasks, allProjects, allUsers, allAgents] = await Promise.all([
     db
       .select({
         id: tasks.id,
@@ -18,6 +18,7 @@ export default async function TasksPage() {
         projectId: tasks.projectId,
         clientId: tasks.clientId,
         assignedTo: tasks.assignedTo,
+        agentId: tasks.agentId,
         status: tasks.status,
         priority: tasks.priority,
         dueDate: tasks.dueDate,
@@ -48,12 +49,16 @@ export default async function TasksPage() {
       .where(or(eq(projects.privacy, "public"), eq(projects.createdBy, userId)))
       .orderBy(projects.name),
     db.select({ id: users.id, name: users.name }).from(users).orderBy(users.name),
+    db.select({ id: agents.id, name: agents.name, avatar: agents.avatar, color: agents.color })
+      .from(agents)
+      .where(eq(agents.isActive, true))
+      .orderBy(agents.name),
   ]);
 
   return (
     <div className="space-y-6">
-      <TasksHeader projects={allProjects} users={allUsers} currentUserId={userId} />
-      <KanbanBoard initialTasks={allTasks} projects={allProjects} users={allUsers} currentUserId={userId} />
+      <TasksHeader projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
+      <KanbanBoard initialTasks={allTasks} projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
     </div>
   );
 }

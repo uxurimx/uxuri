@@ -21,6 +21,7 @@ const schema = z.object({
   dueDate: z.string().optional(),
   projectId: z.string().optional(),
   assignedTo: z.string().optional(),
+  agentId: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -35,6 +36,7 @@ export type TaskForModal = {
   projectId?: string | null;
   projectName?: string | null;
   assignedTo?: string | null;
+  agentId?: string | null;
   createdBy?: string | null;
   personalDone?: boolean;
 };
@@ -61,6 +63,7 @@ type ActivityEvent = {
 
 type Project = { id: string; name: string };
 type User = { id: string; name: string | null };
+type AgentOption = { id: string; name: string; avatar: string; color: string };
 
 interface TaskModalProps {
   open: boolean;
@@ -69,6 +72,7 @@ interface TaskModalProps {
   projectId?: string;
   projects?: Project[];
   users?: User[];
+  agents?: AgentOption[];
   currentUserId?: string;
   initialMode?: "view" | "edit" | "create";
 }
@@ -234,6 +238,7 @@ export function TaskModal({
   projectId,
   projects,
   users,
+  agents,
   currentUserId,
   initialMode,
 }: TaskModalProps) {
@@ -284,9 +289,10 @@ export function TaskModal({
         dueDate: task.dueDate ?? "",
         projectId: task.projectId ?? "",
         assignedTo: task.assignedTo ?? "",
+        agentId: task.agentId ?? "",
       });
     } else {
-      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", assignedTo: "" });
+      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", assignedTo: "", agentId: "" });
     }
   }, [open, task, initialMode, projectId, reset]);
 
@@ -328,6 +334,7 @@ export function TaskModal({
         dueDate: data.dueDate || null,
         projectId: data.projectId || null,
         assignedTo: data.assignedTo || null,
+        agentId: data.agentId || null,
       };
 
       const res = await fetch(url, {
@@ -401,6 +408,10 @@ export function TaskModal({
     ? (users?.find((u) => u.id === task.assignedTo) ?? null)
     : null;
 
+  const assignedAgent = task?.agentId
+    ? (agents?.find((a) => a.id === task.agentId) ?? null)
+    : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -456,6 +467,17 @@ export function TaskModal({
                   <span className="flex items-center gap-1 text-xs text-slate-500">
                     <UserCircle className="w-3 h-3" />
                     {assignedUser.name ?? "Usuario"}
+                  </span>
+                )}
+                {assignedAgent && (
+                  <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <span
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
+                      style={{ backgroundColor: assignedAgent.color + "25" }}
+                    >
+                      {assignedAgent.avatar}
+                    </span>
+                    {assignedAgent.name}
                   </span>
                 )}
               </div>
@@ -657,11 +679,23 @@ export function TaskModal({
 
             {users && users.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Asignar a</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Asignar a persona</label>
                 <select {...register("assignedTo")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
                   <option value="">Sin asignar</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {agents && agents.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Asignar a agente</label>
+                <select {...register("agentId")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                  <option value="">Sin agente</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>{a.avatar} {a.name}</option>
                   ))}
                 </select>
               </div>
