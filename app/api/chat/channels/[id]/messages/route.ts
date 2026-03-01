@@ -1,19 +1,13 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { chatMessages, users, chatChannels, pushSubscriptions } from "@/db/schema";
-import { eq, desc, lt, and, ne } from "drizzle-orm";
+import { chatMessages, users, chatChannels } from "@/db/schema";
+import { eq, desc, lt, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
-import webPush from "web-push";
+import { sendPushToUser } from "@/lib/web-push";
 
 const PAGE_SIZE = 50;
-
-webPush.setVapidDetails(
-  "mailto:admin@uxuri.app",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
 
 const sendSchema = z.object({
   content: z.string().min(1).optional(),
@@ -64,10 +58,11 @@ export async function POST(
     return NextResponse.json({ error: "Message must have content or a file" }, { status: 400 });
   }
 
-  // Get sender name + verify channel exists
+  // Get sender name + channel info
   const [[sender], [channel]] = await Promise.all([
     db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
-    db.select({ id: chatChannels.id, name: chatChannels.name }).from(chatChannels).where(eq(chatChannels.id, channelId)),
+    db.select({ id: chatChannels.id, name: chatChannels.name, entityType: chatChannels.entityType, dmKey: chatChannels.dmKey })
+      .from(chatChannels).where(eq(chatChannels.id, channelId)),
   ]);
   if (!channel) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
 
@@ -85,37 +80,30 @@ export async function POST(
     })
     .returning();
 
-  // Real-time: broadcast to everyone in this channel
+  // Real-time: broadcast to everyone subscribed to this channel
   await pusherServer
     .trigger(`chat-${channelId}`, "message:new", message)
     .catch(() => {});
 
-  // Push notifications: send to all other users who have subscriptions
-  const subs = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(ne(pushSubscriptions.userId, userId));
+  // Push notifications: ONLY for direct messages, ONLY to the other person
+  if (channel.entityType === "direct" && channel.dmKey) {
+    const otherUserId = channel.dmKey.split("|").find((id) => id !== userId);
+    if (otherUserId) {
+      const preview = parsed.data.content
+        ? parsed.data.content.slice(0, 100)
+        : parsed.data.fileType?.startsWith("audio/")
+        ? "🎙️ Nota de voz"
+        : parsed.data.fileType?.startsWith("image/")
+        ? "📷 Foto"
+        : `📎 ${parsed.data.fileName ?? "archivo"}`;
 
-  if (subs.length > 0) {
-    const preview = parsed.data.content
-      ? parsed.data.content.slice(0, 80)
-      : `Envió un archivo: ${parsed.data.fileName ?? "archivo"}`;
-
-    await Promise.allSettled(
-      subs.map((sub) =>
-        webPush
-          .sendNotification(
-            { endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } },
-            JSON.stringify({
-              title: `${sender?.name ?? "Alguien"} en ${channel.name}`,
-              body: preview,
-              url: `/chat?ch=${channelId}`,
-              tag: `chat-${channelId}`,
-            })
-          )
-          .catch(() => {})
-      )
-    );
+      await sendPushToUser(otherUserId, {
+        title: sender?.name ?? "Mensaje directo",
+        body: preview,
+        url: `/chat?ch=${channelId}`,
+        tag: `dm-${channelId}`,
+      }).catch(() => {});
+    }
   }
 
   return NextResponse.json(message, { status: 201 });

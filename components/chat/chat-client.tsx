@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MessageSquare, Users, Briefcase, Hash, ArrowLeft, UserCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageThread } from "./message-thread";
+import { getPusherClient } from "@/lib/pusher";
 
 type Channel = {
   id: string;
@@ -47,7 +48,13 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [openingDm, setOpeningDm] = useState<string | null>(null);
   const [showThread, setShowThread] = useState(false);
+  const [unread, setUnread] = useState<Set<string>>(new Set());
 
+  // Keep a ref to activeChannelId so Pusher handlers can read the latest value
+  const activeChannelIdRef = useRef(activeChannelId);
+  useEffect(() => { activeChannelIdRef.current = activeChannelId; }, [activeChannelId]);
+
+  // Fetch channels and members on mount
   useEffect(() => {
     fetch("/api/chat/channels")
       .then((r) => r.json())
@@ -65,11 +72,32 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
       .then((data) => setMembers(Array.isArray(data) ? data : []));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Subscribe to ALL channels for unread tracking
+  useEffect(() => {
+    if (channels.length === 0) return;
+    const pusher = getPusherClient();
+
+    channels.forEach((ch) => {
+      const pCh = pusher.subscribe(`chat-${ch.id}`);
+      pCh.bind("message:new", (msg: { userId: string }) => {
+        // Ignore own messages; ignore if this channel is already active
+        if (msg.userId === currentUserId) return;
+        if (activeChannelIdRef.current === ch.id) return;
+        setUnread((prev) => new Set([...prev, ch.id]));
+      });
+    });
+
+    return () => {
+      channels.forEach((ch) => pusher.unsubscribe(`chat-${ch.id}`));
+    };
+  }, [channels, currentUserId]);
+
   useEffect(() => {
     if (activeChannelId) setShowThread(true);
   }, [activeChannelId]);
 
   function selectChannel(id: string) {
+    setUnread((prev) => { const next = new Set(prev); next.delete(id); return next; });
     router.push(`/chat?ch=${id}`);
     setShowThread(true);
   }
@@ -113,16 +141,40 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
           ) : (
             <>
               {grouped.general.length > 0 && (
-                <ChannelGroup label="General" channels={grouped.general} activeId={activeChannelId} onSelect={selectChannel} />
+                <ChannelGroup
+                  label="General"
+                  channels={grouped.general}
+                  activeId={activeChannelId}
+                  unread={unread}
+                  onSelect={selectChannel}
+                />
               )}
               {grouped.direct.length > 0 && (
-                <ChannelGroup label="Mensajes directos" channels={grouped.direct} activeId={activeChannelId} onSelect={selectChannel} />
+                <ChannelGroup
+                  label="Mensajes directos"
+                  channels={grouped.direct}
+                  activeId={activeChannelId}
+                  unread={unread}
+                  onSelect={selectChannel}
+                />
               )}
               {grouped.client.length > 0 && (
-                <ChannelGroup label="Clientes" channels={grouped.client} activeId={activeChannelId} onSelect={selectChannel} />
+                <ChannelGroup
+                  label="Clientes"
+                  channels={grouped.client}
+                  activeId={activeChannelId}
+                  unread={unread}
+                  onSelect={selectChannel}
+                />
               )}
               {grouped.project.length > 0 && (
-                <ChannelGroup label="Proyectos" channels={grouped.project} activeId={activeChannelId} onSelect={selectChannel} />
+                <ChannelGroup
+                  label="Proyectos"
+                  channels={grouped.project}
+                  activeId={activeChannelId}
+                  unread={unread}
+                  onSelect={selectChannel}
+                />
               )}
             </>
           )}
@@ -172,7 +224,7 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
             <>
               <ChannelIcon type={activeChannel.entityType} />
               <span className="font-semibold text-slate-800 text-sm">{activeChannel.name}</span>
-              <span className="text-xs text-slate-400 capitalize">
+              <span className="text-xs text-slate-400">
                 {activeChannel.entityType === "general"
                   ? "Canal general"
                   : activeChannel.entityType === "client"
@@ -206,11 +258,13 @@ function ChannelGroup({
   label,
   channels,
   activeId,
+  unread,
   onSelect,
 }: {
   label: string;
   channels: Channel[];
   activeId: string | null;
+  unread: Set<string>;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -218,21 +272,28 @@ function ChannelGroup({
       <p className="px-4 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
         {label}
       </p>
-      {channels.map((ch) => (
-        <button
-          key={ch.id}
-          onClick={() => onSelect(ch.id)}
-          className={cn(
-            "w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors text-left",
-            ch.id === activeId
-              ? "bg-[#1e3a5f] text-white"
-              : "text-slate-400 hover:bg-slate-800 hover:text-white"
-          )}
-        >
-          <ChannelIcon type={ch.entityType} />
-          <span className="truncate">{ch.name}</span>
-        </button>
-      ))}
+      {channels.map((ch) => {
+        const isActive = ch.id === activeId;
+        const hasUnread = unread.has(ch.id);
+        return (
+          <button
+            key={ch.id}
+            onClick={() => onSelect(ch.id)}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors text-left",
+              isActive
+                ? "bg-[#1e3a5f] text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            )}
+          >
+            <ChannelIcon type={ch.entityType} />
+            <span className="truncate flex-1">{ch.name}</span>
+            {hasUnread && !isActive && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
