@@ -36,6 +36,10 @@ export function TasksToolbar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Buscar tareas..."
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 bg-white"
         />
       </div>

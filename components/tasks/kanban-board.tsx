@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatDate } from "@/lib/utils";
 import { Flag, Pencil, Trash2, UserCircle } from "lucide-react";
@@ -81,18 +81,22 @@ export function KanbanBoard({
 
   useEffect(() => { setTasks(initialTasks); }, [initialTasks]);
 
+  // Stable ref so Pusher handlers don't capture a stale router
+  const routerRef = useRef(router);
+  useEffect(() => { routerRef.current = router; }, [router]);
+
   // Real-time updates via Pusher — refresh board when tasks change in this project
   useEffect(() => {
     if (!projectId) return;
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`project-${projectId}`);
-    channel.bind("task:created", () => router.refresh());
-    channel.bind("task:updated", () => router.refresh());
+    channel.bind("task:created", () => routerRef.current.refresh());
+    channel.bind("task:updated", () => routerRef.current.refresh());
     return () => {
       channel.unbind_all();
       pusher.unsubscribe(`project-${projectId}`);
     };
-  }, [projectId, router]);
+  }, [projectId]); // router removed — accessed via stable ref
 
   const filteredTasks = tasks.filter((t) => {
     const matchSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());
