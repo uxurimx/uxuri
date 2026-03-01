@@ -46,7 +46,7 @@ export function EntityChatFiles({ entityId, entityType, entityName, currentUserI
   }
 
   return (
-    <div className="flex flex-col h-[520px]">
+    <div className="flex flex-col h-[420px] md:h-[520px]">
       {/* Tabs */}
       <div className="flex border-b border-slate-200 flex-shrink-0">
         <TabBtn active={tab === "chat"} onClick={() => setTab("chat")} icon={<MessageSquare className="w-4 h-4" />} label="Chat" />
