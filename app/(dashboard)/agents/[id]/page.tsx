@@ -5,7 +5,7 @@ import { eq, and, ne, or, gte, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { AgentTasks } from "@/components/agents/agent-tasks";
+import { AgentPanel } from "@/components/agents/agent-panel";
 
 export default async function AgentDetailPage({
   params,
@@ -35,6 +35,7 @@ export default async function AgentDetailPage({
       priority: tasks.priority,
       dueDate: tasks.dueDate,
       projectName: projects.name,
+      projectId: tasks.projectId,
     })
     .from(tasks)
     .leftJoin(projects, eq(tasks.projectId, projects.id))
@@ -58,7 +59,7 @@ export default async function AgentDetailPage({
       )
     );
 
-  // Total done-session seconds per task
+  // Total done-session seconds per task (for active tasks)
   const doneTimeRows = await db
     .select({
       taskId: agentSessions.taskId,
@@ -88,6 +89,35 @@ export default async function AgentDetailPage({
         gte(agentSessions.createdAt, todayStart)
       )
     );
+
+  // History: done sessions grouped by task
+  const historyRows = await db
+    .select({
+      taskId: agentSessions.taskId,
+      taskTitle: tasks.title,
+      taskStatus: tasks.status,
+      taskPriority: tasks.priority,
+      projectName: projects.name,
+      projectId: tasks.projectId,
+      totalSeconds: sql<number>`COALESCE(SUM(${agentSessions.elapsedSeconds}), 0)::int`,
+      totalTokens: sql<number>`COALESCE(SUM(${agentSessions.tokenCost}), 0)::int`,
+      sessionCount: sql<number>`COUNT(*)::int`,
+      lastWorked: sql<string>`MAX(${agentSessions.endedAt})`,
+    })
+    .from(agentSessions)
+    .innerJoin(tasks, eq(agentSessions.taskId, tasks.id))
+    .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .where(and(eq(agentSessions.agentId, id), eq(agentSessions.status, "done")))
+    .groupBy(
+      agentSessions.taskId,
+      tasks.id,
+      tasks.title,
+      tasks.status,
+      tasks.priority,
+      tasks.projectId,
+      projects.name
+    )
+    .orderBy(sql`MAX(${agentSessions.endedAt}) DESC`);
 
   const initialSessions = activeSessions.map((s) => ({
     ...s,
@@ -130,14 +160,32 @@ export default async function AgentDetailPage({
         </div>
       </div>
 
-      {/* Tasks + timer */}
-      <AgentTasks
+      {/* Tabs panel */}
+      <AgentPanel
         agentId={agent.id}
         agentName={agent.name}
+        agentConfig={{
+          aiModel: agent.aiModel,
+          aiPrompt: agent.aiPrompt,
+          maxTokens: agent.maxTokens,
+          temperature: agent.temperature,
+        }}
         initialTasks={agentTasks}
         initialSessions={initialSessions}
         doneTimes={doneTimes}
         initialTodaySeconds={todayRow?.total ?? 0}
+        historyItems={historyRows.map((r) => ({
+          taskId: r.taskId,
+          taskTitle: r.taskTitle,
+          taskStatus: r.taskStatus,
+          taskPriority: r.taskPriority,
+          projectName: r.projectName ?? null,
+          projectId: r.projectId ?? null,
+          totalSeconds: r.totalSeconds,
+          totalTokens: r.totalTokens,
+          sessionCount: r.sessionCount,
+          lastWorked: r.lastWorked ?? null,
+        }))}
       />
     </div>
   );

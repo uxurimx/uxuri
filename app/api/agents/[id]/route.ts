@@ -11,6 +11,10 @@ const updateSchema = z.object({
   description: z.string().optional(),
   avatar: z.string().optional(),
   color: z.string().optional(),
+  aiModel: z.string().nullable().optional(),
+  aiPrompt: z.string().nullable().optional(),
+  maxTokens: z.number().int().nullable().optional(),
+  temperature: z.number().min(0).max(2).nullable().optional(),
 });
 
 export async function GET(

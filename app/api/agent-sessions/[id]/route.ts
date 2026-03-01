@@ -6,7 +6,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const schema = z.object({
-  action: z.enum(["pause", "stop"]),
+  action: z.enum(["pause", "stop"]).optional(),
+  notes: z.string().nullable().optional(),
+  tokenCost: z.number().int().nullable().optional(),
 });
 
 const STATUS_LABELS: Record<string, string> = {
@@ -38,12 +40,28 @@ export async function PATCH(
   const [session] = await db.select().from(agentSessions).where(eq(agentSessions.id, id));
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const { action, notes, tokenCost } = parsed.data;
+
+  // Simple metadata update (no action)
+  if (!action) {
+    const updateFields: Record<string, unknown> = {};
+    if (notes !== undefined) updateFields.notes = notes;
+    if (tokenCost !== undefined) updateFields.tokenCost = tokenCost;
+
+    const [updated] = await db
+      .update(agentSessions)
+      .set(updateFields)
+      .where(eq(agentSessions.id, id))
+      .returning();
+
+    return NextResponse.json(updated);
+  }
+
   // Get agent name for logs
   const [agent] = await db.select({ name: agents.name }).from(agents).where(eq(agents.id, session.agentId));
   const agentName = agent?.name ?? "Agente";
 
   const now = new Date();
-  const { action } = parsed.data;
 
   const runSeconds =
     session.status === "running"

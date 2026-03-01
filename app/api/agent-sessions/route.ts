@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { agentSessions, tasks, agents, taskActivity } from "@/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -13,6 +13,27 @@ const schema = z.object({
   agentId: z.string().uuid(),
   taskId: z.string().uuid(),
 });
+
+export async function GET(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const agentId = searchParams.get("agentId");
+  const taskId = searchParams.get("taskId");
+
+  if (!agentId || !taskId) {
+    return NextResponse.json({ error: "agentId and taskId are required" }, { status: 400 });
+  }
+
+  const sessions = await db
+    .select()
+    .from(agentSessions)
+    .where(and(eq(agentSessions.agentId, agentId), eq(agentSessions.taskId, taskId)))
+    .orderBy(asc(agentSessions.createdAt));
+
+  return NextResponse.json(sessions);
+}
 
 export async function POST(req: Request) {
   const { userId } = await auth();

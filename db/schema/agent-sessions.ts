@@ -2,6 +2,7 @@ import {
   pgTable,
   uuid,
   varchar,
+  text,
   timestamp,
   integer,
   pgEnum,
@@ -27,6 +28,8 @@ export const agentSessions = pgTable("agent_sessions", {
   // Accumulated seconds from previous run segments (before latest start/resume)
   elapsedSeconds: integer("elapsed_seconds").default(0).notNull(),
   status: agentSessionStatusEnum("status").default("running").notNull(),
+  notes: text("notes"),
+  tokenCost: integer("token_cost"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
