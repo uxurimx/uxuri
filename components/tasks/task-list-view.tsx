@@ -86,16 +86,23 @@ export function TaskListView({
               : null;
             const staleness = getStaleness(task.updatedAt, task.status);
 
+            const effectiveStatus = task.personalDone ? statusConfig.done : status;
+
             return (
               <tr
                 key={task.id}
                 onClick={() => onView(task)}
-                className="hover:bg-slate-50 cursor-pointer transition-colors"
+                className={cn("hover:bg-slate-50 cursor-pointer transition-colors", task.personalDone && "opacity-60")}
               >
                 <td className="px-4 py-3">
-                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap", status.className)}>
-                    {status.label}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap", effectiveStatus.className)}>
+                      {effectiveStatus.label}
+                    </span>
+                    {task.personalDone && (
+                      <span className="text-[10px] text-emerald-600 font-medium">✓ hecho para ti</span>
+                    )}
+                  </div>
                 </td>
 
                 <td className="px-4 py-3">

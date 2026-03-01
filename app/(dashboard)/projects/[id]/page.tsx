@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks, users } from "@/db/schema";
-import { eq, or } from "drizzle-orm";
+import { projects, clients, tasks, users, userTaskPreferences } from "@/db/schema";
+import { eq, or, and, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ProjectDetail } from "@/components/projects/project-detail";
 
@@ -34,7 +34,32 @@ export default async function ProjectDetailPage({
       .from(projects)
       .leftJoin(clients, eq(projects.clientId, clients.id))
       .where(eq(projects.id, id)),
-    db.select().from(tasks).where(eq(tasks.projectId, id)),
+    db
+      .select({
+        id: tasks.id,
+        title: tasks.title,
+        description: tasks.description,
+        projectId: tasks.projectId,
+        clientId: tasks.clientId,
+        assignedTo: tasks.assignedTo,
+        status: tasks.status,
+        priority: tasks.priority,
+        dueDate: tasks.dueDate,
+        sortOrder: sql<number | null>`COALESCE(${userTaskPreferences.sortOrder}, ${tasks.sortOrder})`,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+        createdBy: tasks.createdBy,
+        personalDone: sql<boolean>`COALESCE(${userTaskPreferences.personalDone}, false)`,
+      })
+      .from(tasks)
+      .leftJoin(
+        userTaskPreferences,
+        and(
+          eq(userTaskPreferences.taskId, tasks.id),
+          eq(userTaskPreferences.userId, userId),
+        )
+      )
+      .where(eq(tasks.projectId, id)),
     db
       .select({ id: projects.id, name: projects.name })
       .from(projects)

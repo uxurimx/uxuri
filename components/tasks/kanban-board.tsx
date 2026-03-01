@@ -24,6 +24,8 @@ export type TaskWithProject = {
   updatedAt: Date;
   createdBy: string | null;
   projectName: string | null;
+  /** Personal override: this user marked the task as done for themselves */
+  personalDone: boolean;
 };
 
 type User = { id: string; name: string | null };
@@ -116,12 +118,15 @@ export function KanbanBoard({
   const projectsRef = useRef(projects);
   useEffect(() => { projectsRef.current = projects; }, [projects]);
 
+  const currentUserIdRef = useRef(currentUserId);
+  useEffect(() => { currentUserIdRef.current = currentUserId; }, [currentUserId]);
+
   // Real-time updates via global tasks channel — works for both /tasks and /projects/[id]
   useEffect(() => {
     const pusher = getPusherClient();
     const channel = pusher.subscribe("tasks-global");
 
-    type RawTask = Omit<TaskWithProject, "projectName" | "createdAt" | "updatedAt"> & {
+    type RawTask = Omit<TaskWithProject, "projectName" | "createdAt" | "updatedAt" | "personalDone"> & {
       projectId: string | null;
       createdAt: string | Date;
       updatedAt: string | Date;
@@ -135,6 +140,7 @@ export function KanbanBoard({
         ...task, projectName,
         createdAt: new Date(task.createdAt),
         updatedAt: new Date(task.updatedAt),
+        personalDone: false,
       };
       setTasks((prev) => prev.some((t) => t.id === task.id) ? prev : [...prev, full]);
     };
@@ -143,7 +149,13 @@ export function KanbanBoard({
       setTasks((prev) => prev.map((t) => {
         if (t.id !== task.id) return t;
         const projectName = projectsRef.current?.find((p) => p.id === task.projectId)?.name ?? t.projectName;
-        return { ...task, projectName, createdAt: new Date(task.createdAt), updatedAt: new Date(task.updatedAt) };
+        // Preserve personalDone — it's user-specific and not broadcast in task events
+        return {
+          ...task, projectName,
+          createdAt: new Date(task.createdAt),
+          updatedAt: new Date(task.updatedAt),
+          personalDone: t.personalDone,
+        };
       }));
     };
 
@@ -202,8 +214,11 @@ export function KanbanBoard({
     router.refresh();
   }
 
+  // personalDone overrides the displayed column to "done"
   const getColumnTasks = (status: TaskWithProject["status"]) =>
-    filteredTasks.filter((t) => t.status === status).sort(sortByOrder);
+    filteredTasks
+      .filter((t) => (t.personalDone ? "done" : t.status) === status)
+      .sort(sortByOrder);
 
   // ── Cross-column drag ──────────────────────────────────────────────
   const handleDragStart = useCallback((e: React.DragEvent, taskId: string) => {
@@ -224,7 +239,17 @@ export function KanbanBoard({
       const taskId = e.dataTransfer.getData("taskId");
       if (!taskId) return;
       const task = tasks.find((t) => t.id === taskId);
-      if (!task || task.status === targetStatus) return;
+      if (!task) return;
+
+      const effectiveStatus = task.personalDone ? "done" : task.status;
+      if (effectiveStatus === targetStatus) return;
+
+      const uid = currentUserIdRef.current;
+      const isOwner = !task.createdBy || task.createdBy === uid;
+      const isAssigned = task.assignedTo === uid;
+
+      // Only creator or assignee can change global status via drag
+      if (!isOwner && !isAssigned) return;
 
       setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: targetStatus } : t));
       try {
@@ -276,11 +301,23 @@ export function KanbanBoard({
 
       setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, sortOrder: newSortOrder } : t));
 
-      await fetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sortOrder: newSortOrder }),
-      });
+      const isOwner = !dragged.createdBy || dragged.createdBy === currentUserIdRef.current;
+
+      if (isOwner) {
+        // Creator: persist to tasks.sortOrder (affects default order for everyone)
+        await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sortOrder: newSortOrder }),
+        });
+      } else {
+        // Non-creator: persist to user_task_preferences.sortOrder (personal, doesn't affect others)
+        await fetch(`/api/tasks/${taskId}/preferences`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sortOrder: newSortOrder }),
+        });
+      }
     },
     [tasks]
   );
@@ -348,7 +385,8 @@ export function KanbanBoard({
                         className={cn(
                           "group bg-white rounded-xl border border-slate-200 p-3 cursor-pointer hover:shadow-sm hover:border-slate-300 transition-all",
                           draggingId === task.id && "opacity-40",
-                          isDragTarget && "border-t-2 border-t-[#1e3a5f]"
+                          isDragTarget && "border-t-2 border-t-[#1e3a5f]",
+                          task.personalDone && "opacity-60"
                         )}
                       >
                         {/* Title + action buttons */}

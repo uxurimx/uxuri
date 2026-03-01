@@ -5,6 +5,7 @@ export * from "./tasks";
 export * from "./roles";
 export * from "./task-comments";
 export * from "./task-activity";
+export * from "./user-task-preferences";
 export * from "./push-subscriptions";
 export * from "./chat-channels";
 export * from "./chat-messages";

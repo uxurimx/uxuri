@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, projects, users } from "@/db/schema";
-import { eq, or, isNull } from "drizzle-orm";
+import { tasks, projects, users, userTaskPreferences } from "@/db/schema";
+import { eq, or, isNull, and, sql } from "drizzle-orm";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TasksHeader } from "@/components/tasks/tasks-header";
 
@@ -21,14 +21,22 @@ export default async function TasksPage() {
         status: tasks.status,
         priority: tasks.priority,
         dueDate: tasks.dueDate,
-        sortOrder: tasks.sortOrder,
+        sortOrder: sql<number | null>`COALESCE(${userTaskPreferences.sortOrder}, ${tasks.sortOrder})`,
         createdAt: tasks.createdAt,
         updatedAt: tasks.updatedAt,
         createdBy: tasks.createdBy,
         projectName: projects.name,
+        personalDone: sql<boolean>`COALESCE(${userTaskPreferences.personalDone}, false)`,
       })
       .from(tasks)
       .leftJoin(projects, eq(tasks.projectId, projects.id))
+      .leftJoin(
+        userTaskPreferences,
+        and(
+          eq(userTaskPreferences.taskId, tasks.id),
+          eq(userTaskPreferences.userId, userId),
+        )
+      )
       .where(or(
         isNull(tasks.projectId),
         eq(projects.privacy, "public"),

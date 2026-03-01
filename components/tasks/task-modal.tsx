@@ -7,7 +7,7 @@ import { z } from "zod";
 import {
   X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
   MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
-  FileText, Clock, UserCheck, UserMinus, History,
+  FileText, Clock, UserCheck, UserMinus, History, CheckCircle2,
 } from "lucide-react";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
@@ -36,6 +36,7 @@ export type TaskForModal = {
   projectName?: string | null;
   assignedTo?: string | null;
   createdBy?: string | null;
+  personalDone?: boolean;
 };
 
 type Comment = {
@@ -239,6 +240,8 @@ export function TaskModal({
   const router = useRouter();
   const isExisting = !!task;
   const isOwner = !task?.createdBy || task.createdBy === currentUserId;
+  const isAssigned = !!currentUserId && task?.assignedTo === currentUserId;
+  const isThirdParty = isExisting && !isOwner && !isAssigned;
 
   const defaultMode = initialMode ?? (isExisting ? "view" : "create");
   const [mode, setMode] = useState<"view" | "edit" | "create">(defaultMode);
@@ -258,6 +261,9 @@ export function TaskModal({
   // Activity state
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+
+  // Personal done
+  const [markingDone, setMarkingDone] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -369,6 +375,22 @@ export function TaskModal({
     }
   }
 
+  async function handlePersonalDone() {
+    if (!task) return;
+    setMarkingDone(true);
+    try {
+      await fetch(`/api/tasks/${task.id}/preferences`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personalDone: true }),
+      });
+      router.refresh();
+      onClose();
+    } finally {
+      setMarkingDone(false);
+    }
+  }
+
   if (!open) return null;
 
   const taskProjectName = task?.projectName
@@ -463,10 +485,27 @@ export function TaskModal({
                     Editar
                   </button>
                 )}
-                {!isOwner && (
-                  <p className="text-xs text-slate-400 flex items-center gap-1">
-                    Solo el creador puede editar o eliminar esta tarea
-                  </p>
+
+                {/* Third-party: personal done button */}
+                {isThirdParty && !task.personalDone && (
+                  <button
+                    onClick={handlePersonalDone}
+                    disabled={markingDone}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {markingDone ? "Guardando..." : "Hecho para mí"}
+                  </button>
+                )}
+
+                {/* Already marked as personal done */}
+                {isThirdParty && task.personalDone && (
+                  <div className="flex-1 flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Marcada como hecha para ti
+                    </span>
+                  </div>
                 )}
               </div>
 
