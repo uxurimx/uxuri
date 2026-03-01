@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send, MessageSquare, UserCircle } from "lucide-react";
+import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
 
@@ -313,7 +314,7 @@ export function TaskModal({
                           <span className="text-xs text-slate-400">·</span>
                           <span className="text-xs text-slate-400">{formatDateTime(c.createdAt)}</span>
                         </div>
-                        <p className="text-sm text-slate-600 leading-relaxed">{c.content}</p>
+                        <p className="text-sm text-slate-600 leading-relaxed">{renderWithMentions(c.content)}</p>
                       </div>
                     ))}
                     <div ref={commentsEndRef} />
@@ -322,20 +323,18 @@ export function TaskModal({
 
                 {/* Add comment */}
                 <div className="flex gap-2 mt-2">
-                  <textarea
+                  <MentionInput
                     value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); }
-                    }}
-                    rows={2}
-                    placeholder="Escribe un comentario... (Enter para enviar)"
-                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 resize-none"
+                    onChange={setCommentText}
+                    users={users ?? []}
+                    placeholder="Escribe un comentario... usa @ para mencionar"
+                    onEnter={sendComment}
+                    disabled={sendingComment}
                   />
                   <button
                     onClick={sendComment}
                     disabled={sendingComment || !commentText.trim()}
-                    className="px-3 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors disabled:opacity-40 flex items-center"
+                    className="px-3 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors disabled:opacity-40 flex items-center self-end"
                   >
                     <Send className="w-4 h-4" />
                   </button>

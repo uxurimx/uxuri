@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 
 interface AssignedPayload  { taskTitle: string; assignedByName: string;  url?: string }
 interface CompletedPayload { taskTitle: string; completedByName: string; url?: string }
+interface MentionPayload   { taskTitle: string; commenterName: string;   url?: string }
 
 export function NotificationListener({ userId }: { userId: string }) {
   const { addNotification } = useToast();
@@ -26,6 +27,14 @@ export function NotificationListener({ userId }: { userId: string }) {
       addNotification(
         `"${data.taskTitle}" marcada como completada por ${data.completedByName}`,
         "success",
+        data.url ?? "/tasks"
+      );
+    });
+
+    channel.bind("comment:mention", (data: MentionPayload) => {
+      addNotification(
+        `${data.commenterName} te mencionó en "${data.taskTitle}"`,
+        "info",
         data.url ?? "/tasks"
       );
     });
