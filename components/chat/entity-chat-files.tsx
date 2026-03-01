@@ -10,20 +10,23 @@ type Tab = "chat" | "files";
 
 interface EntityChatFilesProps {
   entityId: string;
+  entityType: "client" | "project";
+  entityName: string;
   currentUserId: string;
 }
 
-export function EntityChatFiles({ entityId, currentUserId }: EntityChatFilesProps) {
+export function EntityChatFiles({ entityId, entityType, entityName, currentUserId }: EntityChatFilesProps) {
   const [tab, setTab] = useState<Tab>("chat");
   const [channelId, setChannelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/chat/channels/by-entity?entityId=${entityId}`)
+    const params = new URLSearchParams({ entityId, entityType, entityName });
+    fetch(`/api/chat/channels/by-entity?${params}`)
       .then((r) => r.json())
       .then((data) => setChannelId(data?.id ?? null))
       .finally(() => setLoading(false));
-  }, [entityId]);
+  }, [entityId, entityType, entityName]);
 
   if (loading) {
     return (
@@ -37,7 +40,7 @@ export function EntityChatFiles({ entityId, currentUserId }: EntityChatFilesProp
   if (!channelId) {
     return (
       <p className="text-slate-400 text-sm p-4">
-        Canal de chat no encontrado. Se creará automáticamente en el próximo acceso.
+        No se pudo iniciar el canal de chat.
       </p>
     );
   }

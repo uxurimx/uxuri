@@ -108,7 +108,7 @@ export function ProjectDetail({
       {/* Chat & Files */}
       {currentUserId && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <EntityChatFiles entityId={project.id} currentUserId={currentUserId} />
+          <EntityChatFiles entityId={project.id} entityType="project" entityName={project.name} currentUserId={currentUserId} />
         </div>
       )}
     </div>

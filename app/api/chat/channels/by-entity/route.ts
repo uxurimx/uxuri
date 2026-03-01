@@ -10,6 +10,9 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const entityId = url.searchParams.get("entityId");
+  const entityType = url.searchParams.get("entityType") as "client" | "project" | null;
+  const entityName = url.searchParams.get("entityName");
+
   if (!entityId) return NextResponse.json({ error: "Missing entityId" }, { status: 400 });
 
   const [channel] = await db
@@ -17,5 +20,23 @@ export async function GET(req: Request) {
     .from(chatChannels)
     .where(eq(chatChannels.entityId, entityId));
 
-  return NextResponse.json(channel ?? null);
+  if (channel) return NextResponse.json(channel);
+
+  // Channel doesn't exist yet (entity was created before this feature).
+  // Auto-create it now if we have enough info.
+  if (!entityType || !entityName) {
+    return NextResponse.json(null);
+  }
+
+  const [created] = await db
+    .insert(chatChannels)
+    .values({
+      name: entityName,
+      entityType,
+      entityId,
+      createdBy: userId,
+    })
+    .returning();
+
+  return NextResponse.json(created);
 }

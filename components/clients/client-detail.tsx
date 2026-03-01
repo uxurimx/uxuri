@@ -147,7 +147,7 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
       {/* Chat & Files */}
       {currentUserId && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <EntityChatFiles entityId={client.id} currentUserId={currentUserId} />
+          <EntityChatFiles entityId={client.id} entityType="client" entityName={client.name} currentUserId={currentUserId} />
         </div>
       )}
     </div>
