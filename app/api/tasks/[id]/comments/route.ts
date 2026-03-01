@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { taskComments, users, tasks } from "@/db/schema";
+import { taskComments, users, tasks, taskActivity } from "@/db/schema";
 import { eq, asc, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -64,6 +64,12 @@ export async function POST(
     .insert(taskComments)
     .values({ taskId, userId, userName: commenterName, content: parsed.data.content })
     .returning();
+
+  // Log: comment added
+  await db.insert(taskActivity).values({
+    taskId, userId, userName: commenterName, type: "commented",
+    newValue: parsed.data.content.slice(0, 200),
+  }).catch(() => {});
 
   // Parse @mentions and notify each mentioned user (except self)
   const mentionedIds = extractMentionedIds(parsed.data.content).filter((id) => id !== userId);

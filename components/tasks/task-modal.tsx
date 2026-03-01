@@ -4,7 +4,11 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send, MessageSquare, UserCircle } from "lucide-react";
+import {
+  X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
+  MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
+  FileText, Clock, UserCheck, UserMinus, History,
+} from "lucide-react";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
@@ -42,6 +46,18 @@ type Comment = {
   createdAt: string;
 };
 
+type ActivityEvent = {
+  id: string;
+  taskId: string;
+  userId: string | null;
+  userName: string | null;
+  type: "created" | "status_changed" | "priority_changed" | "assigned" | "unassigned" |
+        "title_changed" | "description_changed" | "due_date_changed" | "commented";
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+};
+
 type Project = { id: string; name: string };
 type User = { id: string; name: string | null };
 
@@ -70,6 +86,142 @@ const priorityConfig = {
   urgent: { label: "Urgente", color: "text-red-500" },
 };
 
+// ─── Activity helpers ────────────────────────────────────────────────────────
+
+const activityMeta: Record<
+  ActivityEvent["type"],
+  { icon: React.ComponentType<{ className?: string }>; color: string; label: (e: ActivityEvent) => string }
+> = {
+  created: {
+    icon: PlusCircle,
+    color: "text-emerald-500",
+    label: (e) => `${e.userName ?? "Usuario"} creó la tarea`,
+  },
+  status_changed: {
+    icon: ArrowRightLeft,
+    color: "text-blue-500",
+    label: (e) =>
+      e.oldValue && e.newValue
+        ? `${e.userName ?? "Usuario"} cambió el estado de "${e.oldValue}" a "${e.newValue}"`
+        : `${e.userName ?? "Usuario"} cambió el estado`,
+  },
+  priority_changed: {
+    icon: Flag,
+    color: "text-amber-500",
+    label: (e) =>
+      e.oldValue && e.newValue
+        ? `${e.userName ?? "Usuario"} cambió la prioridad de "${e.oldValue}" a "${e.newValue}"`
+        : `${e.userName ?? "Usuario"} cambió la prioridad`,
+  },
+  assigned: {
+    icon: UserCheck,
+    color: "text-violet-500",
+    label: (e) =>
+      e.newValue
+        ? `${e.userName ?? "Usuario"} asignó la tarea a ${e.newValue}`
+        : `${e.userName ?? "Usuario"} asignó la tarea`,
+  },
+  unassigned: {
+    icon: UserMinus,
+    color: "text-slate-400",
+    label: (e) => `${e.userName ?? "Usuario"} quitó la asignación`,
+  },
+  title_changed: {
+    icon: Pencil,
+    color: "text-slate-500",
+    label: (e) =>
+      e.newValue
+        ? `${e.userName ?? "Usuario"} renombró la tarea a "${e.newValue}"`
+        : `${e.userName ?? "Usuario"} cambió el título`,
+  },
+  description_changed: {
+    icon: FileText,
+    color: "text-slate-500",
+    label: (e) => `${e.userName ?? "Usuario"} actualizó la descripción`,
+  },
+  due_date_changed: {
+    icon: Calendar,
+    color: "text-teal-500",
+    label: (e) =>
+      e.newValue
+        ? `${e.userName ?? "Usuario"} cambió la fecha límite a ${formatDate(e.newValue)}`
+        : `${e.userName ?? "Usuario"} eliminó la fecha límite`,
+  },
+  commented: {
+    icon: MessageSquare,
+    color: "text-indigo-500",
+    label: (e) => `${e.userName ?? "Usuario"} comentó`,
+  },
+};
+
+function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-6 text-slate-400 text-sm">
+        <Clock className="w-4 h-4 animate-pulse" />
+        Cargando historial...
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-8 text-slate-400">
+        <History className="w-8 h-8 opacity-30" />
+        <p className="text-sm">Sin actividad registrada</p>
+        <p className="text-xs opacity-70">Las acciones futuras aparecerán aquí</p>
+      </div>
+    );
+  }
+
+  return (
+    <ol className="relative">
+      {events.map((event, idx) => {
+        const meta = activityMeta[event.type];
+        const Icon = meta.icon;
+        const isLast = idx === events.length - 1;
+
+        return (
+          <li key={event.id} className="flex gap-3">
+            {/* Vertical line + icon */}
+            <div className="flex flex-col items-center flex-shrink-0 w-6">
+              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center bg-white border-2 z-10 flex-shrink-0", {
+                "border-emerald-200":   event.type === "created",
+                "border-blue-200":      event.type === "status_changed",
+                "border-amber-200":     event.type === "priority_changed",
+                "border-violet-200":    event.type === "assigned",
+                "border-slate-200":     event.type === "unassigned" || event.type === "title_changed" || event.type === "description_changed",
+                "border-teal-200":      event.type === "due_date_changed",
+                "border-indigo-200":    event.type === "commented",
+              })}>
+                <Icon className={cn("w-3 h-3", meta.color)} />
+              </div>
+              {!isLast && <div className="w-px flex-1 bg-slate-100 my-1" />}
+            </div>
+
+            {/* Content */}
+            <div className={cn("flex-1 pb-4", isLast && "pb-1")}>
+              <p className="text-sm text-slate-700 leading-snug">{meta.label(event)}</p>
+
+              {/* Extra detail for comments */}
+              {event.type === "commented" && event.newValue && (
+                <p className="mt-1 text-xs text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5 leading-relaxed border border-slate-100 line-clamp-3">
+                  {event.newValue.length > 150 ? `${event.newValue.slice(0, 150)}…` : event.newValue}
+                </p>
+              )}
+
+              {/* Timestamp */}
+              <p className="mt-0.5 text-[10px] text-slate-400">{formatDateTime(event.createdAt)}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function today() {
   return new Date().toISOString().split("T")[0];
 }
@@ -93,12 +245,19 @@ export function TaskModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // View tabs
+  const [activeTab, setActiveTab] = useState<"comments" | "details">("comments");
+
   // Comments state
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  // Activity state
+  const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -109,6 +268,7 @@ export function TaskModal({
     if (!open) return;
     const m = initialMode ?? (task ? "view" : "create");
     setMode(m);
+    setActiveTab("comments");
     if (task) {
       reset({
         title: task.title,
@@ -124,7 +284,7 @@ export function TaskModal({
     }
   }, [open, task, initialMode, projectId, reset]);
 
-  // Cargar comentarios cuando se abre en modo vista
+  // Load comments when in view mode + comments tab
   useEffect(() => {
     if (!open || !task?.id || mode !== "view") return;
     setCommentsLoading(true);
@@ -134,6 +294,23 @@ export function TaskModal({
       .catch(() => setComments([]))
       .finally(() => setCommentsLoading(false));
   }, [open, task?.id, mode]);
+
+  // Load activity when switching to details tab
+  useEffect(() => {
+    if (!open || !task?.id || mode !== "view" || activeTab !== "details") return;
+    if (activity.length > 0) return; // already loaded
+    setActivityLoading(true);
+    fetch(`/api/tasks/${task.id}/activity`)
+      .then((r) => r.json())
+      .then((data) => setActivity(Array.isArray(data) ? data : []))
+      .catch(() => setActivity([]))
+      .finally(() => setActivityLoading(false));
+  }, [open, task?.id, mode, activeTab, activity.length]);
+
+  // Reset activity cache when task changes
+  useEffect(() => {
+    setActivity([]);
+  }, [task?.id]);
 
   async function onSubmit(data: FormData) {
     setIsLoading(true);
@@ -183,6 +360,8 @@ export function TaskModal({
         const comment = await res.json();
         setComments((prev) => [...prev, comment]);
         setCommentText("");
+        // Invalidate activity cache so it reloads next time
+        setActivity([]);
         setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
       }
     } finally {
@@ -263,7 +442,7 @@ export function TaskModal({
                 <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
               )}
 
-              {/* Actions — solo el creador puede editar/eliminar */}
+              {/* Actions */}
               <div className="flex gap-3 pt-2 border-t border-slate-100">
                 {isOwner && (
                   <button
@@ -291,55 +470,91 @@ export function TaskModal({
                 )}
               </div>
 
-              {/* Comments */}
-              <div className="pt-2">
-                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-3">
-                  <MessageSquare className="w-4 h-4 text-slate-400" />
-                  Comentarios
-                  {comments.length > 0 && (
-                    <span className="text-xs font-normal text-slate-400">({comments.length})</span>
-                  )}
-                </h4>
-
-                {commentsLoading ? (
-                  <p className="text-xs text-slate-400 py-2">Cargando...</p>
-                ) : comments.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-2">Sin comentarios aún.</p>
-                ) : (
-                  <div className="space-y-3 mb-3">
-                    {comments.map((c) => (
-                      <div key={c.id} className="bg-slate-50 rounded-lg p-3">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-xs font-semibold text-slate-700">{c.userName ?? "Usuario"}</span>
-                          <span className="text-xs text-slate-400">·</span>
-                          <span className="text-xs text-slate-400">{formatDateTime(c.createdAt)}</span>
-                        </div>
-                        <p className="text-sm text-slate-600 leading-relaxed">{renderWithMentions(c.content)}</p>
-                      </div>
-                    ))}
-                    <div ref={commentsEndRef} />
-                  </div>
-                )}
-
-                {/* Add comment */}
-                <div className="flex gap-2 mt-2">
-                  <MentionInput
-                    value={commentText}
-                    onChange={setCommentText}
-                    users={users ?? []}
-                    placeholder="Escribe un comentario... usa @ para mencionar"
-                    onEnter={sendComment}
-                    disabled={sendingComment}
-                  />
+              {/* ── Tabs ── */}
+              <div className="border-b border-slate-100">
+                <div className="flex gap-0">
                   <button
-                    onClick={sendComment}
-                    disabled={sendingComment || !commentText.trim()}
-                    className="px-3 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors disabled:opacity-40 flex items-center self-end"
+                    onClick={() => setActiveTab("comments")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
+                      activeTab === "comments"
+                        ? "border-[#1e3a5f] text-[#1e3a5f]"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
                   >
-                    <Send className="w-4 h-4" />
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Comentarios
+                    {comments.length > 0 && (
+                      <span className="text-[10px] bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5 font-normal">
+                        {comments.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("details")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
+                      activeTab === "details"
+                        ? "border-[#1e3a5f] text-[#1e3a5f]"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    Detalles
                   </button>
                 </div>
               </div>
+
+              {/* ── Comments tab ── */}
+              {activeTab === "comments" && (
+                <div>
+                  {commentsLoading ? (
+                    <p className="text-xs text-slate-400 py-2">Cargando...</p>
+                  ) : comments.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-2">Sin comentarios aún.</p>
+                  ) : (
+                    <div className="space-y-3 mb-3">
+                      {comments.map((c) => (
+                        <div key={c.id} className="bg-slate-50 rounded-lg p-3">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs font-semibold text-slate-700">{c.userName ?? "Usuario"}</span>
+                            <span className="text-xs text-slate-400">·</span>
+                            <span className="text-xs text-slate-400">{formatDateTime(c.createdAt)}</span>
+                          </div>
+                          <p className="text-sm text-slate-600 leading-relaxed">{renderWithMentions(c.content)}</p>
+                        </div>
+                      ))}
+                      <div ref={commentsEndRef} />
+                    </div>
+                  )}
+
+                  {/* Add comment */}
+                  <div className="flex gap-2 mt-2">
+                    <MentionInput
+                      value={commentText}
+                      onChange={setCommentText}
+                      users={users ?? []}
+                      placeholder="Escribe un comentario... usa @ para mencionar"
+                      onEnter={sendComment}
+                      disabled={sendingComment}
+                    />
+                    <button
+                      onClick={sendComment}
+                      disabled={sendingComment || !commentText.trim()}
+                      className="px-3 py-2 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors disabled:opacity-40 flex items-center self-end"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Details / Timeline tab ── */}
+              {activeTab === "details" && (
+                <div className="pt-1">
+                  <ActivityTimeline events={activity} loading={activityLoading} />
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, projects, users } from "@/db/schema";
+import { tasks, projects, users, taskActivity } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
 import { eq, or, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -54,6 +54,17 @@ export async function POST(req: Request) {
     dueDate: parsed.data.dueDate || null,
     createdBy: userId,
   }).returning();
+
+  const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+  const creatorName = creator?.name ?? "Usuario";
+
+  // Log: task created
+  await db.insert(taskActivity).values({
+    taskId: task.id,
+    userId,
+    userName: creatorName,
+    type: "created",
+  }).catch(() => {});
 
   // Notificar al usuario asignado
   if (task.assignedTo && task.assignedTo !== userId) {
