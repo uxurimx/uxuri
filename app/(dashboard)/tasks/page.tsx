@@ -23,6 +23,7 @@ export default async function TasksPage() {
         dueDate: tasks.dueDate,
         sortOrder: tasks.sortOrder,
         createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
         createdBy: tasks.createdBy,
         projectName: projects.name,
       })

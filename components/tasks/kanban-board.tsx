@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatDate } from "@/lib/utils";
-import { Flag, Pencil, Trash2, UserCircle } from "lucide-react";
+import { Flag, Pencil, Trash2, UserCircle, User, Folder } from "lucide-react";
 import { TaskModal, type TaskForModal } from "./task-modal";
 import { TasksToolbar } from "./tasks-toolbar";
 import { TaskListView } from "./task-list-view";
@@ -21,6 +21,7 @@ export type TaskWithProject = {
   dueDate: string | null;
   sortOrder: number | null;
   createdAt: Date;
+  updatedAt: Date;
   createdBy: string | null;
   projectName: string | null;
 };
@@ -40,6 +41,33 @@ const priorityConfig = {
   high:   { label: "Alta",    color: "text-orange-500" },
   urgent: { label: "Urgente", color: "text-red-500" },
 };
+
+type StalenessLevel = { level: "warn" | "alert"; days: number } | null;
+
+function getStaleness(updatedAt: Date, status: TaskWithProject["status"]): StalenessLevel {
+  if (status === "done") return null;
+  const diffDays = (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays < 1) return null;
+  const days = Math.floor(diffDays);
+  return { level: diffDays < 3 ? "warn" : "alert", days };
+}
+
+function StalenessTag({ updatedAt, status }: { updatedAt: Date; status: TaskWithProject["status"] }) {
+  const s = getStaleness(updatedAt, status);
+  if (!s) return null;
+  const label = `Sin movimiento hace ${s.days} día${s.days !== 1 ? "s" : ""}`;
+  return (
+    <span title={label} className="flex items-center gap-0.5 ml-1 flex-shrink-0">
+      <span className={cn(
+        "inline-block w-1.5 h-1.5 rounded-full flex-shrink-0",
+        s.level === "warn" ? "bg-amber-400" : "bg-red-500 animate-pulse"
+      )} />
+      <span className={cn("text-[10px] font-semibold tabular-nums", s.level === "warn" ? "text-amber-500" : "text-red-500")}>
+        {s.days}d
+      </span>
+    </span>
+  );
+}
 
 function sortByOrder(a: TaskWithProject, b: TaskWithProject): number {
   if (a.sortOrder !== null && b.sortOrder !== null) return a.sortOrder - b.sortOrder;
@@ -93,13 +121,21 @@ export function KanbanBoard({
     const pusher = getPusherClient();
     const channel = pusher.subscribe("tasks-global");
 
-    type RawTask = Omit<TaskWithProject, "projectName" | "createdAt"> & { projectId: string | null; createdAt: string | Date };
+    type RawTask = Omit<TaskWithProject, "projectName" | "createdAt" | "updatedAt"> & {
+      projectId: string | null;
+      createdAt: string | Date;
+      updatedAt: string | Date;
+    };
 
     const handleCreated = (task: RawTask) => {
       // On project-specific view, ignore tasks from other projects
       if (projectId && task.projectId !== projectId) return;
       const projectName = projectsRef.current?.find((p) => p.id === task.projectId)?.name ?? null;
-      const full: TaskWithProject = { ...task, projectName, createdAt: new Date(task.createdAt) };
+      const full: TaskWithProject = {
+        ...task, projectName,
+        createdAt: new Date(task.createdAt),
+        updatedAt: new Date(task.updatedAt),
+      };
       setTasks((prev) => prev.some((t) => t.id === task.id) ? prev : [...prev, full]);
     };
 
@@ -107,7 +143,7 @@ export function KanbanBoard({
       setTasks((prev) => prev.map((t) => {
         if (t.id !== task.id) return t;
         const projectName = projectsRef.current?.find((p) => p.id === task.projectId)?.name ?? t.projectName;
-        return { ...task, projectName, createdAt: new Date(task.createdAt) };
+        return { ...task, projectName, createdAt: new Date(task.createdAt), updatedAt: new Date(task.updatedAt) };
       }));
     };
 
@@ -296,7 +332,9 @@ export function KanbanBoard({
                     const priority = priorityConfig[task.priority];
                     const isOwner = !task.createdBy || task.createdBy === currentUserId;
                     const assignedUser = users?.find((u) => u.id === task.assignedTo);
+                    const creatorName = task.createdBy ? (users?.find((u) => u.id === task.createdBy)?.name ?? null) : null;
                     const isDragTarget = dragOverTaskId === task.id && draggingId && draggingId !== task.id;
+                    const hasFooter = creatorName || (showProjectName && task.projectName);
 
                     return (
                       <div
@@ -345,10 +383,12 @@ export function KanbanBoard({
                           <p className="text-xs text-slate-500 mb-2 line-clamp-2">{task.description}</p>
                         )}
 
+                        {/* Priority + staleness + date + assigned */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1">
                             <Flag className={cn("w-3 h-3", priority.color)} />
                             <span className={cn("text-xs font-medium", priority.color)}>{priority.label}</span>
+                            <StalenessTag updatedAt={task.updatedAt} status={task.status} />
                           </div>
                           <div className="flex items-center gap-2">
                             {task.dueDate && (
@@ -366,9 +406,24 @@ export function KanbanBoard({
                           </div>
                         </div>
 
-                        {showProjectName && task.projectName && (
-                          <div className="mt-2 pt-2 border-t border-slate-100">
-                            <span className="text-xs text-slate-400 truncate block">{task.projectName}</span>
+                        {/* Footer: creator · project */}
+                        {hasFooter && (
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 min-w-0">
+                            {creatorName && (
+                              <span className="flex items-center gap-0.5 text-xs text-slate-400 flex-shrink-0">
+                                <User className="w-3 h-3" />
+                                <span className="max-w-[72px] truncate">{creatorName}</span>
+                              </span>
+                            )}
+                            {creatorName && showProjectName && task.projectName && (
+                              <span className="text-slate-300 text-xs flex-shrink-0">·</span>
+                            )}
+                            {showProjectName && task.projectName && (
+                              <span className="flex items-center gap-0.5 text-xs text-slate-400 min-w-0">
+                                <Folder className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{task.projectName}</span>
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>

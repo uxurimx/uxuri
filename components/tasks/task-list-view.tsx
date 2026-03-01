@@ -1,10 +1,10 @@
 "use client";
 
 import { cn, formatDate } from "@/lib/utils";
-import { Flag, Pencil, Trash2 } from "lucide-react";
+import { Flag, Pencil, Trash2, User } from "lucide-react";
 import type { TaskWithProject } from "./kanban-board";
 
-type User = { id: string; name: string | null };
+type UserType = { id: string; name: string | null };
 
 const statusConfig = {
   todo:        { label: "Por hacer",   className: "bg-slate-100 text-slate-600" },
@@ -22,10 +22,18 @@ const priorityConfig = {
 
 const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
 
+function getStaleness(updatedAt: Date, status: TaskWithProject["status"]) {
+  if (status === "done") return null;
+  const diffDays = (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays < 1) return null;
+  const days = Math.floor(diffDays);
+  return { level: diffDays < 3 ? "warn" : "alert", days } as const;
+}
+
 interface TaskListViewProps {
   tasks: TaskWithProject[];
   currentUserId?: string;
-  users?: User[];
+  users?: UserType[];
   onView: (task: TaskWithProject) => void;
   onEdit: (task: TaskWithProject) => void;
   onDelete: (taskId: string) => void;
@@ -73,6 +81,10 @@ export function TaskListView({
             const priority = priorityConfig[task.priority];
             const isOwner = !task.createdBy || task.createdBy === currentUserId;
             const assignedUser = users?.find((u) => u.id === task.assignedTo);
+            const creatorName = task.createdBy
+              ? (users?.find((u) => u.id === task.createdBy)?.name ?? null)
+              : null;
+            const staleness = getStaleness(task.updatedAt, task.status);
 
             return (
               <tr
@@ -85,18 +97,41 @@ export function TaskListView({
                     {status.label}
                   </span>
                 </td>
+
                 <td className="px-4 py-3">
                   <p className="font-medium text-slate-900 line-clamp-1">{task.title}</p>
-                  {task.description && (
-                    <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{task.description}</p>
+                  {creatorName && (
+                    <p className="flex items-center gap-0.5 text-xs text-slate-400 mt-0.5">
+                      <User className="w-3 h-3 flex-shrink-0" />
+                      {creatorName}
+                    </p>
                   )}
                 </td>
+
                 <td className="px-4 py-3">
                   <span className={cn("flex items-center gap-1 text-xs font-medium", priority.color)}>
                     <Flag className="w-3 h-3" />
                     {priority.label}
                   </span>
+                  {staleness && (
+                    <span
+                      title={`Sin movimiento hace ${staleness.days} día${staleness.days !== 1 ? "s" : ""}`}
+                      className="flex items-center gap-0.5 mt-1"
+                    >
+                      <span className={cn(
+                        "inline-block w-1.5 h-1.5 rounded-full flex-shrink-0",
+                        staleness.level === "warn" ? "bg-amber-400" : "bg-red-500 animate-pulse"
+                      )} />
+                      <span className={cn(
+                        "text-[10px] font-semibold tabular-nums",
+                        staleness.level === "warn" ? "text-amber-500" : "text-red-500"
+                      )}>
+                        {staleness.days}d sin mov.
+                      </span>
+                    </span>
+                  )}
                 </td>
+
                 <td className="px-4 py-3 hidden md:table-cell text-xs text-slate-500">
                   {task.projectName ?? "—"}
                 </td>
