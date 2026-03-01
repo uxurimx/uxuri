@@ -34,7 +34,8 @@ export async function POST(req: Request) {
       "svix-signature": svix_signature,
     }) as WebhookEvent;
   } catch (err) {
-    console.error("[webhook] Invalid signature:", err);
+    // 400 aquí = firma inválida o timestamp > 5 min (reintento expirado o test del dashboard)
+    console.warn("[webhook] Signature rejected (stale retry or test event):", (err as Error).message);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
