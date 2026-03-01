@@ -77,6 +77,7 @@ export async function POST(req: Request) {
     ]);
   }
 
+  await pusherServer.trigger("tasks-global", "task:created", task).catch(() => {});
   if (task.projectId) {
     await pusherServer.trigger(`project-${task.projectId}`, "task:created", task).catch(() => {});
   }

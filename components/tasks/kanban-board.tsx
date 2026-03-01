@@ -81,22 +81,51 @@ export function KanbanBoard({
 
   useEffect(() => { setTasks(initialTasks); }, [initialTasks]);
 
-  // Stable ref so Pusher handlers don't capture a stale router
+  // Stable refs so Pusher handlers don't capture stale closures
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
 
-  // Real-time updates via Pusher — refresh board when tasks change in this project
+  const projectsRef = useRef(projects);
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
+
+  // Real-time updates via global tasks channel — works for both /tasks and /projects/[id]
   useEffect(() => {
-    if (!projectId) return;
     const pusher = getPusherClient();
-    const channel = pusher.subscribe(`project-${projectId}`);
-    channel.bind("task:created", () => routerRef.current.refresh());
-    channel.bind("task:updated", () => routerRef.current.refresh());
-    return () => {
-      channel.unbind_all();
-      pusher.unsubscribe(`project-${projectId}`);
+    const channel = pusher.subscribe("tasks-global");
+
+    type RawTask = Omit<TaskWithProject, "projectName" | "createdAt"> & { projectId: string | null; createdAt: string | Date };
+
+    const handleCreated = (task: RawTask) => {
+      // On project-specific view, ignore tasks from other projects
+      if (projectId && task.projectId !== projectId) return;
+      const projectName = projectsRef.current?.find((p) => p.id === task.projectId)?.name ?? null;
+      const full: TaskWithProject = { ...task, projectName, createdAt: new Date(task.createdAt) };
+      setTasks((prev) => prev.some((t) => t.id === task.id) ? prev : [...prev, full]);
     };
-  }, [projectId]); // router removed — accessed via stable ref
+
+    const handleUpdated = (task: RawTask) => {
+      setTasks((prev) => prev.map((t) => {
+        if (t.id !== task.id) return t;
+        const projectName = projectsRef.current?.find((p) => p.id === task.projectId)?.name ?? t.projectName;
+        return { ...task, projectName, createdAt: new Date(task.createdAt) };
+      }));
+    };
+
+    const handleDeleted = ({ taskId }: { taskId: string }) => {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    };
+
+    channel.bind("task:created", handleCreated);
+    channel.bind("task:updated", handleUpdated);
+    channel.bind("task:deleted", handleDeleted);
+
+    return () => {
+      channel.unbind("task:created", handleCreated);
+      channel.unbind("task:updated", handleUpdated);
+      channel.unbind("task:deleted", handleDeleted);
+      pusher.unsubscribe("tasks-global");
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps — projectId is stable; uses refs for others
 
   const filteredTasks = tasks.filter((t) => {
     const matchSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());

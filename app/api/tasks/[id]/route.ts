@@ -122,6 +122,7 @@ export async function PATCH(
     ]);
   }
 
+  await pusherServer.trigger("tasks-global", "task:updated", updated).catch(() => {});
   if (updated.projectId) {
     await pusherServer.trigger(`project-${updated.projectId}`, "task:updated", updated).catch(() => {});
   }
@@ -138,12 +139,16 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const [existing] = await db.select({ createdBy: tasks.createdBy }).from(tasks).where(eq(tasks.id, id));
+  const [existing] = await db.select({ createdBy: tasks.createdBy, projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, id));
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (existing.createdBy && existing.createdBy !== userId) {
     return NextResponse.json({ error: "Solo el creador puede eliminar esta tarea" }, { status: 403 });
   }
 
   await db.delete(tasks).where(eq(tasks.id, id));
+  await pusherServer.trigger("tasks-global", "task:deleted", { taskId: id, projectId: existing.projectId ?? null }).catch(() => {});
+  if (existing.projectId) {
+    await pusherServer.trigger(`project-${existing.projectId}`, "task:deleted", { taskId: id }).catch(() => {});
+  }
   return NextResponse.json({ success: true });
 }
