@@ -41,6 +41,7 @@ export const tasks = pgTable("tasks", {
   priority: taskPriorityEnum("priority").default("medium").notNull(),
   dueDate: date("due_date"),
   sortOrder: integer("sort_order"),
+  agentStatus: varchar("agent_status", { length: 30 }), // null | 'queued' | 'analyzing' | 'working' | 'done' | 'error'
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

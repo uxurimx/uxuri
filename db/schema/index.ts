@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./agent-messages";
 export * from "./agents";
 export * from "./agent-sessions";
 export * from "./workflow-columns";

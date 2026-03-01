@@ -19,6 +19,7 @@ const updateTaskSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().optional().nullable(),
   sortOrder: z.number().int().optional().nullable(),
+  agentStatus: z.string().nullable().optional(),
 });
 
 const STATUS_LABELS: Record<string, string> = {
@@ -70,10 +71,10 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Usuario asignado solo puede cambiar status y sortOrder
+  // Usuario asignado solo puede cambiar status, sortOrder y agentStatus
   const updateData = isCreator
     ? parsed.data
-    : { status: parsed.data.status, sortOrder: parsed.data.sortOrder };
+    : { status: parsed.data.status, sortOrder: parsed.data.sortOrder, agentStatus: parsed.data.agentStatus };
 
   const [updated] = await db.update(tasks)
     .set({ ...updateData, updatedAt: new Date() })
@@ -194,6 +195,14 @@ export async function PATCH(
         tag: `task-assigned-${id}`,
       }).catch(() => {}),
     ]);
+  }
+
+  // Notify agent status change via task-specific channel
+  if ("agentStatus" in updateData && updateData.agentStatus !== existing.agentStatus) {
+    await pusherServer.trigger(`task-${id}`, "agent:status", {
+      taskId: id,
+      agentStatus: updated.agentStatus,
+    }).catch(() => {});
   }
 
   await pusherServer.trigger("tasks-global", "task:updated", updated).catch(() => {});

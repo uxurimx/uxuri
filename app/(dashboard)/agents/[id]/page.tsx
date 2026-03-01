@@ -36,6 +36,7 @@ export default async function AgentDetailPage({
       dueDate: tasks.dueDate,
       projectName: projects.name,
       projectId: tasks.projectId,
+      agentStatus: tasks.agentStatus,
     })
     .from(tasks)
     .leftJoin(projects, eq(tasks.projectId, projects.id))

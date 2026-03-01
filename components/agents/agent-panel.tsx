@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Play, Pause, CheckCircle2, Clock, Square, Timer,
   Folder, X, ChevronRight, Bot, Coins, FileText, Settings,
-  History, Activity, Zap, SlidersHorizontal,
+  History, Activity, Zap, SlidersHorizontal, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AgentChat } from "./agent-chat";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ export type AgentTaskItem = {
   dueDate: string | null;
   projectName: string | null;
   projectId: string | null;
+  agentStatus: string | null;
 };
 
 export type SessionState = {
@@ -98,6 +100,24 @@ const priorityConfig = {
 const statusLabels: Record<string, string> = {
   todo: "Por hacer", in_progress: "En progreso", review: "Revisión", done: "Hecho",
 };
+
+const agentStatusConfig: Record<string, { label: string; color: string }> = {
+  queued:    { label: "En cola",    color: "text-amber-600 bg-amber-50 border-amber-200" },
+  analyzing: { label: "Analizando", color: "text-blue-600 bg-blue-50 border-blue-200" },
+  working:   { label: "Trabajando", color: "text-orange-600 bg-orange-50 border-orange-200" },
+  done:      { label: "Hecho",      color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  error:     { label: "Error",      color: "text-red-600 bg-red-50 border-red-200" },
+};
+
+function AgentStatusBadge({ status }: { status: string }) {
+  const cfg = agentStatusConfig[status];
+  if (!cfg) return null;
+  return (
+    <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", cfg.color)}>
+      {cfg.label}
+    </span>
+  );
+}
 
 const AI_MODELS = [
   { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
@@ -276,6 +296,20 @@ function TaskDetailPanel({
               )}
             </div>
           )}
+
+          {/* Agent chat */}
+          <div className="px-5 py-4 border-b border-slate-100">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <MessageSquare className="w-3 h-3" />
+              Debate con el agente
+              {task.agentStatus && (
+                <span className="ml-auto normal-case">
+                  <AgentStatusBadge status={task.agentStatus} />
+                </span>
+              )}
+            </p>
+            <AgentChat taskId={task.id} agentStatus={task.agentStatus} />
+          </div>
 
           {/* Session history */}
           <div className="px-5 py-4">
@@ -689,6 +723,19 @@ export function AgentPanel({
     }
   }
 
+  async function handleSendToAgent(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentStatus: "queued" }),
+    });
+    if (res.ok) {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, agentStatus: "queued" } : t))
+      );
+    }
+  }
+
   function openTaskPanel(taskId: string, readOnly = false) {
     setSelectedTaskId(taskId);
     setPanelReadOnly(readOnly);
@@ -715,6 +762,7 @@ export function AgentPanel({
         dueDate: null,
         projectName: selectedHistoryTask.projectName,
         projectId: selectedHistoryTask.projectId,
+        agentStatus: null,
       }
     : null;
 
@@ -849,6 +897,17 @@ export function AgentPanel({
                           <FileText className="w-3 h-3" /> Detalles
                         </button>
                         <div className="flex items-center gap-2">
+                          {/* Agent status badge or send button */}
+                          {task.agentStatus ? (
+                            <AgentStatusBadge status={task.agentStatus} />
+                          ) : (
+                            <button
+                              onClick={() => handleSendToAgent(task.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-500 bg-white rounded-lg text-xs font-medium hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
+                            >
+                              <Bot className="w-3 h-3" /> Enviar al agente
+                            </button>
+                          )}
                           {!isRunning && !isPaused && (
                             <button onClick={() => handlePlay(task.id)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-medium hover:bg-[#162d4a] transition-colors disabled:opacity-50">
                               <Play className="w-3 h-3 fill-current" /> Iniciar
