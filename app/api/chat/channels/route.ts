@@ -32,7 +32,13 @@ export async function GET() {
     .from(chatChannels)
     .orderBy(asc(chatChannels.createdAt));
 
-  return NextResponse.json(channels);
+  // Filter out DM channels the current user is not part of
+  const visible = channels.filter((ch) => {
+    if (ch.entityType !== "direct") return true;
+    return ch.dmKey?.split("|").includes(userId) ?? false;
+  });
+
+  return NextResponse.json(visible);
 }
 
 const createChannelSchema = z.object({

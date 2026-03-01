@@ -17,6 +17,11 @@ const sendSchema = z.object({
   fileSize: z.number().int().optional(),
 });
 
+function canAccessChannel(channel: { entityType: string; dmKey: string | null }, userId: string) {
+  if (channel.entityType !== "direct") return true;
+  return channel.dmKey?.split("|").includes(userId) ?? false;
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -25,6 +30,15 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: channelId } = await params;
+
+  const [channel] = await db
+    .select({ entityType: chatChannels.entityType, dmKey: chatChannels.dmKey })
+    .from(chatChannels)
+    .where(eq(chatChannels.id, channelId));
+
+  if (!channel) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!canAccessChannel(channel, userId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const url = new URL(req.url);
   const before = url.searchParams.get("before"); // cursor: ISO timestamp
 
@@ -65,6 +79,7 @@ export async function POST(
       .from(chatChannels).where(eq(chatChannels.id, channelId)),
   ]);
   if (!channel) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+  if (!canAccessChannel(channel, userId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const [message] = await db
     .insert(chatMessages)
