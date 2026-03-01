@@ -181,6 +181,28 @@ function TaskDetailPanel({
       .finally(() => setLoadingSessions(false));
   }, [agentId, task.id]);
 
+  // Activity timeline for this task
+  type ActivityEvent = {
+    id: string;
+    type: string;
+    userName: string | null;
+    oldValue: string | null;
+    newValue: string | null;
+    createdAt: string;
+  };
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/tasks/${task.id}/activity`)
+      .then((r) => r.json())
+      .then((data) => setActivityEvents(Array.isArray(data) ? data : []))
+      .catch(() => setActivityEvents([]));
+  }, [task.id]);
+
+  const agentEvents = activityEvents.filter(
+    (e) => e.type === "agent_status_changed" || (e.type === "status_changed" && e.userName === "Agente IA")
+  );
+
   async function saveSessionField(sessionId: string, field: "notes" | "tokenCost", value: string | null) {
     const body = field === "notes"
       ? { notes: value }
@@ -313,6 +335,37 @@ function TaskDetailPanel({
             </p>
             <AgentChat taskId={task.id} agentStatus={task.agentStatus} />
           </div>
+
+          {/* Agent activity timeline */}
+          {agentEvents.length > 0 && (
+            <div className="px-5 py-4 border-b border-slate-100">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Activity className="w-3 h-3" />
+                Actividad del agente
+              </p>
+              <div className="space-y-2">
+                {agentEvents.map((evt) => (
+                  <div key={evt.id} className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-[#1e3a5f]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Bot className="w-2.5 h-2.5 text-[#1e3a5f]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-700">
+                        {evt.type === "agent_status_changed" ? (
+                          <>Estado: <span className="font-medium">{evt.oldValue ?? "—"}</span> → <span className="font-medium">{evt.newValue}</span></>
+                        ) : (
+                          <>Tarea: <span className="font-medium">{evt.oldValue ?? "—"}</span> → <span className="font-medium">{evt.newValue}</span></>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(evt.createdAt).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Session history */}
           <div className="px-5 py-4">
@@ -990,7 +1043,6 @@ export function AgentPanel({
                           <FileText className="w-3 h-3" /> Detalles
                         </button>
                         <div className="flex items-center gap-2">
-                          {/* Agent status badge or send button */}
                           {task.agentStatus ? (
                             <AgentStatusBadge status={task.agentStatus} />
                           ) : (
@@ -1000,31 +1052,6 @@ export function AgentPanel({
                             >
                               <Bot className="w-3 h-3" /> Enviar al agente
                             </button>
-                          )}
-                          {!isRunning && !isPaused && (
-                            <button onClick={() => handlePlay(task.id)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-medium hover:bg-[#162d4a] transition-colors disabled:opacity-50">
-                              <Play className="w-3 h-3 fill-current" /> Iniciar
-                            </button>
-                          )}
-                          {isPaused && (
-                            <>
-                              <button onClick={() => handlePlay(task.id)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-medium hover:bg-[#162d4a] transition-colors disabled:opacity-50">
-                                <Play className="w-3 h-3 fill-current" /> Reanudar
-                              </button>
-                              <button onClick={() => sessionId && handleStop(sessionId, task.id)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                                <CheckCircle2 className="w-3 h-3" /> Terminar
-                              </button>
-                            </>
-                          )}
-                          {isRunning && (
-                            <>
-                              <button onClick={() => sessionId && handlePause(sessionId, task.id)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-lg text-xs font-medium hover:bg-amber-100 transition-colors disabled:opacity-50">
-                                <Pause className="w-3 h-3 fill-current" /> Pausar
-                              </button>
-                              <button onClick={() => sessionId && handleStop(sessionId, task.id)} disabled={isLoading} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                                <CheckCircle2 className="w-3 h-3" /> Terminar
-                              </button>
-                            </>
                           )}
                         </div>
                       </div>

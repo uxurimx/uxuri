@@ -109,10 +109,11 @@ export default async function AgentDetailPage({
       )
     );
 
-  // History: done sessions grouped by task
+  // History: all done tasks assigned to this agent, with aggregated session data
+  // Using LEFT JOIN so tasks completed by MCP (with minimal/no sessions) still appear
   const historyRows = await db
     .select({
-      taskId: agentSessions.taskId,
+      taskId: tasks.id,
       taskTitle: tasks.title,
       taskStatus: tasks.status,
       taskPriority: tasks.priority,
@@ -120,23 +121,18 @@ export default async function AgentDetailPage({
       projectId: tasks.projectId,
       totalSeconds: sql<number>`COALESCE(SUM(${agentSessions.elapsedSeconds}), 0)::int`,
       totalTokens: sql<number>`COALESCE(SUM(${agentSessions.tokenCost}), 0)::int`,
-      sessionCount: sql<number>`COUNT(*)::int`,
+      sessionCount: sql<number>`COUNT(${agentSessions.id})::int`,
       lastWorked: sql<string>`MAX(${agentSessions.endedAt})`,
     })
-    .from(agentSessions)
-    .innerJoin(tasks, eq(agentSessions.taskId, tasks.id))
-    .leftJoin(projects, eq(tasks.projectId, projects.id))
-    .where(and(eq(agentSessions.agentId, id), eq(agentSessions.status, "done")))
-    .groupBy(
-      agentSessions.taskId,
-      tasks.id,
-      tasks.title,
-      tasks.status,
-      tasks.priority,
-      tasks.projectId,
-      projects.name
+    .from(tasks)
+    .leftJoin(
+      agentSessions,
+      and(eq(agentSessions.taskId, tasks.id), eq(agentSessions.agentId, id), eq(agentSessions.status, "done"))
     )
-    .orderBy(sql`MAX(${agentSessions.endedAt}) DESC`);
+    .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .where(and(eq(tasks.agentId, id), eq(tasks.status, "done")))
+    .groupBy(tasks.id, tasks.title, tasks.status, tasks.priority, tasks.projectId, projects.name)
+    .orderBy(sql`MAX(${agentSessions.endedAt}) DESC NULLS LAST`);
 
   const initialSessions = activeSessions.map((s) => ({
     ...s,
