@@ -91,6 +91,24 @@ export default async function AgentDetailPage({
       )
     );
 
+  // Monthly token consumption
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [monthTokenRow] = await db
+    .select({
+      total: sql<number>`COALESCE(SUM(${agentSessions.tokenCost}), 0)::int`,
+    })
+    .from(agentSessions)
+    .where(
+      and(
+        eq(agentSessions.agentId, id),
+        eq(agentSessions.status, "done"),
+        gte(agentSessions.createdAt, monthStart)
+      )
+    );
+
   // History: done sessions grouped by task
   const historyRows = await db
     .select({
@@ -169,8 +187,10 @@ export default async function AgentDetailPage({
           aiModel: agent.aiModel,
           aiPrompt: agent.aiPrompt,
           maxTokens: agent.maxTokens,
+          tokenBudget: agent.tokenBudget,
           temperature: agent.temperature,
         }}
+        monthlyTokens={monthTokenRow?.total ?? 0}
         initialTasks={agentTasks}
         initialSessions={initialSessions}
         doneTimes={doneTimes}

@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Play, Pause, CheckCircle2, Clock, Square, Timer,
   Folder, X, ChevronRight, Bot, Coins, FileText, Settings,
   History, Activity, Zap, SlidersHorizontal, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getPusherClient } from "@/lib/pusher";
 import { AgentChat } from "./agent-chat";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,6 +50,7 @@ export type AgentConfig = {
   aiModel: string | null;
   aiPrompt: string | null;
   maxTokens: number | null;
+  tokenBudget: number | null;
   temperature: number | null;
 };
 
@@ -433,6 +436,41 @@ function DoneSessionRow({
   );
 }
 
+// ── Token Budget Bar ──────────────────────────────────────────────────────────
+
+function TokenBudgetBar({ used, budget }: { used: number; budget: number | null }) {
+  const pct = budget && budget > 0 ? Math.min((used / budget) * 100, 100) : null;
+  const isOver = budget != null && used > budget;
+  const color = isOver ? "bg-red-500" : pct != null && pct > 75 ? "bg-amber-400" : "bg-[#1e3a5f]";
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+          <Coins className="w-3 h-3" /> Tokens este mes
+        </span>
+        <span className={cn("text-xs font-mono font-semibold", isOver ? "text-red-500" : "text-slate-700")}>
+          {used.toLocaleString()}
+          {budget != null && <span className="text-slate-400 font-normal"> / {budget.toLocaleString()}</span>}
+        </span>
+      </div>
+      {budget != null ? (
+        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={cn("h-full rounded-full transition-all", color)}
+            style={{ width: `${pct ?? 0}%` }}
+          />
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 italic">Sin presupuesto definido — configura uno en la tab Configurar</p>
+      )}
+      {isOver && (
+        <p className="text-xs text-red-500 mt-1 font-medium">⚠ Presupuesto superado</p>
+      )}
+    </div>
+  );
+}
+
 // ── Config Tab ────────────────────────────────────────────────────────────────
 
 function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }) {
@@ -440,6 +478,7 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
   const [customModel, setCustomModel] = useState("");
   const [aiPrompt, setAiPrompt] = useState(config.aiPrompt ?? "");
   const [maxTokens, setMaxTokens] = useState(config.maxTokens != null ? String(config.maxTokens) : "");
+  const [tokenBudget, setTokenBudget] = useState(config.tokenBudget != null ? String(config.tokenBudget) : "");
   const [temperature, setTemperature] = useState(config.temperature != null ? config.temperature : 0.7);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -470,6 +509,7 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
           aiModel: finalModel || null,
           aiPrompt: aiPrompt || null,
           maxTokens: maxTokens ? parseInt(maxTokens, 10) : null,
+          tokenBudget: tokenBudget ? parseInt(tokenBudget, 10) : null,
           temperature,
         }),
       });
@@ -537,7 +577,7 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
         </h3>
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Máximo de tokens</label>
+            <label className="text-xs text-slate-500 mb-1 block">Máximo de tokens por respuesta</label>
             <input
               type="number"
               min={1}
@@ -547,6 +587,20 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
               placeholder="Sin límite"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] placeholder:text-slate-300"
             />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block flex items-center gap-1">
+              <Coins className="w-3 h-3" /> Presupuesto mensual de tokens
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={tokenBudget}
+              onChange={(e) => setTokenBudget(e.target.value)}
+              placeholder="Sin presupuesto"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] placeholder:text-slate-300"
+            />
+            <p className="text-xs text-slate-400 mt-1">Ej: 100000 = 100k tokens/mes. La barra de consumo lo usará como referencia.</p>
           </div>
           <div>
             <label className="text-xs text-slate-500 mb-1 flex items-center justify-between">
@@ -611,6 +665,7 @@ interface AgentPanelProps {
   doneTimes: Record<string, number>;
   initialTodaySeconds: number;
   historyItems: HistoryItem[];
+  monthlyTokens: number;
 }
 
 export function AgentPanel({
@@ -622,7 +677,10 @@ export function AgentPanel({
   doneTimes,
   initialTodaySeconds,
   historyItems: initialHistory,
+  monthlyTokens,
 }: AgentPanelProps) {
+  const router = useRouter();
+
   type Tab = "activas" | "historial" | "configurar";
   const [tab, setTab] = useState<Tab>("activas");
 
@@ -640,6 +698,38 @@ export function AgentPanel({
   const [panelReadOnly, setPanelReadOnly] = useState(false);
 
   const runningSession = Object.values(sessions).find((s) => s.status === "running");
+
+  // Real-time: subscribe to tasks-global to update agentStatus badges
+  // and remove tasks when they're marked done by the MCP agent
+  useEffect(() => {
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe("tasks-global");
+
+    channel.bind("task:updated", (data: { id: string; agent_status?: string | null; status?: string }) => {
+      const agentStatus = data.agent_status ?? null;
+      const status = data.status;
+      setTasks((prev) => {
+        if (status === "done") {
+          // Remove from active list; RSC refresh will populate history
+          return prev.filter((t) => t.id !== data.id);
+        }
+        return prev.map((t) =>
+          t.id === data.id
+            ? { ...t, agentStatus, ...(status ? { status: status as AgentTaskItem["status"] } : {}) }
+            : t
+        );
+      });
+      // Refresh RSC data so history tab updates after task is done
+      if (status === "done") {
+        router.refresh();
+      }
+    });
+
+    return () => {
+      channel.unbind("task:updated");
+      pusher.unsubscribe("tasks-global");
+    };
+  }, [router]);
 
   // Live tick
   useEffect(() => {
@@ -762,7 +852,7 @@ export function AgentPanel({
         dueDate: null,
         projectName: selectedHistoryTask.projectName,
         projectId: selectedHistoryTask.projectId,
-        agentStatus: null,
+        agentStatus: "done",
       }
     : null;
 
@@ -823,6 +913,9 @@ export function AgentPanel({
               highlight={!!runningSession}
             />
           </div>
+
+          {/* Token consumption bar */}
+          <TokenBudgetBar used={monthlyTokens} budget={agentConfig.tokenBudget} />
 
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-xl border border-slate-200">

@@ -152,7 +152,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "mark_task_done",
       description:
-        "Marca una tarea como completada: agentStatus='done' y status='done'. Envía notificación en tiempo real a la web app. Opcionalmente envía un mensaje resumen al usuario.",
+        "Marca una tarea como completada: agentStatus='done' y status='done'. Envía notificación en tiempo real a la web app. Opcionalmente envía un mensaje resumen y los tokens consumidos.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -162,11 +162,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           summary: {
             type: "string",
-            description:
-              "Mensaje opcional de resumen para enviar al usuario explicando qué se hizo",
+            description: "Mensaje opcional de resumen para enviar al usuario explicando qué se hizo",
+          },
+          tokenCount: {
+            type: "number",
+            description: "Tokens totales consumidos en esta tarea (input + output). Se guarda en la sesión para el control de gasto.",
           },
         },
         required: ["taskId"],
+      },
+    },
+    {
+      name: "create_tasks",
+      description:
+        "Crea una o varias tareas nuevas en el sistema a partir de una lista. Úsalo para convertir un plan, roadmap o propuesta del agente en tareas reales accionables.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          projectId: {
+            type: "string",
+            description: "UUID del proyecto donde crear las tareas (opcional — usa el mismo proyecto de la tarea original si no se especifica)",
+          },
+          tasks: {
+            type: "array",
+            description: "Lista de tareas a crear",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string", description: "Título de la tarea" },
+                description: { type: "string", description: "Descripción detallada (opcional)" },
+                priority: {
+                  type: "string",
+                  enum: ["low", "medium", "high", "urgent"],
+                  description: "Prioridad (default: medium)",
+                },
+              },
+              required: ["title"],
+            },
+          },
+        },
+        required: ["tasks"],
       },
     },
   ],
@@ -268,14 +303,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "set_agent_status": {
         const { taskId, status } = args as { taskId: string; status: string };
-        await sql`
+
+        const statusLabels: Record<string, string> = {
+          queued: "En cola", analyzing: "Analizando", working: "Trabajando",
+          done: "Hecho", error: "Error",
+        };
+
+        // Get old status before updating
+        const [before] = await sql`SELECT agent_status FROM tasks WHERE id = ${taskId}`;
+        const oldLabel = before?.agent_status ? (statusLabels[before.agent_status] ?? before.agent_status) : null;
+
+        // Update and return full task
+        const [updated] = await sql`
           UPDATE tasks
           SET agent_status = ${status}, updated_at = NOW()
           WHERE id = ${taskId}
+          RETURNING *
         `;
-        await pusher
-          .trigger(`task-${taskId}`, "agent:status", { taskId, agentStatus: status })
-          .catch(() => {});
+
+        // Record in activity timeline
+        await sql`
+          INSERT INTO task_activity (task_id, user_name, type, old_value, new_value)
+          VALUES (${taskId}, 'Agente IA', 'agent_status_changed', ${oldLabel}, ${statusLabels[status] ?? status})
+        `.catch(() => {});
+
+        // Notify: task-specific channel + global channel (so AgentPanel updates badge)
+        await pusher.trigger(`task-${taskId}`, "agent:status", { taskId, agentStatus: status }).catch(() => {});
+        await pusher.trigger("tasks-global", "task:updated", updated).catch(() => {});
+
         return {
           content: [
             {
@@ -287,13 +342,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "mark_task_done": {
-        const { taskId, summary } = args as { taskId: string; summary?: string };
+        const { taskId, summary, tokenCount } = args as { taskId: string; summary?: string; tokenCount?: number };
 
-        await sql`
+        // Get current task to access agent_id and status
+        const [taskBefore] = await sql`SELECT * FROM tasks WHERE id = ${taskId}`;
+
+        // Update task
+        const [updated] = await sql`
           UPDATE tasks
           SET agent_status = 'done', status = 'done', updated_at = NOW()
           WHERE id = ${taskId}
+          RETURNING *
         `;
+
+        // Create minimal agent session so task appears in history tab
+        // Include tokenCount if provided
+        if (taskBefore?.agent_id) {
+          await sql`
+            INSERT INTO agent_sessions (agent_id, task_id, started_at, ended_at, elapsed_seconds, status, token_cost)
+            VALUES (${taskBefore.agent_id}, ${taskId}, NOW(), NOW(), 0, 'done', ${tokenCount ?? null})
+          `.catch(() => {});
+        }
+
+        // Record in activity timeline: agent status change
+        await sql`
+          INSERT INTO task_activity (task_id, user_name, type, old_value, new_value)
+          VALUES (${taskId}, 'Agente IA', 'agent_status_changed', 'Trabajando', 'Hecho')
+        `.catch(() => {});
+
+        // Record in activity timeline: task status change
+        await sql`
+          INSERT INTO task_activity (task_id, user_name, type, old_value, new_value)
+          VALUES (${taskId}, 'Agente IA', 'status_changed', 'En progreso', 'Hecho')
+        `.catch(() => {});
 
         // Send summary message if provided
         if (summary) {
@@ -302,20 +383,72 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             VALUES (${taskId}, 'agent', ${summary})
             RETURNING id, task_id, role, content, created_at
           `;
-          await pusher
-            .trigger(`task-${taskId}`, "agent:message", message)
-            .catch(() => {});
+          await pusher.trigger(`task-${taskId}`, "agent:message", message).catch(() => {});
         }
 
-        await pusher
-          .trigger(`task-${taskId}`, "agent:done", { taskId, agentStatus: "done" })
-          .catch(() => {});
+        // Notify creator via private Pusher channel
+        if (taskBefore?.created_by) {
+          await pusher.trigger(
+            `private-user-${taskBefore.created_by}`,
+            "task:completed",
+            {
+              taskId,
+              taskTitle: taskBefore.title,
+              completedByName: "Agente IA",
+              projectId: taskBefore.project_id ?? null,
+              url: taskBefore.project_id ? `/projects/${taskBefore.project_id}` : "/tasks",
+            }
+          ).catch(() => {});
+        }
+
+        // Notify: task-specific + global (AgentPanel removes from active list)
+        await pusher.trigger(`task-${taskId}`, "agent:done", { taskId, agentStatus: "done" }).catch(() => {});
+        await pusher.trigger("tasks-global", "task:updated", updated).catch(() => {});
 
         return {
           content: [
             {
               type: "text" as const,
               text: `Tarea ${taskId} marcada como completada.`,
+            },
+          ],
+        };
+      }
+
+      case "create_tasks": {
+        const { projectId: overrideProjectId, tasks: taskList } = args as {
+          projectId?: string;
+          tasks: { title: string; description?: string; priority?: string }[];
+        };
+
+        const created = [];
+        for (const t of taskList) {
+          const priority = t.priority ?? "medium";
+          const [row] = await sql`
+            INSERT INTO tasks (title, description, project_id, priority, status)
+            VALUES (
+              ${t.title},
+              ${t.description ?? null},
+              ${overrideProjectId ?? null},
+              ${priority},
+              'todo'
+            )
+            RETURNING id, title, status, priority, project_id
+          `;
+          created.push(row);
+
+          // Notify kanban
+          await pusher.trigger("tasks-global", "task:created", row).catch(() => {});
+          if (row.project_id) {
+            await pusher.trigger(`project-${row.project_id}`, "task:created", row).catch(() => {});
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `${created.length} tarea(s) creadas:\n${created.map((t) => `• ${t.title} (${t.id})`).join("\n")}`,
             },
           ],
         };

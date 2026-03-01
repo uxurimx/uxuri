@@ -15,6 +15,7 @@ export const taskActivityTypeEnum = pgEnum("task_activity_type", [
   "session_started",
   "session_paused",
   "session_stopped",
+  "agent_status_changed",
 ]);
 
 export const taskActivity = pgTable("task_activity", {

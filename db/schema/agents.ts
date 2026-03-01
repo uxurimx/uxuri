@@ -20,6 +20,7 @@ export const agents = pgTable("agents", {
   aiModel: varchar("ai_model", { length: 100 }),
   aiPrompt: text("ai_prompt"),
   maxTokens: integer("max_tokens"),
+  tokenBudget: integer("token_budget"), // monthly token budget (null = sin límite)
   temperature: doublePrecision("temperature"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   isActive: boolean("is_active").default(true).notNull(),

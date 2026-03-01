@@ -8,8 +8,9 @@ import {
   X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
   MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
   FileText, Clock, UserCheck, UserMinus, History, CheckCircle2,
-  Play, Pause, StopCircle,
+  Play, Pause, StopCircle, Bot,
 } from "lucide-react";
+import { AgentChat } from "@/components/agents/agent-chat";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ export type TaskForModal = {
   projectName?: string | null;
   assignedTo?: string | null;
   agentId?: string | null;
+  agentStatus?: string | null;
   createdBy?: string | null;
   personalDone?: boolean;
 };
@@ -57,7 +59,7 @@ type ActivityEvent = {
   userName: string | null;
   type: "created" | "status_changed" | "priority_changed" | "assigned" | "unassigned" |
         "title_changed" | "description_changed" | "due_date_changed" | "commented" |
-        "session_started" | "session_paused" | "session_stopped";
+        "session_started" | "session_paused" | "session_stopped" | "agent_status_changed";
   oldValue: string | null;
   newValue: string | null;
   createdAt: string;
@@ -189,6 +191,16 @@ const activityMeta: Record<
       return `${e.userName ?? "Agente"} terminó la tarea${secs > 0 ? ` · Total: ${fmtSecs(secs)}` : ""}`;
     },
   },
+  agent_status_changed: {
+    icon: Bot,
+    color: "text-[#1e3a5f]",
+    label: (e) =>
+      e.oldValue && e.newValue
+        ? `Agente IA: ${e.oldValue} → ${e.newValue}`
+        : e.newValue
+        ? `Agente IA cambió estado a ${e.newValue}`
+        : `Agente IA actualizó el estado`,
+  },
 };
 
 function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loading: boolean }) {
@@ -230,6 +242,7 @@ function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loadin
                 "border-slate-200":     event.type === "unassigned" || event.type === "title_changed" || event.type === "description_changed",
                 "border-teal-200":      event.type === "due_date_changed",
                 "border-indigo-200":    event.type === "commented",
+                "border-[#1e3a5f]/30": event.type === "agent_status_changed",
               })}>
                 <Icon className={cn("w-3 h-3", meta.color)} />
               </div>
@@ -286,7 +299,7 @@ export function TaskModal({
   const [isDeleting, setIsDeleting] = useState(false);
 
   // View tabs
-  const [activeTab, setActiveTab] = useState<"comments" | "details">("comments");
+  const [activeTab, setActiveTab] = useState<"comments" | "details" | "agente">("comments");
 
   // Comments state
   const [comments, setComments] = useState<Comment[]>([]);
@@ -595,6 +608,20 @@ export function TaskModal({
                     <History className="w-3.5 h-3.5" />
                     Detalles
                   </button>
+                  {task?.agentId && (
+                    <button
+                      onClick={() => setActiveTab("agente")}
+                      className={cn(
+                        "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
+                        activeTab === "agente"
+                          ? "border-[#1e3a5f] text-[#1e3a5f]"
+                          : "border-transparent text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      <Bot className="w-3.5 h-3.5" />
+                      Agente
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -646,6 +673,13 @@ export function TaskModal({
               {activeTab === "details" && (
                 <div className="pt-1">
                   <ActivityTimeline events={activity} loading={activityLoading} />
+                </div>
+              )}
+
+              {/* ── Agente tab ── */}
+              {activeTab === "agente" && task?.agentId && (
+                <div className="pt-3">
+                  <AgentChat taskId={task.id} agentStatus={task.agentStatus ?? null} />
                 </div>
               )}
             </div>
