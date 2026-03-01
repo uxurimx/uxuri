@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const EMOJIS = [
@@ -111,10 +112,14 @@ function AgentCard({
               ? "1 tarea activa"
               : `${agent.taskCount} tareas activas`}
           </span>
-          <div
-            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: agent.color }}
-          />
+          <Link
+            href={`/agents/${agent.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-0.5 text-xs text-slate-400 hover:text-[#1e3a5f] transition-colors"
+          >
+            Ver
+            <ChevronRight className="w-3 h-3" />
+          </Link>
         </div>
       </div>
     </div>
