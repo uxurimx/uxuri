@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-background: #ffffff;
   --color-foreground: #0f172a;
@@ -26,6 +28,109 @@
   --radius-xl: 1rem;
   --font-sans: "Inter", system-ui, sans-serif;
 }
+
+.dark {
+  --color-background: #0f172a;
+  --color-foreground: #f1f5f9;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #94a3b8;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-border: #334155;
+  --color-input: #334155;
+  --color-card: #1e293b;
+  --color-card-foreground: #f1f5f9;
+  --color-popover: #1e293b;
+  --color-popover-foreground: #f1f5f9;
+
+  /* Skin vars — dark defaults */
+  --skin-page-bg: #0f172a;
+  --skin-header-bg: #0f172a;
+  --skin-header-text: #f1f5f9;
+  --skin-header-text-muted: #94a3b8;
+  --skin-header-text-strong: #e2e8f0;
+  --skin-border: #334155;
+}
+
+/* ============================================================
+   Skin CSS vars — defaults (light)
+   ============================================================ */
+:root {
+  --skin-page-bg: #f8fafc;
+  --skin-sidebar-bg: #0f172a;
+  --skin-sidebar-border: #1e293b;
+  --skin-sidebar-text: #94a3b8;
+  --skin-sidebar-text-muted: #475569;
+  --skin-active-bg: #1e3a5f;
+  --skin-active-text: #ffffff;
+  --skin-sidebar-hover: #1e293b;
+  --skin-header-bg: #ffffff;
+  --skin-header-text: #0f172a;
+  --skin-header-text-muted: #64748b;
+  --skin-header-text-strong: #1e293b;
+  --skin-border: #e2e8f0;
+}
+
+/* ============================================================
+   Torres skin
+   ============================================================ */
+[data-skin="torres"] {
+  --skin-page-bg:            #07090f;
+  --skin-sidebar-bg:         #0a0e1a;
+  --skin-sidebar-border:     #1a2233;
+  --skin-sidebar-text:       #8892a4;
+  --skin-sidebar-text-muted: #444f63;
+  --skin-active-bg:          #0e2233;
+  --skin-active-text:        #22d3ee;
+  --skin-sidebar-hover:      #111827;
+  --skin-header-bg:          #0a0e1a;
+  --skin-header-text:        #c9d1d9;
+  --skin-header-text-muted:  #8892a4;
+  --skin-header-text-strong: #e2e8f0;
+  --skin-border:             #1a2233;
+
+  /* Torres color overrides for Tailwind classes used in page content */
+  --color-background: #07090f;
+  --color-foreground: #e6edf3;
+  --color-border: #21262d;
+  --color-card: #0d1117;
+  --color-card-foreground: #e6edf3;
+  --color-muted: #0d1520;
+  --color-muted-foreground: #8b949e;
+}
+
+/* Torres: active sidebar item — neon glow */
+[data-skin="torres"] [data-active="true"] {
+  border-left: 2px solid #22d3ee;
+  box-shadow: inset 0 0 30px rgba(34, 211, 238, 0.06);
+}
+
+/* Torres: header bottom border */
+[data-skin="torres"] header {
+  border-bottom-color: rgba(34, 211, 238, 0.12) !important;
+}
+
+/* Torres: scrollbar accent */
+[data-skin="torres"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.4);
+}
+
+/* Torres: Tailwind class overrides for page content */
+[data-skin="torres"] .bg-white           { background: #0d1117 !important; }
+[data-skin="torres"] .bg-slate-50        { background: #07090f !important; }
+[data-skin="torres"] .bg-slate-100       { background: #0d1520 !important; }
+[data-skin="torres"] .border-slate-200   { border-color: #21262d !important; }
+[data-skin="torres"] .border-slate-100   { border-color: #1c2128 !important; }
+[data-skin="torres"] .text-slate-900     { color: #e6edf3 !important; }
+[data-skin="torres"] .text-slate-800     { color: #cdd9e5 !important; }
+[data-skin="torres"] .text-slate-700     { color: #adbac7 !important; }
+[data-skin="torres"] .text-slate-600     { color: #8b949e !important; }
+[data-skin="torres"] .text-slate-500     { color: #768390 !important; }
+[data-skin="torres"] .text-slate-400     { color: #545d68 !important; }
+[data-skin="torres"] .bg-blue-50         { background: #1a2332 !important; }
+[data-skin="torres"] .bg-emerald-50      { background: #122018 !important; }
+[data-skin="torres"] .hover\:bg-slate-50:hover  { background: #0d1520 !important; }
+[data-skin="torres"] .hover\:bg-slate-100:hover { background: #161b22 !important; }
 
 * {
   box-sizing: border-box;

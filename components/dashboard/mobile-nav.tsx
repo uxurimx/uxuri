@@ -21,7 +21,7 @@ export function MobileNav({ permissions, currentUserId }: { permissions: string[
   const visibleItems = navItems.filter((item) => permissions.includes(item.href));
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-40">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 bg-[var(--skin-header-bg)] border-t border-[var(--skin-border)] z-40">
       <div className="flex items-center justify-around py-2">
         {visibleItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -32,13 +32,13 @@ export function MobileNav({ permissions, currentUserId }: { permissions: string[
               href={item.href}
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors",
-                isActive ? "text-[#1e3a5f]" : "text-slate-400"
+                isActive ? "text-[var(--skin-active-text)]" : "text-[var(--skin-sidebar-text)]"
               )}
             >
               <div className="relative">
                 <item.icon className="w-5 h-5" />
                 {showDot && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[var(--skin-header-bg)]" />
                 )}
               </div>
               <span className="text-[10px] font-medium">{item.label}</span>

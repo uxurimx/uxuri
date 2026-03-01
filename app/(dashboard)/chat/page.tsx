@@ -9,7 +9,7 @@ export default async function ChatPage() {
 
   return (
     // Fill remaining height without the topbar overflow
-    <div className="-m-4 md:-m-6 lg:-m-8 h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] flex flex-col">
+    <div className="-m-4 -mt-12 md:-mt-4 md:-m-6 lg:-m-8 h-[calc(100vh-4rem)] flex flex-col">
       <Suspense>
         <ChatClient currentUserId={userId} />
       </Suspense>
