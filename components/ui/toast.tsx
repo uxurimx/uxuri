@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { X, CheckCircle, Info, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,13 +16,14 @@ export interface Notification {
   id: string;
   message: string;
   type: ToastType;
-  timestamp: Date;
+  timestamp: string; // ISO string so it survives JSON serialization
   read: boolean;
+  url?: string;
 }
 
 interface ToastContextValue {
   addToast: (message: string, type?: ToastType) => void;
-  addNotification: (message: string, type?: ToastType) => void;
+  addNotification: (message: string, type?: ToastType, url?: string) => void;
   notifications: Notification[];
   unreadCount: number;
   markAllRead: () => void;
@@ -54,9 +55,32 @@ const styles = {
   warning: "border-amber-200 bg-amber-50",
 };
 
+const STORAGE_KEY = "uxuri:notifications";
+const MAX_STORED = 50;
+
+function loadFromStorage(): Notification[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Notification[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(notifications: Notification[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications.slice(0, MAX_STORED)));
+  } catch {}
+}
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Load persisted notifications on mount
+  useEffect(() => {
+    setNotifications(loadFromStorage());
+  }, []);
 
   const addToast = useCallback((message: string, type: ToastType = "info") => {
     const id = Math.random().toString(36).slice(2);
@@ -64,24 +88,37 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
   }, []);
 
-  const addNotification = useCallback((message: string, type: ToastType = "info") => {
+  const addNotification = useCallback((message: string, type: ToastType = "info", url?: string) => {
     const id = Math.random().toString(36).slice(2);
-    // Add to persistent notification list
-    setNotifications((prev) => [
-      { id, message, type, timestamp: new Date(), read: false },
-      ...prev.slice(0, 49), // keep max 50
-    ]);
+    const notification: Notification = {
+      id,
+      message,
+      type,
+      timestamp: new Date().toISOString(),
+      read: false,
+      url,
+    };
+    setNotifications((prev) => {
+      const next = [notification, ...prev.slice(0, MAX_STORED - 1)];
+      saveToStorage(next);
+      return next;
+    });
     // Also show ephemeral toast
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
   }, []);
 
   const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, read: true }));
+      saveToStorage(next);
+      return next;
+    });
   }, []);
 
   const clearNotifications = useCallback(() => {
     setNotifications([]);
+    saveToStorage([]);
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;

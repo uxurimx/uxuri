@@ -59,11 +59,14 @@ export async function POST(req: Request) {
   if (task.assignedTo && task.assignedTo !== userId) {
     const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
     const assignedByName = creator?.name ?? "Alguien";
+    const taskUrl = task.projectId ? `/projects/${task.projectId}` : "/tasks";
     await Promise.all([
       pusherServer.trigger(`private-user-${task.assignedTo}`, "task:assigned", {
         taskId: task.id,
         taskTitle: task.title,
         assignedByName,
+        projectId: task.projectId,
+        url: taskUrl,
       }).catch(() => {}),
       sendPushToUser(task.assignedTo, {
         title: "Nueva tarea asignada",

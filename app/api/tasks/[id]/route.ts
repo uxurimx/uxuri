@@ -82,11 +82,14 @@ export async function PATCH(
   ) {
     const [changer] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
     const completedByName = changer?.name ?? "El usuario asignado";
+    const completedUrl = updated.projectId ? `/projects/${updated.projectId}` : "/tasks";
     await Promise.all([
       pusherServer.trigger(`private-user-${existing.createdBy}`, "task:completed", {
         taskId: id,
         taskTitle: existing.title,
         completedByName,
+        projectId: updated.projectId,
+        url: completedUrl,
       }).catch(() => {}),
       sendPushToUser(existing.createdBy, {
         title: "Tarea completada",
@@ -101,11 +104,14 @@ export async function PATCH(
   if (isCreator && parsed.data.assignedTo && parsed.data.assignedTo !== existing.assignedTo && parsed.data.assignedTo !== userId) {
     const [assigner] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
     const assignedByName = assigner?.name ?? "Alguien";
+    const assignedUrl = updated.projectId ? `/projects/${updated.projectId}` : "/tasks";
     await Promise.all([
       pusherServer.trigger(`private-user-${parsed.data.assignedTo}`, "task:assigned", {
         taskId: id,
         taskTitle: existing.title,
         assignedByName,
+        projectId: updated.projectId,
+        url: assignedUrl,
       }).catch(() => {}),
       sendPushToUser(parsed.data.assignedTo, {
         title: "Nueva tarea asignada",
