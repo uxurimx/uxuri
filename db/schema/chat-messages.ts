@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, integer, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { agents } from "./agents";
 import { chatChannels } from "./chat-channels";
 
 export const chatMessages = pgTable("chat_messages", {
@@ -7,9 +8,11 @@ export const chatMessages = pgTable("chat_messages", {
   channelId: uuid("channel_id")
     .notNull()
     .references(() => chatChannels.id, { onDelete: "cascade" }),
+  // Nullable: null when message is from an AI agent
   userId: varchar("user_id", { length: 255 })
-    .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  // Set when message is from an AI agent
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "cascade" }),
   userName: varchar("user_name", { length: 255 }).notNull(),
   content: text("content"), // null if file-only message
   fileUrl: varchar("file_url", { length: 1000 }),

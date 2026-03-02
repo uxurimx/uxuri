@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MessageSquare, Users, Briefcase, Hash, ArrowLeft, UserCircle2, Loader2 } from "lucide-react";
+import { MessageSquare, Users, Briefcase, Hash, ArrowLeft, UserCircle2, Loader2, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageThread } from "./message-thread";
 import { getPusherClient } from "@/lib/pusher";
@@ -25,9 +25,10 @@ type Member = {
 };
 
 function ChannelIcon({ type }: { type: string }) {
-  if (type === "client") return <Users className="w-4 h-4 flex-shrink-0" />;
-  if (type === "project") return <Briefcase className="w-4 h-4 flex-shrink-0" />;
-  if (type === "direct") return <UserCircle2 className="w-4 h-4 flex-shrink-0" />;
+  if (type === "client")   return <Users className="w-4 h-4 flex-shrink-0" />;
+  if (type === "project")  return <Briefcase className="w-4 h-4 flex-shrink-0" />;
+  if (type === "direct")   return <UserCircle2 className="w-4 h-4 flex-shrink-0" />;
+  if (type === "agent-dm") return <Bot className="w-4 h-4 flex-shrink-0" />;
   return <Hash className="w-4 h-4 flex-shrink-0" />;
 }
 
@@ -45,10 +46,14 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
   const searchParams = useSearchParams();
   const activeChannelId = searchParams.get("ch");
 
+  type AgentMember = { id: string; name: string; avatar: string; color: string };
+
   const [channels, setChannels] = useState<Channel[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [agentMembers, setAgentMembers] = useState<AgentMember[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [openingDm, setOpeningDm] = useState<string | null>(null);
+  const [openingAgent, setOpeningAgent] = useState<string | null>(null);
   const [showThread, setShowThread] = useState(false);
 
   // Unread state reads from the persistent store
@@ -81,6 +86,10 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
     fetch("/api/chat/members")
       .then((r) => r.json())
       .then((data) => setMembers(Array.isArray(data) ? data : []));
+
+    fetch("/api/agents")
+      .then((r) => r.json())
+      .then((data) => setAgentMembers(Array.isArray(data) ? data : []));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to all channels for in-chat unread dots.
@@ -92,7 +101,7 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
 
     channels.forEach((ch) => {
       const pCh = pusher.subscribe(`chat-${ch.id}`);
-      const handler = (msg: { userId: string }) => {
+      const handler = (msg: { userId: string | null }) => {
         if (msg.userId === currentUserId) return;
         if (activeChannelIdRef.current === ch.id) return;
         addUnread(ch.id); // persists + dispatches UNREAD_EVENT → sync() picks it up
@@ -126,13 +135,23 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
     selectChannel(channel.id);
   }
 
+  async function openAgentDm(agentId: string) {
+    setOpeningAgent(agentId);
+    const res = await fetch(`/api/chat/channels/agent?agentId=${agentId}`);
+    const channel: Channel = await res.json();
+    setChannels((prev) => prev.some((c) => c.id === channel.id) ? prev : [...prev, channel]);
+    setOpeningAgent(null);
+    selectChannel(channel.id);
+  }
+
   const activeChannel = channels.find((c) => c.id === activeChannelId);
 
   const grouped = {
-    general: channels.filter((c) => c.entityType === "general"),
-    client: channels.filter((c) => c.entityType === "client"),
-    project: channels.filter((c) => c.entityType === "project"),
-    direct: channels.filter((c) => c.entityType === "direct"),
+    general:  channels.filter((c) => c.entityType === "general"),
+    client:   channels.filter((c) => c.entityType === "client"),
+    project:  channels.filter((c) => c.entityType === "project"),
+    direct:   channels.filter((c) => c.entityType === "direct"),
+    agentDm:  channels.filter((c) => c.entityType === "agent-dm"),
   };
 
   return (
@@ -161,6 +180,9 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
               {grouped.direct.length > 0 && (
                 <ChannelGroup label="Mensajes directos" channels={grouped.direct} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
               )}
+              {grouped.agentDm.length > 0 && (
+                <ChannelGroup label="Agentes IA" channels={grouped.agentDm} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
+              )}
               {grouped.client.length > 0 && (
                 <ChannelGroup label="Clientes" channels={grouped.client} activeId={activeChannelId} unread={unread} onSelect={selectChannel} />
               )}
@@ -188,6 +210,34 @@ export function ChatClient({ currentUserId }: { currentUserId: string }) {
                     <MemberAvatar name={m.name} />
                   )}
                   <span className="truncate">{m.name ?? "Usuario"}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {agentMembers.length > 0 && (
+            <div>
+              <p className="px-4 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Agentes IA
+              </p>
+              {agentMembers.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => openAgentDm(a.id)}
+                  disabled={openingAgent === a.id}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-left"
+                >
+                  {openingAgent === a.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  ) : (
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0"
+                      style={{ backgroundColor: a.color + "30" }}
+                    >
+                      {a.avatar}
+                    </div>
+                  )}
+                  <span className="truncate">{a.name}</span>
                 </button>
               ))}
             </div>

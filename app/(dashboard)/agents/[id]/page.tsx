@@ -185,6 +185,9 @@ export default async function AgentDetailPage({
       <AgentPanel
         agentId={agent.id}
         agentName={agent.name}
+        agentAvatar={agent.avatar}
+        agentColor={agent.color}
+        currentUserId={userId}
         agentConfig={{
           aiModel: agent.aiModel,
           aiPrompt: agent.aiPrompt,

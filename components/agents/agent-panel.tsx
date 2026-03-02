@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher";
 import { AgentChat } from "./agent-chat";
+import { AgentDirectChat } from "./agent-direct-chat";
 import { QuickAddTask } from "@/components/tasks/quick-add-task";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1052,6 +1053,8 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
 interface AgentPanelProps {
   agentId: string;
   agentName: string;
+  agentAvatar?: string;
+  agentColor?: string;
   agentConfig: AgentConfig;
   initialTasks: AgentTaskItem[];
   initialSessions: SessionState[];
@@ -1060,11 +1063,14 @@ interface AgentPanelProps {
   historyItems: HistoryItem[];
   monthlyTokens: number;
   projects?: { id: string; name: string }[];
+  currentUserId?: string;
 }
 
 export function AgentPanel({
   agentId,
   agentName,
+  agentAvatar = "🤖",
+  agentColor = "#1e3a5f",
   agentConfig,
   initialTasks,
   initialSessions,
@@ -1073,10 +1079,11 @@ export function AgentPanel({
   historyItems: initialHistory,
   monthlyTokens,
   projects = [],
+  currentUserId = "",
 }: AgentPanelProps) {
   const router = useRouter();
 
-  type Tab = "activas" | "historial" | "configurar";
+  type Tab = "activas" | "historial" | "chat" | "configurar";
   const [tab, setTab] = useState<Tab>("activas");
 
   const [tasks, setTasks] = useState(initialTasks);
@@ -1279,6 +1286,7 @@ export function AgentPanel({
           [
             { key: "activas", label: "Activas", icon: Activity, count: tasks.length },
             { key: "historial", label: "Historial", icon: History, count: historyItems.length },
+            { key: "chat", label: "Chat", icon: MessageSquare, count: null },
             { key: "configurar", label: "Configurar", icon: Settings, count: null },
           ] as const
         ).map(({ key, label, icon: Icon, count }) => (
@@ -1487,6 +1495,18 @@ export function AgentPanel({
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "chat" && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden" style={{ height: 520 }}>
+          <AgentDirectChat
+            agentId={agentId}
+            agentName={agentName}
+            agentAvatar={agentAvatar}
+            agentColor={agentColor}
+            currentUserId={currentUserId}
+          />
         </div>
       )}
 

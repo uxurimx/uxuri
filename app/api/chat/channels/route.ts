@@ -32,9 +32,9 @@ export async function GET() {
     .from(chatChannels)
     .orderBy(asc(chatChannels.createdAt));
 
-  // Filter out DM channels the current user is not part of
+  // Filter out DM / agent-dm channels the current user is not part of
   const visible = channels.filter((ch) => {
-    if (ch.entityType !== "direct") return true;
+    if (ch.entityType !== "direct" && ch.entityType !== "agent-dm") return true;
     return ch.dmKey?.split("|").includes(userId) ?? false;
   });
 
