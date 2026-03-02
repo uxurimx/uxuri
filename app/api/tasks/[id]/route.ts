@@ -147,6 +147,22 @@ export async function PATCH(
     }
   }
 
+  // Track agentStatus changes
+  if ("agentStatus" in updateData && updateData.agentStatus !== existing.agentStatus) {
+    const agentStatusLabels: Record<string, string> = {
+      queued: "En cola", analyzing: "Analizando", working: "Trabajando", done: "Hecho", error: "Error",
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.insert(taskActivity).values({
+      taskId: id,
+      userId,
+      userName: actorName,
+      type: "agent_status_changed" as any,
+      oldValue: existing.agentStatus ? (agentStatusLabels[existing.agentStatus] ?? existing.agentStatus) : null,
+      newValue: updateData.agentStatus ? (agentStatusLabels[updateData.agentStatus] ?? updateData.agentStatus) : null,
+    }).catch(() => {});
+  }
+
   if (activityEntries.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await db.insert(taskActivity).values(activityEntries as any[]).catch(() => {});
@@ -203,6 +219,8 @@ export async function PATCH(
       taskId: id,
       agentStatus: updated.agentStatus,
     }).catch(() => {});
+    // Signal UI to refresh the activity timeline
+    await pusherServer.trigger(`task-${id}`, "task:activity-updated", { taskId: id }).catch(() => {});
   }
 
   await pusherServer.trigger("tasks-global", "task:updated", updated).catch(() => {});

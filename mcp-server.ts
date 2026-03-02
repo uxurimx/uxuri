@@ -322,13 +322,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         `;
 
         // Record in activity timeline
-        await sql`
+        const [activityRow] = await sql`
           INSERT INTO task_activity (task_id, user_name, type, old_value, new_value)
           VALUES (${taskId}, 'Agente IA', 'agent_status_changed', ${oldLabel}, ${statusLabels[status] ?? status})
-        `.catch(() => {});
+          RETURNING *
+        `.catch((err) => { process.stderr.write(`[activity insert error] ${err}\n`); return []; });
 
         // Notify: task-specific channel + global channel (so AgentPanel updates badge)
         await pusher.trigger(`task-${taskId}`, "agent:status", { taskId, agentStatus: status }).catch(() => {});
+        if (activityRow) {
+          await pusher.trigger(`task-${taskId}`, "task:activity-updated", { taskId }).catch(() => {});
+        }
         await pusher.trigger("tasks-global", "task:updated", updated).catch(() => {});
 
         return {
@@ -364,17 +368,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           `.catch(() => {});
         }
 
+        const agentStatusLabels: Record<string, string> = {
+          queued: "En cola", analyzing: "Analizando", working: "Trabajando", done: "Hecho", error: "Error",
+        };
+        const taskStatusLabels: Record<string, string> = {
+          todo: "Por hacer", in_progress: "En progreso", review: "Revisión", done: "Hecho",
+        };
+        const oldAgentLabel = taskBefore?.agent_status
+          ? (agentStatusLabels[taskBefore.agent_status] ?? taskBefore.agent_status)
+          : null;
+        const oldStatusLabel = taskBefore?.status
+          ? (taskStatusLabels[taskBefore.status] ?? taskBefore.status)
+          : null;
+
         // Record in activity timeline: agent status change
         await sql`
           INSERT INTO task_activity (task_id, user_name, type, old_value, new_value)
-          VALUES (${taskId}, 'Agente IA', 'agent_status_changed', 'Trabajando', 'Hecho')
-        `.catch(() => {});
+          VALUES (${taskId}, 'Agente IA', 'agent_status_changed', ${oldAgentLabel}, 'Hecho')
+          RETURNING id
+        `.catch((err) => { process.stderr.write(`[activity insert error] ${err}\n`); return []; });
 
         // Record in activity timeline: task status change
         await sql`
           INSERT INTO task_activity (task_id, user_name, type, old_value, new_value)
-          VALUES (${taskId}, 'Agente IA', 'status_changed', 'En progreso', 'Hecho')
-        `.catch(() => {});
+          VALUES (${taskId}, 'Agente IA', 'status_changed', ${oldStatusLabel}, 'Hecho')
+          RETURNING id
+        `.catch((err) => { process.stderr.write(`[activity insert error] ${err}\n`); return []; });
+
+        // Signal UI to refresh activity timeline
+        await pusher.trigger(`task-${taskId}`, "task:activity-updated", { taskId }).catch(() => {});
 
         // Send summary message if provided
         if (summary) {

@@ -14,6 +14,7 @@ import { AgentChat } from "@/components/agents/agent-chat";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
+import { getPusherClient } from "@/lib/pusher";
 
 const schema = z.object({
   title: z.string().min(1, "El título es requerido"),
@@ -352,21 +353,32 @@ export function TaskModal({
       .finally(() => setCommentsLoading(false));
   }, [open, task?.id, mode]);
 
-  // Load activity when switching to details tab
+  // Load activity when switching to details tab (always fresh)
   useEffect(() => {
     if (!open || !task?.id || mode !== "view" || activeTab !== "details") return;
-    if (activity.length > 0) return; // already loaded
     setActivityLoading(true);
     fetch(`/api/tasks/${task.id}/activity`)
       .then((r) => r.json())
       .then((data) => setActivity(Array.isArray(data) ? data : []))
       .catch(() => setActivity([]))
       .finally(() => setActivityLoading(false));
-  }, [open, task?.id, mode, activeTab, activity.length]);
+  }, [open, task?.id, mode, activeTab]);
 
-  // Reset activity cache when task changes
+  // Real-time: refresh activity when agent adds new events
   useEffect(() => {
-    setActivity([]);
+    if (!task?.id) return;
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe(`task-${task.id}`);
+    channel.bind("task:activity-updated", () => {
+      fetch(`/api/tasks/${task.id}/activity`)
+        .then((r) => r.json())
+        .then((data) => setActivity(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    });
+    return () => {
+      channel.unbind("task:activity-updated");
+      pusher.unsubscribe(`task-${task.id}`);
+    };
   }, [task?.id]);
 
   async function onSubmit(data: FormData) {

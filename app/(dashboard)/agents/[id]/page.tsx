@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { agents, tasks, projects, agentSessions } from "@/db/schema";
-import { eq, and, ne, or, gte, sql } from "drizzle-orm";
+import { eq, and, ne, or, gte, sql, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -134,6 +134,12 @@ export default async function AgentDetailPage({
     .groupBy(tasks.id, tasks.title, tasks.status, tasks.priority, tasks.projectId, projects.name)
     .orderBy(sql`MAX(${agentSessions.endedAt}) DESC NULLS LAST`);
 
+  // All projects (for the quick-add task form)
+  const allProjects = await db
+    .select({ id: projects.id, name: projects.name })
+    .from(projects)
+    .orderBy(asc(projects.name));
+
   const initialSessions = activeSessions.map((s) => ({
     ...s,
     startedAt: s.startedAt.toISOString(),
@@ -203,6 +209,7 @@ export default async function AgentDetailPage({
           sessionCount: r.sessionCount,
           lastWorked: r.lastWorked ?? null,
         }))}
+        projects={allProjects}
       />
     </div>
   );

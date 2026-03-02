@@ -6,10 +6,12 @@ import {
   Play, Pause, CheckCircle2, Clock, Square, Timer,
   Folder, X, ChevronRight, Bot, Coins, FileText, Settings,
   History, Activity, Zap, SlidersHorizontal, MessageSquare,
+  Pencil, Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher";
 import { AgentChat } from "./agent-chat";
+import { QuickAddTask } from "@/components/tasks/quick-add-task";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -144,6 +146,8 @@ function TaskDetailPanel({
   onPause,
   onStop,
   onClose,
+  onUpdate,
+  onSendToAgent,
   readOnly,
 }: {
   task: AgentTaskItem;
@@ -156,11 +160,56 @@ function TaskDetailPanel({
   onPause: () => void;
   onStop: () => void;
   onClose: () => void;
+  onUpdate: (taskId: string, updates: Partial<AgentTaskItem>) => void;
+  onSendToAgent: (taskId: string) => void;
   readOnly: boolean;
 }) {
   const isRunning = session?.status === "running";
   const isPaused = session?.status === "paused";
   const priority = priorityConfig[task.priority as keyof typeof priorityConfig] ?? priorityConfig.medium;
+
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
+  const [editDescription, setEditDescription] = useState(task.description ?? "");
+  const [editPriority, setEditPriority] = useState(task.priority);
+  const [editStatus, setEditStatus] = useState(task.status);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSaveEdit() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim() || task.title,
+          description: editDescription || null,
+          priority: editPriority,
+          status: editStatus,
+        }),
+      });
+      if (res.ok) {
+        onUpdate(task.id, {
+          title: editTitle.trim() || task.title,
+          description: editDescription || null,
+          priority: editPriority,
+          status: editStatus,
+        });
+        setEditing(false);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCancelEdit() {
+    setEditTitle(task.title);
+    setEditDescription(task.description ?? "");
+    setEditPriority(task.priority);
+    setEditStatus(task.status);
+    setEditing(false);
+  }
 
   const liveRunSeconds = isRunning
     ? Math.floor((now - new Date(session!.startedAt).getTime()) / 1000)
@@ -231,34 +280,110 @@ function TaskDetailPanel({
       <div className="relative w-full max-w-lg h-full bg-white shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
             <span className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", priority.dot)} />
-            <h2 className="font-semibold text-slate-900 truncate">{task.title}</h2>
+            {editing ? (
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="flex-1 text-sm font-semibold text-slate-900 border-b border-[#1e3a5f] focus:outline-none bg-transparent"
+                autoFocus
+              />
+            ) : (
+              <h2 className="font-semibold text-slate-900 truncate">{task.title}</h2>
+            )}
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {!readOnly && !editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Editar tarea"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {editing && (
+              <>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-medium hover:bg-[#162d4a] transition-colors disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" />
+                  {saving ? "…" : "Guardar"}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+            {!editing && (
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {/* Task meta */}
-          <div className="px-5 py-4 border-b border-slate-100 space-y-1.5">
-            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-              {task.projectName && (
-                <span className="flex items-center gap-1">
-                  <Folder className="w-3 h-3" />
-                  {task.projectId
-                    ? <a href={`/projects/${task.projectId}`} className="hover:text-[#1e3a5f] hover:underline">{task.projectName}</a>
-                    : task.projectName
-                  }
-                </span>
-              )}
-              <span>{statusLabels[task.status] ?? task.status}</span>
-              <span className={priority.color}>{priority.label}</span>
-              {task.dueDate && <span>Vence: {formatDate(task.dueDate)}</span>}
-            </div>
-            {task.description && (
-              <p className="text-sm text-slate-600 mt-2 leading-relaxed">{task.description}</p>
+          <div className="px-5 py-4 border-b border-slate-100 space-y-2">
+            {editing ? (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as AgentTaskItem["status"])}
+                    className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#1e3a5f] bg-white text-slate-700"
+                  >
+                    <option value="todo">Por hacer</option>
+                    <option value="in_progress">En progreso</option>
+                    <option value="review">Revisión</option>
+                    <option value="done">Hecho</option>
+                  </select>
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as AgentTaskItem["priority"])}
+                    className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#1e3a5f] bg-white text-slate-700"
+                  >
+                    <option value="low">Baja</option>
+                    <option value="medium">Media</option>
+                    <option value="high">Alta</option>
+                    <option value="urgent">Urgente</option>
+                  </select>
+                </div>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Descripción (opcional)…"
+                  rows={3}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] resize-none placeholder:text-slate-300 text-slate-700"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                  {task.projectName && (
+                    <span className="flex items-center gap-1">
+                      <Folder className="w-3 h-3" />
+                      {task.projectId
+                        ? <a href={`/projects/${task.projectId}`} className="hover:text-[#1e3a5f] hover:underline">{task.projectName}</a>
+                        : task.projectName
+                      }
+                    </span>
+                  )}
+                  <span>{statusLabels[task.status] ?? task.status}</span>
+                  <span className={priority.color}>{priority.label}</span>
+                  {task.dueDate && <span>Vence: {formatDate(task.dueDate)}</span>}
+                </div>
+                {task.description && (
+                  <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
+                )}
+              </>
             )}
           </div>
 
@@ -324,15 +449,22 @@ function TaskDetailPanel({
 
           {/* Agent chat */}
           <div className="px-5 py-4 border-b border-slate-100">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <MessageSquare className="w-3 h-3" />
-              Debate con el agente
-              {task.agentStatus && (
-                <span className="ml-auto normal-case">
-                  <AgentStatusBadge status={task.agentStatus} />
-                </span>
+            <div className="flex items-center gap-1.5 mb-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 flex-1">
+                <MessageSquare className="w-3 h-3" />
+                Debate con el agente
+              </p>
+              {task.agentStatus ? (
+                <AgentStatusBadge status={task.agentStatus} />
+              ) : !readOnly && (
+                <button
+                  onClick={() => onSendToAgent(task.id)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-slate-200 text-slate-500 bg-white rounded-lg text-xs font-medium hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
+                >
+                  <Bot className="w-3 h-3" /> Enviar al agente
+                </button>
               )}
-            </p>
+            </div>
             <AgentChat taskId={task.id} agentStatus={task.agentStatus} />
           </div>
 
@@ -719,6 +851,7 @@ interface AgentPanelProps {
   initialTodaySeconds: number;
   historyItems: HistoryItem[];
   monthlyTokens: number;
+  projects?: { id: string; name: string }[];
 }
 
 export function AgentPanel({
@@ -731,6 +864,7 @@ export function AgentPanel({
   initialTodaySeconds,
   historyItems: initialHistory,
   monthlyTokens,
+  projects = [],
 }: AgentPanelProps) {
   const router = useRouter();
 
@@ -866,6 +1000,24 @@ export function AgentPanel({
     }
   }
 
+  function handleUpdate(taskId: string, updates: Partial<AgentTaskItem>) {
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, ...updates } : t));
+  }
+
+  function handleAddTask(task: {
+    id: string; title: string; description: string | null;
+    status: "todo" | "in_progress" | "review" | "done";
+    priority: "low" | "medium" | "high" | "urgent";
+    dueDate: string | null; projectId: string | null; agentId: string | null;
+  }) {
+    // Find project name from the projects list
+    const projectName = projects.find((p) => p.id === task.projectId)?.name ?? null;
+    setTasks((prev) => [
+      ...prev,
+      { ...task, projectName, agentStatus: null },
+    ]);
+  }
+
   async function handleSendToAgent(taskId: string) {
     const res = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
@@ -970,12 +1122,19 @@ export function AgentPanel({
           {/* Token consumption bar */}
           <TokenBudgetBar used={monthlyTokens} budget={agentConfig.tokenBudget} />
 
+          <QuickAddTask
+            agentId={agentId}
+            projects={projects}
+            onAdd={handleAddTask}
+            placeholder="Agregar tarea a este agente…"
+          />
+
           {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-xl border border-slate-200">
+            <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-slate-200">
               <CheckCircle2 className="w-10 h-10 text-emerald-300 mb-3" />
               <p className="font-semibold text-slate-700">Sin tareas pendientes</p>
               <p className="text-sm text-slate-400 mt-1">
-                Asigna tareas a {agentName} desde el kanban para que aparezcan aquí.
+                Usa el botón de arriba o asigna tareas desde el kanban.
               </p>
             </div>
           ) : (
@@ -1146,6 +1305,8 @@ export function AgentPanel({
             if (s) handleStop(s.id, panelTask.id);
           }}
           onClose={() => setSelectedTaskId(null)}
+          onUpdate={handleUpdate}
+          onSendToAgent={handleSendToAgent}
           readOnly={panelReadOnly}
         />
       )}
