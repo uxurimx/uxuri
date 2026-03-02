@@ -472,6 +472,22 @@ export function TaskModal({
     }
   }
 
+  async function handleMarkDone() {
+    if (!task) return;
+    setMarkingDone(true);
+    try {
+      await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done" }),
+      });
+      router.refresh();
+      onClose();
+    } finally {
+      setMarkingDone(false);
+    }
+  }
+
   async function handlePersonalDone() {
     if (!task) return;
     setMarkingDone(true);
@@ -577,7 +593,8 @@ export function TaskModal({
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 pt-2 border-t border-slate-100">
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                {/* Delete — owner only */}
                 {isOwner && (
                   <button
                     onClick={handleDelete}
@@ -588,17 +605,39 @@ export function TaskModal({
                     {isDeleting ? "Eliminando..." : "Eliminar"}
                   </button>
                 )}
+
+                {/* Mark as done — owner or assigned, only when not already done */}
+                {(isOwner || isAssigned) && task.status !== "done" && (
+                  <button
+                    onClick={handleMarkDone}
+                    disabled={markingDone}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {markingDone ? "Guardando..." : "Marcar como hecha"}
+                  </button>
+                )}
+
+                {/* Already done indicator — owner or assigned */}
+                {(isOwner || isAssigned) && task.status === "done" && (
+                  <span className="flex-1 flex items-center gap-1.5 text-sm text-emerald-600 font-medium py-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Tarea completada
+                  </span>
+                )}
+
+                {/* Edit — owner only */}
                 {isOwner && (
                   <button
                     onClick={() => setMode("edit")}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                     Editar
                   </button>
                 )}
 
-                {/* Third-party: personal done button */}
+                {/* Third-party: personal done */}
                 {isThirdParty && !task.personalDone && (
                   <button
                     onClick={handlePersonalDone}
@@ -609,15 +648,11 @@ export function TaskModal({
                     {markingDone ? "Guardando..." : "Hecho para mí"}
                   </button>
                 )}
-
-                {/* Already marked as personal done */}
                 {isThirdParty && task.personalDone && (
-                  <div className="flex-1 flex items-center gap-2">
-                    <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Marcada como hecha para ti
-                    </span>
-                  </div>
+                  <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium py-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Marcada como hecha para ti
+                  </span>
                 )}
               </div>
 

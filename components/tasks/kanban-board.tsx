@@ -365,26 +365,18 @@ export function KanbanBoard({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return tasks.filter((t) => {
+    const PRIORITY_RANK: Record<string, number> = { urgent: 3, high: 2, medium: 1, low: 0 };
+
+    const filtered = tasks.filter((t) => {
       const effectiveStatus = t.personalDone ? "done" : t.status;
 
-      // Search
       if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
-
-      // Hide done (default ON)
       if (filters.hideDone && effectiveStatus === "done") return false;
-
-      // Priority
       if (filters.priority !== "all" && t.priority !== filters.priority) return false;
-
-      // Assignee
       if (filters.assignee === "me" && t.assignedTo !== currentUserId) return false;
       if (filters.assignee === "unassigned" && t.assignedTo !== null) return false;
-
-      // Project
       if (filters.projectId && t.projectId !== filters.projectId) return false;
 
-      // Due date
       if (filters.dueDateFilter !== "all") {
         const due = t.dueDate ? new Date(t.dueDate) : null;
         if (filters.dueDateFilter === "no-date") {
@@ -399,6 +391,35 @@ export function KanbanBoard({
       }
 
       return true;
+    });
+
+    if (filters.sortBy === "default") return filtered;
+
+    const dir = filters.sortDir === "desc" ? -1 : 1;
+
+    return [...filtered].sort((a, b) => {
+      switch (filters.sortBy) {
+        case "priority":
+          return dir * ((PRIORITY_RANK[a.priority] ?? 0) - (PRIORITY_RANK[b.priority] ?? 0));
+        case "created":
+          return dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        case "activity":
+          return dir * (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
+        case "due": {
+          const da = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+          const db = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+          return dir * (da - db);
+        }
+        case "title":
+          return dir * a.title.localeCompare(b.title, "es");
+        case "project": {
+          const pa = a.projectName ?? "";
+          const pb = b.projectName ?? "";
+          return dir * pa.localeCompare(pb, "es");
+        }
+        default:
+          return 0;
+      }
     });
   }, [tasks, filters, currentUserId]);
 

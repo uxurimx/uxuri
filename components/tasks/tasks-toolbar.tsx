@@ -3,11 +3,20 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Search, LayoutList, LayoutGrid, Plus, User, Eye, EyeOff,
-  Filter, X, ChevronDown,
+  Filter, X, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ── Filter types (shared with kanban-board) ───────────────────────────────────
+// ── Filter + Sort types (shared with kanban-board) ────────────────────────────
+
+export type SortBy =
+  | "default"    // manual drag-and-drop order
+  | "priority"   // urgent → low
+  | "created"    // createdAt
+  | "activity"   // updatedAt
+  | "due"        // dueDate
+  | "title"      // alphabetical
+  | "project";   // projectName
 
 export type TaskFilters = {
   search: string;
@@ -16,15 +25,19 @@ export type TaskFilters = {
   assignee: "all" | "me" | "unassigned";
   projectId: string;
   dueDateFilter: "all" | "overdue" | "this-week" | "no-date";
+  sortBy: SortBy;
+  sortDir: "asc" | "desc";
 };
 
 export const DEFAULT_TASK_FILTERS: TaskFilters = {
   search: "",
   priority: "all",
-  hideDone: true,        // ← done tasks hidden by default
+  hideDone: true,
   assignee: "all",
   projectId: "",
   dueDateFilter: "all",
+  sortBy: "default",
+  sortDir: "desc",
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -42,6 +55,16 @@ const DUE_OPTIONS = [
   { value: "overdue",   label: "Vencidas" },
   { value: "this-week", label: "Esta semana" },
   { value: "no-date",   label: "Sin fecha" },
+];
+
+const SORT_OPTIONS: { value: SortBy; label: string; descLabel: string; ascLabel: string }[] = [
+  { value: "default",  label: "Manual",     descLabel: "Arrastrado",   ascLabel: "Arrastrado" },
+  { value: "priority", label: "Prioridad",  descLabel: "Urgente → Baja", ascLabel: "Baja → Urgente" },
+  { value: "created",  label: "Creación",   descLabel: "Más nuevas",    ascLabel: "Más antiguas" },
+  { value: "activity", label: "Actividad",  descLabel: "Más reciente",  ascLabel: "Menos reciente" },
+  { value: "due",      label: "Vencimiento",descLabel: "Más lejano",    ascLabel: "Más próximo" },
+  { value: "title",    label: "Nombre",     descLabel: "Z → A",         ascLabel: "A → Z" },
+  { value: "project",  label: "Proyecto",   descLabel: "Z → A",         ascLabel: "A → Z" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -70,7 +93,9 @@ export function TasksToolbar({
   currentUserId,
 }: TasksToolbarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSort, setShowSort] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
 
   // Close advanced panel on outside click
   useEffect(() => {
@@ -83,6 +108,21 @@ export function TasksToolbar({
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [showAdvanced]);
+
+  // Close sort panel on outside click
+  useEffect(() => {
+    if (!showSort) return;
+    function handle(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setShowSort(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showSort]);
+
+  const sortActive = filters.sortBy !== "default";
+  const currentSort = SORT_OPTIONS.find((o) => o.value === filters.sortBy)!;
 
   // Count filters inside the advanced panel
   const advancedCount = [
@@ -111,12 +151,21 @@ export function TasksToolbar({
   if (!filters.hideDone)
     chips.push({ label: "Mostrando completadas", onRemove: () => onFiltersChange({ hideDone: true }) });
 
+  if (sortActive) {
+    const dirLabel = filters.sortDir === "desc" ? currentSort.descLabel : currentSort.ascLabel;
+    chips.push({
+      label: `${currentSort.label}: ${dirLabel}`,
+      onRemove: () => onFiltersChange({ sortBy: "default", sortDir: "desc" }),
+    });
+  }
+
   const hasAnyActive =
     filters.priority !== "all" ||
     filters.assignee !== "all" ||
     filters.projectId !== "" ||
     filters.dueDateFilter !== "all" ||
-    !filters.hideDone;
+    !filters.hideDone ||
+    sortActive;
 
   return (
     <div className="space-y-2 mb-4">
@@ -199,10 +248,88 @@ export function TasksToolbar({
           ))}
         </div>
 
+        {/* Sort */}
+        <div className="relative" ref={sortRef}>
+          <button
+            onClick={() => { setShowSort((v) => !v); setShowAdvanced(false); }}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap",
+              sortActive || showSort
+                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+            )}
+          >
+            <ArrowUpDown className="w-3 h-3" />
+            {sortActive ? currentSort.label : "Ordenar"}
+            {sortActive && (
+              filters.sortDir === "desc"
+                ? <ArrowDown className="w-3 h-3" />
+                : <ArrowUp className="w-3 h-3" />
+            )}
+            {!sortActive && <ChevronDown className={cn("w-3 h-3 transition-transform", showSort && "rotate-180")} />}
+          </button>
+
+          {showSort && (
+            <div className="absolute top-full right-0 mt-1.5 z-30 bg-white border border-slate-200 rounded-xl shadow-xl p-4 w-64 space-y-3">
+              <p className="text-xs font-semibold text-slate-500">Ordenar por</p>
+
+              <div className="grid grid-cols-2 gap-1">
+                {SORT_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    onClick={() => onFiltersChange({ sortBy: o.value, sortDir: filters.sortDir })}
+                    className={cn(
+                      "py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors text-left",
+                      filters.sortBy === o.value
+                        ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+
+              {filters.sortBy !== "default" && (
+                <>
+                  <p className="text-xs font-semibold text-slate-500">Dirección</p>
+                  <div className="flex gap-1">
+                    {(["desc", "asc"] as const).map((dir) => {
+                      const label = dir === "desc" ? currentSort.descLabel : currentSort.ascLabel;
+                      return (
+                        <button
+                          key={dir}
+                          onClick={() => onFiltersChange({ sortDir: dir })}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+                            filters.sortDir === dir
+                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                              : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                          )}
+                        >
+                          {dir === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <button
+                onClick={() => { onFiltersChange({ sortBy: "default", sortDir: "desc" }); setShowSort(false); }}
+                className="w-full py-1.5 text-xs text-slate-400 hover:text-red-500 transition-colors border-t border-slate-100 pt-3"
+              >
+                Restablecer orden
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Advanced filters */}
         <div className="relative" ref={panelRef}>
           <button
-            onClick={() => setShowAdvanced((v) => !v)}
+            onClick={() => { setShowAdvanced((v) => !v); setShowSort(false); }}
             className={cn(
               "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap",
               advancedCount > 0 || showAdvanced
