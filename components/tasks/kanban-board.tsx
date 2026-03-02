@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatDate } from "@/lib/utils";
 import { Flag, Pencil, Trash2, UserCircle, User, Folder, Plus, X } from "lucide-react";
 import { AgentBadge } from "@/components/agents/agent-badge";
 import { TaskModal, type TaskForModal } from "./task-modal";
-import { TasksToolbar } from "./tasks-toolbar";
+import { TasksToolbar, type TaskFilters, DEFAULT_TASK_FILTERS } from "./tasks-toolbar";
 import { TaskListView } from "./task-list-view";
 import { getPusherClient } from "@/lib/pusher";
 
@@ -262,10 +262,36 @@ export function KanbanBoard({
   const [newColColor, setNewColColor] = useState(CUSTOM_COL_COLORS[0]);
   const [addingCol, setAddingCol] = useState(false);
 
-  // Toolbar state
-  const [search, setSearch] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [view, setView] = useState<"kanban" | "list">("kanban");
+  // Filters state — persisted in localStorage
+  const [filters, setFilters] = useState<TaskFilters>(() => {
+    if (typeof window === "undefined") return DEFAULT_TASK_FILTERS;
+    try {
+      const saved = localStorage.getItem("uxuri:task-filters");
+      if (saved) return { ...DEFAULT_TASK_FILTERS, ...JSON.parse(saved) };
+    } catch { /* ignore */ }
+    return DEFAULT_TASK_FILTERS;
+  });
+
+  const [view, setView] = useState<"kanban" | "list">(() => {
+    if (typeof window === "undefined") return "kanban";
+    return (localStorage.getItem("uxuri:task-view") as "kanban" | "list") ?? "kanban";
+  });
+
+  function patchFilters(patch: Partial<TaskFilters>) {
+    setFilters((prev) => ({ ...prev, ...patch }));
+  }
+
+  function resetFilters() {
+    setFilters(DEFAULT_TASK_FILTERS);
+  }
+
+  useEffect(() => {
+    localStorage.setItem("uxuri:task-filters", JSON.stringify(filters));
+  }, [filters]);
+
+  useEffect(() => {
+    localStorage.setItem("uxuri:task-view", view);
+  }, [view]);
 
   useEffect(() => { setTasks(initialTasks); }, [initialTasks]);
   useEffect(() => { setCustomColumns(initialCustomColumns); }, [initialCustomColumns]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -335,11 +361,46 @@ export function KanbanBoard({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps — projectId is stable; uses refs for others
 
-  const filteredTasks = tasks.filter((t) => {
-    const matchSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());
-    const matchPriority = priorityFilter === "all" || t.priority === priorityFilter;
-    return matchSearch && matchPriority;
-  });
+  const filteredTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return tasks.filter((t) => {
+      const effectiveStatus = t.personalDone ? "done" : t.status;
+
+      // Search
+      if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
+
+      // Hide done (default ON)
+      if (filters.hideDone && effectiveStatus === "done") return false;
+
+      // Priority
+      if (filters.priority !== "all" && t.priority !== filters.priority) return false;
+
+      // Assignee
+      if (filters.assignee === "me" && t.assignedTo !== currentUserId) return false;
+      if (filters.assignee === "unassigned" && t.assignedTo !== null) return false;
+
+      // Project
+      if (filters.projectId && t.projectId !== filters.projectId) return false;
+
+      // Due date
+      if (filters.dueDateFilter !== "all") {
+        const due = t.dueDate ? new Date(t.dueDate) : null;
+        if (filters.dueDateFilter === "no-date") {
+          if (due) return false;
+        } else if (filters.dueDateFilter === "overdue") {
+          if (!due || due >= today) return false;
+        } else if (filters.dueDateFilter === "this-week") {
+          const weekEnd = new Date(today);
+          weekEnd.setDate(weekEnd.getDate() + 7);
+          if (!due || due < today || due > weekEnd) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [tasks, filters, currentUserId]);
 
   function openCreate() {
     setSelectedTask(null);
@@ -560,13 +621,14 @@ export function KanbanBoard({
   return (
     <>
       <TasksToolbar
-        search={search}
-        onSearchChange={setSearch}
-        priorityFilter={priorityFilter}
-        onPriorityChange={setPriorityFilter}
+        filters={filters}
+        onFiltersChange={patchFilters}
+        onResetFilters={resetFilters}
         view={view}
         onViewChange={setView}
         onNewTask={projectId ? openCreate : undefined}
+        projects={projects}
+        currentUserId={currentUserId}
       />
 
       {view === "list" ? (
@@ -581,7 +643,7 @@ export function KanbanBoard({
         />
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {SYSTEM_COLUMNS.map((col) => {
+          {SYSTEM_COLUMNS.filter((col) => !(col.id === "done" && filters.hideDone)).map((col) => {
             const colTasks = getColumnTasks(col.id);
             return (
               <div
