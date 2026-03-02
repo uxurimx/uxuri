@@ -52,6 +52,8 @@ export default async function ProjectDetailPage({
         updatedAt: tasks.updatedAt,
         createdBy: tasks.createdBy,
         personalDone: sql<boolean>`COALESCE(${userTaskPreferences.personalDone}, false)`,
+        subtaskTotal: sql<number>`(SELECT COUNT(*)::int FROM task_subtasks WHERE task_id = ${tasks.id})`,
+        subtaskDone:  sql<number>`(SELECT COUNT(*)::int FROM task_subtasks WHERE task_id = ${tasks.id} AND done = true)`,
       })
       .from(tasks)
       .leftJoin(

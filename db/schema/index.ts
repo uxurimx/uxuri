@@ -7,6 +7,7 @@ export * from "./workflow-columns";
 export * from "./clients";
 export * from "./projects";
 export * from "./tasks";
+export * from "./subtasks";
 export * from "./roles";
 export * from "./task-comments";
 export * from "./task-activity";

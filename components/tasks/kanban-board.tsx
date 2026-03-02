@@ -29,6 +29,8 @@ export type TaskWithProject = {
   projectName: string | null;
   /** Personal override: this user marked the task as done for themselves */
   personalDone: boolean;
+  subtaskTotal?: number;
+  subtaskDone?: number;
 };
 
 type User = { id: string; name: string | null };
@@ -191,6 +193,29 @@ function TaskCardList({
                 )}
               </div>
             </div>
+
+            {/* Subtask progress bar */}
+            {!!task.subtaskTotal && task.subtaskTotal > 0 && (
+              <div className="mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-slate-400">Subtareas</span>
+                  <span className="text-[10px] font-medium text-slate-500">
+                    {task.subtaskDone ?? 0}/{task.subtaskTotal}
+                  </span>
+                </div>
+                <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      (task.subtaskDone ?? 0) >= task.subtaskTotal
+                        ? "bg-emerald-500"
+                        : "bg-[#1e3a5f]"
+                    )}
+                    style={{ width: `${Math.round(((task.subtaskDone ?? 0) / task.subtaskTotal) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Footer: creator · project */}
             {hasFooter && (
