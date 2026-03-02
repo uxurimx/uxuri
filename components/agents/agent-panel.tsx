@@ -6,7 +6,7 @@ import {
   Play, Pause, CheckCircle2, Clock, Square, Timer,
   Folder, X, ChevronRight, Bot, Coins, FileText, Settings,
   History, Activity, Zap, SlidersHorizontal, MessageSquare,
-  Pencil, Save,
+  Pencil, Save, User, BookOpen, Plus, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher";
@@ -51,9 +51,19 @@ export type HistoryItem = {
 export type AgentConfig = {
   aiModel: string | null;
   aiPrompt: string | null;
+  personality: string | null;
   maxTokens: number | null;
   tokenBudget: number | null;
   temperature: number | null;
+};
+
+type KnowledgeItem = {
+  id: string;
+  agentId: string;
+  title: string;
+  content: string;
+  type: string;
+  createdAt: string;
 };
 
 type FullSession = {
@@ -658,20 +668,56 @@ function TokenBudgetBar({ used, budget }: { used: number; budget: number | null 
 
 // ── Config Tab ────────────────────────────────────────────────────────────────
 
+const KNOWLEDGE_TYPE_LABELS: Record<string, string> = {
+  document: "Documento",
+  instruction: "Instrucción",
+  character: "Personaje",
+};
+
+const KNOWLEDGE_TYPE_COLORS: Record<string, string> = {
+  document: "text-blue-600 bg-blue-50 border-blue-200",
+  instruction: "text-violet-600 bg-violet-50 border-violet-200",
+  character: "text-amber-600 bg-amber-50 border-amber-200",
+};
+
 function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }) {
+  // ── AI model ──
+  const knownModels = AI_MODELS.slice(0, -1).map((m) => m.value);
+  const isCustomInit = (config.aiModel ?? "") !== "" && !knownModels.includes(config.aiModel ?? "");
   const [aiModel, setAiModel] = useState(config.aiModel ?? "");
-  const [customModel, setCustomModel] = useState("");
+  const [customModel, setCustomModel] = useState(isCustomInit ? (config.aiModel ?? "") : "");
+  const [showCustom, setShowCustom] = useState(isCustomInit);
+
+  // ── Prompt + personality ──
   const [aiPrompt, setAiPrompt] = useState(config.aiPrompt ?? "");
+  const [personality, setPersonality] = useState(config.personality ?? "");
+
+  // ── Parameters ──
   const [maxTokens, setMaxTokens] = useState(config.maxTokens != null ? String(config.maxTokens) : "");
   const [tokenBudget, setTokenBudget] = useState(config.tokenBudget != null ? String(config.tokenBudget) : "");
-  const [temperature, setTemperature] = useState(config.temperature != null ? config.temperature : 0.7);
+  const [temperature, setTemperature] = useState(config.temperature ?? 0.7);
+
+  // ── Save state ──
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Determine if current model is custom
-  const knownModels = AI_MODELS.slice(0, -1).map((m) => m.value);
-  const isCustom = aiModel !== "" && !knownModels.includes(aiModel);
-  const [showCustom, setShowCustom] = useState(isCustom);
+  // ── Knowledge (RAG) ──
+  const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
+  const [kLoading, setKLoading] = useState(true);
+  const [kAdding, setKAdding] = useState(false);
+  const [kTitle, setKTitle] = useState("");
+  const [kContent, setKContent] = useState("");
+  const [kType, setKType] = useState<"document" | "instruction" | "character">("document");
+  const [kSaving, setKSaving] = useState(false);
+
+  // Fetch knowledge on mount
+  useEffect(() => {
+    fetch(`/api/agents/${agentId}/knowledge`)
+      .then((r) => r.json())
+      .then((data) => setKnowledge(Array.isArray(data) ? data : []))
+      .catch(() => setKnowledge([]))
+      .finally(() => setKLoading(false));
+  }, [agentId]);
 
   function handleModelChange(val: string) {
     if (val === "custom") {
@@ -693,6 +739,7 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
         body: JSON.stringify({
           aiModel: finalModel || null,
           aiPrompt: aiPrompt || null,
+          personality: personality || null,
           maxTokens: maxTokens ? parseInt(maxTokens, 10) : null,
           tokenBudget: tokenBudget ? parseInt(tokenBudget, 10) : null,
           temperature,
@@ -707,11 +754,39 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
     }
   }
 
+  async function handleKnowledgeAdd() {
+    if (!kTitle.trim() || !kContent.trim()) return;
+    setKSaving(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/knowledge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: kTitle.trim(), content: kContent.trim(), type: kType }),
+      });
+      if (res.ok) {
+        const item = await res.json();
+        setKnowledge((prev) => [...prev, item]);
+        setKTitle("");
+        setKContent("");
+        setKType("document");
+        setKAdding(false);
+      }
+    } finally {
+      setKSaving(false);
+    }
+  }
+
+  async function handleKnowledgeDelete(kid: string) {
+    await fetch(`/api/agents/${agentId}/knowledge/${kid}`, { method: "DELETE" });
+    setKnowledge((prev) => prev.filter((k) => k.id !== kid));
+  }
+
   const selectValue = showCustom ? "custom" : (aiModel || "");
 
   return (
     <div className="space-y-6 py-2">
-      {/* Model */}
+
+      {/* ── Modelo IA ── */}
       <section>
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           <Bot className="w-4 h-4 text-[#1e3a5f]" />
@@ -736,9 +811,12 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
             className="mt-2 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
           />
         )}
+        {aiModel.startsWith("claude-") && (
+          <p className="text-xs text-violet-500 mt-1">Requiere <code>ANTHROPIC_API_KEY</code> en .env.local</p>
+        )}
       </section>
 
-      {/* Prompt */}
+      {/* ── Instrucciones del sistema ── */}
       <section>
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           <FileText className="w-4 h-4 text-[#1e3a5f]" />
@@ -747,14 +825,138 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
         <textarea
           value={aiPrompt}
           onChange={(e) => setAiPrompt(e.target.value)}
-          rows={6}
+          rows={5}
           placeholder="Eres un agente especializado en… Tu objetivo es… Responde siempre en español."
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] resize-y min-h-[120px] placeholder:text-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] resize-y min-h-[100px] placeholder:text-slate-300"
         />
-        <p className="text-xs text-slate-400 mt-1">Este prompt se enviará como system message al modelo.</p>
+        <p className="text-xs text-slate-400 mt-1">System message base enviado al modelo en cada respuesta.</p>
       </section>
 
-      {/* Parameters */}
+      {/* ── Personalidad / Carácter ── */}
+      <section>
+        <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <User className="w-4 h-4 text-[#1e3a5f]" />
+          Personalidad y carácter
+        </h3>
+        <textarea
+          value={personality}
+          onChange={(e) => setPersonality(e.target.value)}
+          rows={4}
+          placeholder="Describe la personalidad, tono y características del agente. Ej: Directo, conciso, usa metáforas técnicas. No tolera ambigüedad. Siempre da ejemplos concretos."
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] resize-y min-h-[80px] placeholder:text-slate-300"
+        />
+        <p className="text-xs text-slate-400 mt-1">Se añade al system prompt. Define cómo se expresa el agente.</p>
+      </section>
+
+      {/* ── Base de conocimiento (RAG) ── */}
+      <section>
+        <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-[#1e3a5f]" />
+          Base de conocimiento
+          <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">RAG</span>
+        </h3>
+
+        {kLoading ? (
+          <p className="text-xs text-slate-400 py-2">Cargando…</p>
+        ) : (
+          <>
+            {knowledge.length === 0 && !kAdding ? (
+              <div className="bg-slate-50 rounded-xl p-4 text-center text-sm text-slate-400 border border-dashed border-slate-200">
+                Sin conocimiento registrado aún.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {knowledge.map((item) => {
+                  const typeColor = KNOWLEDGE_TYPE_COLORS[item.type] ?? "text-slate-500 bg-slate-50 border-slate-200";
+                  const typeLabel = KNOWLEDGE_TYPE_LABELS[item.type] ?? item.type;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded border", typeColor)}>
+                            {typeLabel}
+                          </span>
+                          <span className="text-sm font-medium text-slate-700 truncate">{item.title}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{item.content}</p>
+                      </div>
+                      <button
+                        onClick={() => handleKnowledgeDelete(item.id)}
+                        className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5 p-0.5"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Inline add form */}
+            {kAdding ? (
+              <div className="mt-3 bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200">
+                <div className="flex gap-2">
+                  <input
+                    value={kTitle}
+                    onChange={(e) => setKTitle(e.target.value)}
+                    placeholder="Título del item…"
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                    autoFocus
+                  />
+                  <select
+                    value={kType}
+                    onChange={(e) => setKType(e.target.value as "document" | "instruction" | "character")}
+                    className="border border-slate-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 bg-white"
+                  >
+                    <option value="document">Documento</option>
+                    <option value="instruction">Instrucción</option>
+                    <option value="character">Personaje</option>
+                  </select>
+                </div>
+                <textarea
+                  value={kContent}
+                  onChange={(e) => setKContent(e.target.value)}
+                  rows={4}
+                  placeholder="Contenido del conocimiento que el agente tendrá disponible…"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 resize-y min-h-[80px]"
+                />
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => { setKAdding(false); setKTitle(""); setKContent(""); setKType("document"); }}
+                    className="px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleKnowledgeAdd}
+                    disabled={kSaving || !kTitle.trim() || !kContent.trim()}
+                    className="px-3 py-1.5 text-sm bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] disabled:opacity-50 transition-colors"
+                  >
+                    {kSaving ? "Guardando…" : "Añadir"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setKAdding(true)}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-400 hover:border-[#1e3a5f]/40 hover:text-slate-600 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Añadir item al conocimiento
+              </button>
+            )}
+            <p className="text-xs text-slate-400 mt-2">
+              El agente accede a este conocimiento en cada respuesta IA (documentos, instrucciones, personajes).
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* ── Parámetros ── */}
       <section>
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-[#1e3a5f]" />
@@ -769,7 +971,7 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
               max={200000}
               value={maxTokens}
               onChange={(e) => setMaxTokens(e.target.value)}
-              placeholder="Sin límite"
+              placeholder="Sin límite (500 por defecto)"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] placeholder:text-slate-300"
             />
           </div>
@@ -809,19 +1011,19 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
         </div>
       </section>
 
-      {/* Tools placeholder */}
+      {/* ── Herramientas (placeholder) ── */}
       <section>
         <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
           <Zap className="w-4 h-4 text-[#1e3a5f]" />
           Herramientas
         </h3>
-        <div className="bg-slate-50 rounded-xl p-4 text-center">
+        <div className="bg-slate-50 rounded-xl p-4 text-center border border-dashed border-slate-200">
           <p className="text-sm text-slate-400">Próximamente — herramientas conectadas a APIs externas</p>
         </div>
       </section>
 
-      {/* Save */}
-      <div className="flex justify-end pt-2">
+      {/* ── Save ── */}
+      <div className="flex justify-end pt-2 border-t border-slate-100">
         <button
           onClick={handleSave}
           disabled={saving}
@@ -832,7 +1034,13 @@ function ConfigTab({ agentId, config }: { agentId: string; config: AgentConfig }
               : "bg-[#1e3a5f] text-white hover:bg-[#162d4a]"
           )}
         >
-          {saved ? <><CheckCircle2 className="w-4 h-4" /> Guardado</> : saving ? "Guardando…" : "Guardar configuración"}
+          {saved ? (
+            <><CheckCircle2 className="w-4 h-4" /> Guardado</>
+          ) : saving ? (
+            "Guardando…"
+          ) : (
+            "Guardar configuración"
+          )}
         </button>
       </div>
     </div>

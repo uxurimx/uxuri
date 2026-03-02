@@ -19,6 +19,7 @@ export const agents = pgTable("agents", {
   color: varchar("color", { length: 20 }).default("#1e3a5f").notNull(),
   aiModel: varchar("ai_model", { length: 100 }),
   aiPrompt: text("ai_prompt"),
+  personality: text("personality"), // core character/persona traits
   maxTokens: integer("max_tokens"),
   tokenBudget: integer("token_budget"), // monthly token budget (null = sin límite)
   temperature: doublePrecision("temperature"),

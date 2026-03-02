@@ -1,12 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { taskComments, users, tasks, taskActivity, agents } from "@/db/schema";
+import { taskComments, users, tasks, taskActivity, agents, agentKnowledge } from "@/db/schema";
 import { eq, asc, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
 import { sendPushToUser } from "@/lib/web-push";
-import OpenAI from "openai";
+import { callAI } from "@/lib/ai-call";
 
 const createCommentSchema = z.object({
   content: z.string().min(1),
@@ -30,6 +30,25 @@ function extractMentionedAgentIds(content: string): string[] {
   let m;
   while ((m = regex.exec(content)) !== null) ids.push(m[2]);
   return [...new Set(ids)];
+}
+
+// Build a readable context block from agent knowledge items
+function buildKnowledgeContext(
+  items: { title: string; content: string; type: string }[]
+): string {
+  if (items.length === 0) return "";
+  const typeLabel: Record<string, string> = {
+    document: "Documento",
+    instruction: "Instrucción",
+    character: "Personaje",
+  };
+  return (
+    "\n\n=== Base de conocimiento ===\n" +
+    items
+      .map((k) => `[${typeLabel[k.type] ?? k.type}] ${k.title}:\n${k.content}`)
+      .join("\n\n") +
+    "\n==="
+  );
 }
 
 export async function GET(
@@ -64,7 +83,7 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Get commenter name + the task (for context)
+  // Get commenter name + full task context
   const [[commenter], [task]] = await Promise.all([
     db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
     db
@@ -88,7 +107,7 @@ export async function POST(
     .values({ taskId, userId, userName: commenterName, content: parsed.data.content })
     .returning();
 
-  // Log: comment added
+  // Log activity
   await db
     .insert(taskActivity)
     .values({
@@ -100,10 +119,10 @@ export async function POST(
     })
     .catch(() => {});
 
-  // Push user comment so other open sessions see it immediately
+  // Push user comment in real-time
   await pusherServer.trigger(`task-${taskId}`, "comment:created", comment).catch(() => {});
 
-  // Notify mentioned users (not agents)
+  // Notify mentioned users
   const mentionedUserIds = extractMentionedUserIds(parsed.data.content).filter((id) => id !== userId);
   if (mentionedUserIds.length > 0 && task) {
     const notifUrl = task.projectId ? `/projects/${task.projectId}` : "/tasks";
@@ -137,13 +156,13 @@ export async function POST(
 
   // Handle AI agent @mentions
   const mentionedAgentIds = extractMentionedAgentIds(parsed.data.content);
-  if (mentionedAgentIds.length > 0 && task && process.env.OPENAI_API_KEY) {
+  if (mentionedAgentIds.length > 0 && task) {
     const mentionedAgents = await db
       .select()
       .from(agents)
       .where(inArray(agents.id, mentionedAgentIds));
 
-    // Fetch all existing comments for context (includes the one just created)
+    // Fetch all comments for context (includes the one just created)
     const allComments = await db
       .select()
       .from(taskComments)
@@ -151,6 +170,17 @@ export async function POST(
       .orderBy(asc(taskComments.createdAt));
 
     for (const agent of mentionedAgents) {
+      // Check if we can respond (need at least one AI API key)
+      const hasOpenAI = !!process.env.OPENAI_API_KEY;
+      const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+      const modelIsAnthropic = agent.aiModel?.startsWith("claude-");
+      const canRespond =
+        (modelIsAnthropic && hasAnthropic) ||
+        (!modelIsAnthropic && hasOpenAI) ||
+        (!agent.aiModel && hasOpenAI); // default to OpenAI gpt-4o-mini
+
+      if (!canRespond) continue;
+
       // Signal typing to frontend
       await pusherServer
         .trigger(`task-${taskId}`, "comment:typing", {
@@ -161,9 +191,14 @@ export async function POST(
         .catch(() => {});
 
       try {
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        // Fetch agent's knowledge base for RAG
+        const knowledgeItems = await db
+          .select({ title: agentKnowledge.title, content: agentKnowledge.content, type: agentKnowledge.type })
+          .from(agentKnowledge)
+          .where(eq(agentKnowledge.agentId, agent.id))
+          .orderBy(asc(agentKnowledge.createdAt));
 
-        // Build task context for the AI
+        // Build task context
         const taskContext = [
           `Tarea: ${task.title}`,
           task.description ? `Descripción: ${task.description}` : null,
@@ -178,22 +213,29 @@ export async function POST(
           .map((c) => `${c.userName ?? "Usuario"}: ${c.content}`)
           .join("\n");
 
-        const systemPrompt = agent.aiPrompt
-          ? `${agent.aiPrompt}\n\nEres un asistente IA en una aplicación de gestión de tareas. Responde de forma concisa y útil.`
+        // Build system prompt: aiPrompt → personality → knowledge
+        const basePrompt = agent.aiPrompt
+          ? agent.aiPrompt
           : `Eres ${agent.name}${agent.specialty ? `, especializado en ${agent.specialty}` : ""}${agent.description ? `. ${agent.description}` : ""}. Eres un asistente IA en una app de gestión de tareas. Responde de forma concisa y útil en español.`;
+
+        const personalityBlock = agent.personality
+          ? `\n\nPersonalidad y carácter:\n${agent.personality}`
+          : "";
+
+        const knowledgeBlock = buildKnowledgeContext(knowledgeItems);
+
+        const systemPrompt = `${basePrompt}${personalityBlock}${knowledgeBlock}`;
 
         const userMessage = `Contexto de la tarea:\n${taskContext}\n\nHilo de comentarios:\n${commentHistory}`;
 
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          max_tokens: 500,
+        const aiContent = await callAI({
+          model: agent.aiModel,
+          systemPrompt,
+          userMessage,
+          maxTokens: agent.maxTokens,
+          temperature: agent.temperature,
         });
 
-        const aiContent = response.choices[0]?.message?.content?.trim();
         if (aiContent) {
           const [aiComment] = await db
             .insert(taskComments)
@@ -203,8 +245,8 @@ export async function POST(
             .trigger(`task-${taskId}`, "comment:created", aiComment)
             .catch(() => {});
         }
-      } catch {
-        // OpenAI call failed — typing indicator will be cleared below
+      } catch (err) {
+        process.stderr?.write?.(`[AI agent comment error] ${err}\n`);
       }
 
       // Always stop typing indicator

@@ -188,6 +188,7 @@ export default async function AgentDetailPage({
         agentConfig={{
           aiModel: agent.aiModel,
           aiPrompt: agent.aiPrompt,
+          personality: agent.personality,
           maxTokens: agent.maxTokens,
           tokenBudget: agent.tokenBudget,
           temperature: agent.temperature,
