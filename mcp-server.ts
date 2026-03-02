@@ -263,8 +263,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
+        // Also include comments for full context
+        const comments = await sql`
+          SELECT user_name, content, created_at
+          FROM task_comments
+          WHERE task_id = ${taskId}
+          ORDER BY created_at ASC
+        `;
+        const result = {
+          ...rows[0],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          comments: comments.map((c: any) => ({
+            userName: c.user_name,
+            content: c.content,
+            createdAt: c.created_at,
+          })),
+        };
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(rows[0], null, 2) }],
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
         };
       }
 

@@ -4,11 +4,13 @@ import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type User = { id: string; name: string | null };
+type AgentOption = { id: string; name: string; avatar: string };
 
 interface MentionInputProps {
   value: string;
   onChange: (val: string) => void;
   users: User[];
+  agents?: AgentOption[];
   placeholder?: string;
   onEnter?: () => void;
   disabled?: boolean;
@@ -34,15 +36,24 @@ export function parseMentions(content: string): { name: string; id: string }[] {
   return results;
 }
 
-// Render @[Name](userId) as a styled React node
+// Render @[Name](id) as a styled React node — agents use agent: prefix
 export function renderWithMentions(content: string): React.ReactNode {
   const parts = content.split(/(@\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, i) => {
     const m = part.match(/^@\[([^\]]+)\]\(([^)]+)\)$/);
     if (m) {
+      const isAgent = m[2].startsWith("agent:");
       return (
-        <span key={i} className="inline-flex items-center bg-blue-100 text-blue-700 rounded px-1 font-medium text-xs">
-          @{m[1]}
+        <span
+          key={i}
+          className={cn(
+            "inline-flex items-center rounded px-1 font-medium text-xs",
+            isAgent
+              ? "bg-violet-100 text-violet-700"
+              : "bg-blue-100 text-blue-700"
+          )}
+        >
+          {isAgent ? "🤖 " : "@"}{m[1]}
         </span>
       );
     }
@@ -54,6 +65,7 @@ export function MentionInput({
   value,
   onChange,
   users,
+  agents = [],
   placeholder,
   onEnter,
   disabled,
@@ -62,10 +74,21 @@ export function MentionInput({
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  const filtered = mention
-    ? users
-        .filter((u) => (u.name ?? "").toLowerCase().includes(mention.query.toLowerCase()))
-        .slice(0, 6)
+  type MentionItem =
+    | { kind: "user"; id: string; name: string | null }
+    | { kind: "agent"; id: string; name: string; avatar: string };
+
+  const filtered: MentionItem[] = mention
+    ? [
+        ...users
+          .filter((u) => (u.name ?? "").toLowerCase().includes(mention.query.toLowerCase()))
+          .slice(0, 4)
+          .map((u) => ({ kind: "user" as const, id: u.id, name: u.name })),
+        ...agents
+          .filter((a) => a.name.toLowerCase().includes(mention.query.toLowerCase()))
+          .slice(0, 3)
+          .map((a) => ({ kind: "agent" as const, id: a.id, name: a.name, avatar: a.avatar })),
+      ]
     : [];
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -77,14 +100,14 @@ export function MentionInput({
     setSelectedIdx(0);
   }
 
-  function insertMention(user: User) {
+  function insertItem(item: MentionItem) {
     const cursor = textareaRef.current?.selectionStart ?? value.length;
-    const tag = `@[${user.name ?? user.id}](${user.id})`;
+    const id = item.kind === "agent" ? `agent:${item.id}` : item.id;
+    const tag = `@[${item.name ?? item.id}](${id})`;
     const mentionStart = mention?.start ?? cursor;
     const before = value.slice(0, mentionStart);
     const after = value.slice(cursor);
-    const next = before + tag + " " + after;
-    onChange(next);
+    onChange(before + tag + " " + after);
     setMention(null);
     const newCursor = mentionStart + tag.length + 1;
     requestAnimationFrame(() => {
@@ -101,7 +124,7 @@ export function MentionInput({
       if (e.key === "ArrowUp")   { e.preventDefault(); setSelectedIdx((i) => (i - 1 + filtered.length) % filtered.length); return; }
       if (e.key === "Tab" || (e.key === "Enter" && filtered.length > 0)) {
         e.preventDefault();
-        insertMention(filtered[selectedIdx]);
+        insertItem(filtered[selectedIdx]);
         return;
       }
       if (e.key === "Escape") { setMention(null); return; }
@@ -127,21 +150,28 @@ export function MentionInput({
 
       {/* @ mention dropdown */}
       {mention !== null && filtered.length > 0 && (
-        <div className="absolute bottom-full mb-1 left-0 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-          {filtered.map((user, i) => (
+        <div className="absolute bottom-full mb-1 left-0 w-52 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+          {filtered.map((item, i) => (
             <button
-              key={user.id}
+              key={`${item.kind}-${item.id}`}
               type="button"
-              onMouseDown={(e) => { e.preventDefault(); insertMention(user); }}
+              onMouseDown={(e) => { e.preventDefault(); insertItem(item); }}
               className={cn(
-                "w-full px-3 py-2 text-left text-sm flex items-center gap-1.5 transition-colors",
+                "w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors",
                 i === selectedIdx
                   ? "bg-[#1e3a5f] text-white"
                   : "hover:bg-slate-50 text-slate-700"
               )}
             >
-              <span className={cn("font-semibold", i === selectedIdx ? "text-white/70" : "text-[#1e3a5f]")}>@</span>
-              {user.name ?? user.id}
+              {item.kind === "agent" ? (
+                <span className="text-sm">{item.avatar}</span>
+              ) : (
+                <span className={cn("font-semibold text-xs", i === selectedIdx ? "text-white/70" : "text-[#1e3a5f]")}>@</span>
+              )}
+              <span className="flex-1 truncate">{item.name ?? item.id}</span>
+              {item.kind === "agent" && (
+                <span className={cn("text-[10px]", i === selectedIdx ? "text-white/60" : "text-slate-400")}>IA</span>
+              )}
             </button>
           ))}
         </div>

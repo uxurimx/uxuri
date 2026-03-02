@@ -47,11 +47,13 @@ export type TaskForModal = {
 
 type Comment = {
   id: string;
-  userId: string;
+  userId: string | null;
   userName: string | null;
   content: string;
   createdAt: string;
 };
+
+type TypingAgent = { agentId: string; agentName: string; agentAvatar: string };
 
 type ActivityEvent = {
   id: string;
@@ -313,6 +315,9 @@ export function TaskModal({
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
+  // Typing indicator for AI agents
+  const [typingAgents, setTypingAgents] = useState<TypingAgent[]>([]);
+
   // Personal done
   const [markingDone, setMarkingDone] = useState(false);
 
@@ -364,19 +369,47 @@ export function TaskModal({
       .finally(() => setActivityLoading(false));
   }, [open, task?.id, mode, activeTab]);
 
-  // Real-time: refresh activity when agent adds new events
+  // Real-time: comments and activity updates
   useEffect(() => {
     if (!task?.id) return;
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`task-${task.id}`);
+
+    // New comment (from another session or AI agent response)
+    channel.bind("comment:created", (newComment: Comment) => {
+      setComments((prev) => {
+        if (prev.some((c) => c.id === newComment.id)) return prev;
+        return [...prev, newComment];
+      });
+      // Clear typing indicator for this agent
+      if (newComment.userId === null) {
+        setTypingAgents([]);
+      }
+      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    });
+
+    // AI agent started typing
+    channel.bind("comment:typing", (data: TypingAgent) => {
+      setTypingAgents((prev) =>
+        prev.some((a) => a.agentId === data.agentId) ? prev : [...prev, data]
+      );
+    });
+
+    // AI agent stopped typing
+    channel.bind("comment:typing-stop", ({ agentId }: { agentId: string }) => {
+      setTypingAgents((prev) => prev.filter((a) => a.agentId !== agentId));
+    });
+
+    // Activity timeline refresh
     channel.bind("task:activity-updated", () => {
       fetch(`/api/tasks/${task.id}/activity`)
         .then((r) => r.json())
         .then((data) => setActivity(Array.isArray(data) ? data : []))
         .catch(() => {});
     });
+
     return () => {
-      channel.unbind("task:activity-updated");
+      channel.unbind_all();
       pusher.unsubscribe(`task-${task.id}`);
     };
   }, [task?.id]);
@@ -646,16 +679,56 @@ export function TaskModal({
                     <p className="text-xs text-slate-400 py-2">Sin comentarios aún.</p>
                   ) : (
                     <div className="space-y-3 mb-3">
-                      {comments.map((c) => (
-                        <div key={c.id} className="bg-slate-50 rounded-lg p-3">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-xs font-semibold text-slate-700">{c.userName ?? "Usuario"}</span>
-                            <span className="text-xs text-slate-400">·</span>
-                            <span className="text-xs text-slate-400">{formatDateTime(c.createdAt)}</span>
+                      {comments.map((c) => {
+                        const isAI = c.userId === null;
+                        return (
+                          <div
+                            key={c.id}
+                            className={cn(
+                              "rounded-lg p-3",
+                              isAI
+                                ? "bg-violet-50 border border-violet-100"
+                                : "bg-slate-50"
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1">
+                              {isAI && <Bot className="w-3 h-3 text-violet-500 flex-shrink-0" />}
+                              <span
+                                className={cn(
+                                  "text-xs font-semibold",
+                                  isAI ? "text-violet-700" : "text-slate-700"
+                                )}
+                              >
+                                {c.userName ?? (isAI ? "Agente IA" : "Usuario")}
+                              </span>
+                              <span className="text-xs text-slate-400">·</span>
+                              <span className="text-xs text-slate-400">
+                                {formatDateTime(c.createdAt)}
+                              </span>
+                            </div>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                              {renderWithMentions(c.content)}
+                            </p>
                           </div>
-                          <p className="text-sm text-slate-600 leading-relaxed">{renderWithMentions(c.content)}</p>
+                        );
+                      })}
+
+                      {/* Typing indicators */}
+                      {typingAgents.map((a) => (
+                        <div
+                          key={a.agentId}
+                          className="bg-violet-50 border border-violet-100 rounded-lg p-3 flex items-center gap-2"
+                        >
+                          <span className="text-sm">{a.agentAvatar}</span>
+                          <span className="text-xs text-violet-600">{a.agentName}</span>
+                          <span className="flex gap-0.5 ml-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
+                          </span>
                         </div>
                       ))}
+
                       <div ref={commentsEndRef} />
                     </div>
                   )}
@@ -666,7 +739,8 @@ export function TaskModal({
                       value={commentText}
                       onChange={setCommentText}
                       users={users ?? []}
-                      placeholder="Escribe un comentario... usa @ para mencionar"
+                      agents={agents?.map((a) => ({ id: a.id, name: a.name, avatar: a.avatar }))}
+                      placeholder="Escribe un comentario… usa @ para mencionar"
                       onEnter={sendComment}
                       disabled={sendingComment}
                     />
