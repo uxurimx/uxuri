@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target } from "lucide-react";
+import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -304,6 +304,13 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Ver proyecto
+              </button>
+              <button
+                onClick={() => { onClose(); router.push(`/planning/new?from=project&id=${project.id}`); }}
+                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Planificar
               </button>
               <button
                 onClick={() => setMode("edit")}

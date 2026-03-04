@@ -2,9 +2,10 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { projects, chatChannels } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
-import { or, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getRole } from "@/lib/auth";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
@@ -21,11 +22,12 @@ export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const result = await db
-    .select()
-    .from(projects)
-    .where(or(eq(projects.privacy, "public"), eq(projects.createdBy, userId)))
-    .orderBy(projects.createdAt);
+  const role = await getRole();
+  const isAdmin = role === "admin";
+
+  const result = isAdmin
+    ? await db.select().from(projects).orderBy(projects.createdAt)
+    : await db.select().from(projects).where(eq(projects.createdBy, userId)).orderBy(projects.createdAt);
 
   return NextResponse.json(result);
 }
@@ -51,7 +53,6 @@ export async function POST(req: Request) {
     createdBy: userId,
   }).returning();
 
-  // Auto-create a chat channel for this project
   await db.insert(chatChannels).values({
     name: project.name,
     entityType: "project",

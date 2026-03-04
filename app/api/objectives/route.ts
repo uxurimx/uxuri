@@ -8,9 +8,10 @@ import {
   projects,
   tasks,
 } from "@/db/schema";
-import { eq, count, and } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getRole } from "@/lib/auth";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -24,60 +25,44 @@ export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rows = await db.select().from(objectives).orderBy(objectives.createdAt);
+  const role = await getRole();
+  const isAdmin = role === "admin";
 
-  // Get milestone counts per objective
-  const milestoneCounts = await db
-    .select({
-      objectiveId: objectiveMilestones.objectiveId,
-      total: count(),
-      done: count(objectiveMilestones.id).as("done"),
-    })
-    .from(objectiveMilestones)
-    .groupBy(objectiveMilestones.objectiveId);
+  const rows = isAdmin
+    ? await db.select().from(objectives).orderBy(objectives.createdAt)
+    : await db.select().from(objectives).where(eq(objectives.createdBy, userId)).orderBy(objectives.createdAt);
 
   const allMilestones = await db.select().from(objectiveMilestones);
 
+  const milestoneCounts = await db
+    .select({ objectiveId: objectiveMilestones.objectiveId, total: count() })
+    .from(objectiveMilestones)
+    .groupBy(objectiveMilestones.objectiveId);
+
   const projectCounts = await db
-    .select({
-      objectiveId: objectiveProjects.objectiveId,
-      total: count(),
-    })
+    .select({ objectiveId: objectiveProjects.objectiveId, total: count() })
     .from(objectiveProjects)
     .groupBy(objectiveProjects.objectiveId);
 
   const taskCounts = await db
-    .select({
-      objectiveId: objectiveTasks.objectiveId,
-      total: count(),
-    })
+    .select({ objectiveId: objectiveTasks.objectiveId, total: count() })
     .from(objectiveTasks)
     .groupBy(objectiveTasks.objectiveId);
 
-  // For each objective, get linked tasks and projects with their completion status
   const linkedProjectsData = await db
-    .select({
-      objectiveId: objectiveProjects.objectiveId,
-      projectId: objectiveProjects.projectId,
-      status: projects.status,
-    })
+    .select({ objectiveId: objectiveProjects.objectiveId, status: projects.status })
     .from(objectiveProjects)
     .leftJoin(projects, eq(objectiveProjects.projectId, projects.id));
 
   const linkedTasksData = await db
-    .select({
-      objectiveId: objectiveTasks.objectiveId,
-      taskId: objectiveTasks.taskId,
-      status: tasks.status,
-    })
+    .select({ objectiveId: objectiveTasks.objectiveId, status: tasks.status })
     .from(objectiveTasks)
     .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id));
 
   const result = rows.map((obj) => {
-    const mCount = milestoneCounts.find((m) => m.objectiveId === obj.id);
-    const mTotal = mCount?.total ?? 0;
+    const mCount = milestoneCounts.find((m) => m.objectiveId === obj.id)?.total ?? 0;
     const mDone = allMilestones.filter((m) => m.objectiveId === obj.id && m.done).length;
-    const mProgress = mTotal > 0 ? Math.round((mDone / mTotal) * 100) : null;
+    const mProgress = mCount > 0 ? Math.round((mDone / mCount) * 100) : null;
 
     const pCount = projectCounts.find((p) => p.objectiveId === obj.id)?.total ?? 0;
     const pCompleted = linkedProjectsData.filter(
@@ -97,7 +82,7 @@ export async function GET() {
 
     return {
       ...obj,
-      milestoneCount: mTotal,
+      milestoneCount: mCount,
       projectCount: pCount,
       taskCount: tCount,
       overallProgress,
@@ -119,10 +104,7 @@ export async function POST(req: Request) {
 
   const [objective] = await db
     .insert(objectives)
-    .values({
-      ...parsed.data,
-      createdBy: userId,
-    })
+    .values({ ...parsed.data, createdBy: userId })
     .returning();
 
   return NextResponse.json(objective, { status: 201 });

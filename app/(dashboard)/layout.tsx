@@ -25,6 +25,10 @@ export default async function DashboardLayout({
   if (permissions.includes("/projects") && !permissions.includes("/objectives")) {
     permissions = [...permissions, "/objectives"];
   }
+  // /planning se agrega automáticamente a cualquier rol que ya tenga /objectives
+  if (permissions.includes("/objectives") && !permissions.includes("/planning")) {
+    permissions = [...permissions, "/planning"];
+  }
 
   return (
     <ToastProvider>

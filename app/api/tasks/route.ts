@@ -2,7 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { tasks, projects, users, taskActivity } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
-import { eq, or, isNull } from "drizzle-orm";
+import { getRole } from "@/lib/auth";
+import { eq, or, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
@@ -28,10 +29,26 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const projectId = url.searchParams.get("projectId");
 
-  const query = db.select().from(tasks);
-  const result = projectId
-    ? await query.where(eq(tasks.projectId, projectId))
-    : await query;
+  const role = await getRole();
+  const isAdmin = role === "admin";
+
+  let result;
+  if (projectId) {
+    result = isAdmin
+      ? await db.select().from(tasks).where(eq(tasks.projectId, projectId))
+      : await db.select().from(tasks).where(
+          and(
+            eq(tasks.projectId, projectId),
+            or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId))
+          )
+        );
+  } else {
+    result = isAdmin
+      ? await db.select().from(tasks)
+      : await db.select().from(tasks).where(
+          or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId))
+        );
+  }
 
   return NextResponse.json(result);
 }
@@ -62,7 +79,6 @@ export async function POST(req: Request) {
   const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
   const creatorName = creator?.name ?? "Usuario";
 
-  // Log: task created
   await db.insert(taskActivity).values({
     taskId: task.id,
     userId,
@@ -70,7 +86,6 @@ export async function POST(req: Request) {
     type: "created",
   }).catch(() => {});
 
-  // Notificar al usuario asignado
   if (task.assignedTo && task.assignedTo !== userId) {
     const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
     const assignedByName = creator?.name ?? "Alguien";

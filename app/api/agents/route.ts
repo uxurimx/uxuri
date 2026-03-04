@@ -4,6 +4,7 @@ import { agents, tasks } from "@/db/schema";
 import { eq, and, ne, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getRole } from "@/lib/auth";
 
 const agentSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -16,6 +17,14 @@ const agentSchema = z.object({
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const role = await getRole();
+  const isAdmin = role === "admin";
+
+  const baseWhere = eq(agents.isActive, true);
+  const whereClause = isAdmin
+    ? baseWhere
+    : and(baseWhere, eq(agents.createdBy, userId));
 
   const result = await db
     .select({
@@ -33,7 +42,7 @@ export async function GET() {
     })
     .from(agents)
     .leftJoin(tasks, and(eq(tasks.agentId, agents.id), ne(tasks.status, "done")))
-    .where(eq(agents.isActive, true))
+    .where(whereClause)
     .groupBy(agents.id)
     .orderBy(agents.createdAt);
 
@@ -52,10 +61,7 @@ export async function POST(req: Request) {
 
   const [agent] = await db
     .insert(agents)
-    .values({
-      ...parsed.data,
-      createdBy: userId,
-    })
+    .values({ ...parsed.data, createdBy: userId })
     .returning();
 
   return NextResponse.json(agent, { status: 201 });

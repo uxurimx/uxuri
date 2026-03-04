@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Zap } from "lucide-react";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import {
@@ -110,5 +112,18 @@ export default async function ObjectiveDetailPage({
   // Serialize dates to strings for client component
   const serialized = JSON.parse(JSON.stringify(data));
 
-  return <ObjectiveDetail objective={serialized} />;
+  return (
+    <div>
+      <div className="flex justify-end mb-2">
+        <Link
+          href={`/planning/new?from=objective&id=${serialized.id}`}
+          className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors"
+        >
+          <Zap className="w-3.5 h-3.5" />
+          Planificar
+        </Link>
+      </div>
+      <ObjectiveDetail objective={serialized} />
+    </div>
+  );
 }

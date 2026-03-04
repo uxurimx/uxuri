@@ -8,7 +8,7 @@ import {
   X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
   MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
   FileText, Clock, UserCheck, UserMinus, History, CheckCircle2,
-  Play, Pause, StopCircle, Bot, ListChecks, Plus,
+  Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap,
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
 import { MentionInput, renderWithMentions } from "./mention-input";
@@ -841,6 +841,15 @@ export function TaskModal({
                     Editar
                   </button>
                 )}
+
+                {/* Planificar */}
+                <button
+                  onClick={() => { onClose(); router.push(`/planning/new?from=task&id=${task.id}`); }}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Planificar
+                </button>
 
                 {/* Third-party: personal done */}
                 {isThirdParty && !task.personalDone && (
