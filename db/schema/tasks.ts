@@ -42,6 +42,9 @@ export const tasks = pgTable("tasks", {
   dueDate: date("due_date"),
   sortOrder: integer("sort_order"),
   agentStatus: varchar("agent_status", { length: 30 }), // null | 'queued' | 'analyzing' | 'working' | 'done' | 'error'
+  energyLevel: varchar("energy_level", { length: 10 }), // null | 'low' | 'medium' | 'high'
+  estMinutes: integer("est_minutes"),                   // estimated duration in minutes
+  taskType: varchar("task_type", { length: 20 }),       // null | 'revenue' | 'creative' | 'admin' | 'strategic' | 'ops'
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

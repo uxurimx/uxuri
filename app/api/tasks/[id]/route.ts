@@ -20,6 +20,9 @@ const updateTaskSchema = z.object({
   dueDate: z.string().optional().nullable(),
   sortOrder: z.number().int().optional().nullable(),
   agentStatus: z.string().nullable().optional(),
+  energyLevel: z.enum(["low", "medium", "high"]).nullable().optional(),
+  estMinutes: z.number().int().positive().nullable().optional(),
+  taskType: z.enum(["revenue", "creative", "admin", "strategic", "ops"]).nullable().optional(),
 });
 
 const STATUS_LABELS: Record<string, string> = {

@@ -20,6 +20,9 @@ const createTaskSchema = z.object({
   status: z.enum(["todo", "in_progress", "review", "done"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().nullish(),
+  energyLevel: z.enum(["low", "medium", "high"]).nullish(),
+  estMinutes: z.number().int().positive().nullish(),
+  taskType: z.enum(["revenue", "creative", "admin", "strategic", "ops"]).nullish(),
 });
 
 export async function GET(req: Request) {
@@ -73,6 +76,9 @@ export async function POST(req: Request) {
     agentId: parsed.data.agentId ?? null,
     customColumnId: parsed.data.customColumnId ?? null,
     dueDate: parsed.data.dueDate || null,
+    energyLevel: parsed.data.energyLevel ?? null,
+    estMinutes: parsed.data.estMinutes ?? null,
+    taskType: parsed.data.taskType ?? null,
     createdBy: userId,
   }).returning();
 

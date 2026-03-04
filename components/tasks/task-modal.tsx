@@ -26,6 +26,9 @@ const schema = z.object({
   clientId: z.string().optional(),
   assignedTo: z.string().optional(),
   agentId: z.string().optional(),
+  energyLevel: z.enum(["low", "medium", "high"]).optional(),
+  estMinutes: z.number().int().positive().optional(),
+  taskType: z.enum(["revenue", "creative", "admin", "strategic", "ops"]).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -45,6 +48,9 @@ export type TaskForModal = {
   agentStatus?: string | null;
   createdBy?: string | null;
   personalDone?: boolean;
+  energyLevel?: string | null;
+  estMinutes?: number | null;
+  taskType?: string | null;
 };
 
 type Comment = {
@@ -349,7 +355,7 @@ export function TaskModal({
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { status: "todo", priority: "medium" },
   });
@@ -370,6 +376,9 @@ export function TaskModal({
         clientId: task.clientId ?? "",
         assignedTo: task.assignedTo ?? "",
         agentId: task.agentId ?? "",
+        energyLevel: (task.energyLevel as "low" | "medium" | "high" | undefined) ?? undefined,
+        estMinutes: task.estMinutes ?? undefined,
+        taskType: (task.taskType as "revenue" | "creative" | "admin" | "strategic" | "ops" | undefined) ?? undefined,
       });
     } else {
       reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", clientId: "", assignedTo: "", agentId: "" });
@@ -692,6 +701,27 @@ export function TaskModal({
                   </span>
                 )}
               </div>
+
+              {/* Energy / type badges */}
+              {(task.energyLevel || task.estMinutes || task.taskType) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {task.energyLevel && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      {task.energyLevel === "low" ? "🔋 Energía baja" : task.energyLevel === "medium" ? "⚡ Energía media" : "🔥 Energía alta"}
+                    </span>
+                  )}
+                  {task.estMinutes && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      ⏱ {task.estMinutes >= 60 ? `${Math.floor(task.estMinutes / 60)}h${task.estMinutes % 60 > 0 ? ` ${task.estMinutes % 60}min` : ""}` : `${task.estMinutes}min`}
+                    </span>
+                  )}
+                  {task.taskType && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      {task.taskType === "revenue" ? "💰 Ingresos" : task.taskType === "creative" ? "🎨 Creativa" : task.taskType === "admin" ? "📋 Admin" : task.taskType === "strategic" ? "🎯 Estratégica" : "⚙️ Operativa"}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {task.description && (
                 <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
@@ -1133,6 +1163,72 @@ export function TaskModal({
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Fecha límite</label>
               <input {...register("dueDate")} type="date" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+            </div>
+
+            {/* ── Mood / Energy fields ── */}
+            <div className="border-t border-slate-100 pt-3 space-y-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Para recomendaciones por estado de ánimo</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Energía requerida</label>
+                  <div className="flex gap-1">
+                    {([["low", "🔋 Baja"], ["medium", "⚡ Media"], ["high", "🔥 Alta"]] as const).map(([val, label]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setValue("energyLevel", watch("energyLevel") === val ? undefined : val)}
+                        className={cn(
+                          "flex-1 text-xs py-1.5 rounded-lg border transition-colors",
+                          watch("energyLevel") === val
+                            ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Tiempo estimado (min)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="ej. 30"
+                    {...register("estMinutes", { valueAsNumber: true })}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de tarea</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    ["revenue", "💰 Ingresos"],
+                    ["creative", "🎨 Creativa"],
+                    ["admin", "📋 Admin"],
+                    ["strategic", "🎯 Estratégica"],
+                    ["ops", "⚙️ Operativa"],
+                  ] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setValue("taskType", watch("taskType") === val ? undefined : val)}
+                      className={cn(
+                        "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                        watch("taskType") === val
+                          ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-2">

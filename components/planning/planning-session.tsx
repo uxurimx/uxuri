@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Zap, Plus, Archive, Loader2, ChevronRight, Map } from "lucide-react";
+import { Send, Zap, Plus, Archive, Loader2, Map } from "lucide-react";
 import { PlanningActionsPanel } from "./planning-actions-panel";
 import { PlanningMindmap } from "./planning-mindmap";
 import { cn } from "@/lib/utils";
+import { getPusherClient } from "@/lib/pusher";
 
 type Message = {
   id: string;
@@ -40,6 +41,22 @@ export function PlanningSession({ session: initialSession }: { session: Session 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Escuchar mensajes del agente externo (Planning Agent MCP via Pusher)
+  useEffect(() => {
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe(`planning-${initialSession.id}`);
+    channel.bind("planning:message", (data: Message) => {
+      setMessages((prev) => {
+        if (prev.find((m) => m.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    });
+    return () => {
+      channel.unbind_all();
+      pusher.unsubscribe(`planning-${initialSession.id}`);
+    };
+  }, [initialSession.id]);
 
   async function sendMessage() {
     if (!input.trim() || loading) return;
