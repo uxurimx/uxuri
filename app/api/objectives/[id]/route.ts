@@ -7,6 +7,7 @@ import {
   objectiveTasks,
   objectiveAgents,
   objectiveAttachments,
+  objectiveAreas,
   projects,
   tasks,
   agents,
@@ -21,6 +22,7 @@ const updateSchema = z.object({
   status: z.enum(["draft", "active", "paused", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   targetDate: z.string().optional().nullable(),
+  pinnedToDashboard: z.boolean().optional(),
 });
 
 export async function GET(
@@ -35,6 +37,13 @@ export async function GET(
   const [objective] = await db.select().from(objectives).where(eq(objectives.id, id));
   if (!objective) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Areas
+  const areas = await db
+    .select()
+    .from(objectiveAreas)
+    .where(eq(objectiveAreas.objectiveId, id))
+    .orderBy(objectiveAreas.sortOrder);
+
   // Milestones
   const milestones = await db
     .select()
@@ -44,14 +53,14 @@ export async function GET(
 
   // Linked projects
   const linkedProjectRows = await db
-    .select({ linkId: objectiveProjects.id, project: projects })
+    .select({ linkId: objectiveProjects.id, areaId: objectiveProjects.areaId, project: projects })
     .from(objectiveProjects)
     .leftJoin(projects, eq(objectiveProjects.projectId, projects.id))
     .where(eq(objectiveProjects.objectiveId, id));
 
   // Linked tasks
   const linkedTaskRows = await db
-    .select({ linkId: objectiveTasks.id, task: tasks })
+    .select({ linkId: objectiveTasks.id, areaId: objectiveTasks.areaId, task: tasks })
     .from(objectiveTasks)
     .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id))
     .where(eq(objectiveTasks.objectiveId, id));
@@ -101,9 +110,10 @@ export async function GET(
 
   return NextResponse.json({
     ...objective,
+    areas,
     milestones,
-    linkedProjects: linkedProjectRows.map((r) => ({ linkId: r.linkId, ...r.project })),
-    linkedTasks: linkedTaskRows.map((r) => ({ linkId: r.linkId, ...r.task })),
+    linkedProjects: linkedProjectRows.map((r) => ({ linkId: r.linkId, areaId: r.areaId, ...r.project })),
+    linkedTasks: linkedTaskRows.map((r) => ({ linkId: r.linkId, areaId: r.areaId, ...r.task })),
     linkedAgents: linkedAgentRows.map((r) => ({ linkId: r.linkId, ...r.agent })),
     attachments,
     progress: {

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns } from "@/db/schema";
+import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns, objectives } from "@/db/schema";
 import { eq, or, and, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ProjectDetail } from "@/components/projects/project-detail";
@@ -15,7 +15,7 @@ export default async function ProjectDetailPage({
 
   const { id } = await params;
 
-  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients] = await Promise.all([
+  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients, allObjectives] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -81,6 +81,7 @@ export default async function ProjectDetailPage({
       sortOrder: workflowColumns.sortOrder,
     }).from(workflowColumns).orderBy(workflowColumns.sortOrder),
     db.select({ id: clients.id, name: clients.name }).from(clients).orderBy(clients.name),
+    db.select({ id: objectives.id, title: objectives.title }).from(objectives).orderBy(objectives.createdAt),
   ]);
 
   if (!project) notFound();
@@ -96,6 +97,7 @@ export default async function ProjectDetailPage({
       users={allUsers}
       agents={allAgents}
       clients={allClients}
+      objectives={allObjectives}
       customColumns={allCustomColumns}
       currentUserId={userId}
     />

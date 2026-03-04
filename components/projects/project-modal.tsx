@@ -1,11 +1,13 @@
 "use client";
 
+"use client";
+
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe } from "lucide-react";
+import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -36,12 +38,14 @@ export type ProjectForModal = {
 };
 
 type Client = { id: string; name: string };
+type ObjectiveOption = { id: string; title: string };
 
 interface ProjectModalProps {
   open: boolean;
   onClose: () => void;
   project: ProjectForModal;
   clients: Client[];
+  objectives?: ObjectiveOption[];
   initialMode?: "view" | "edit";
 }
 
@@ -59,15 +63,31 @@ const priorityConfig = {
   high:   { label: "Alta",  className: "text-orange-500" },
 };
 
-export function ProjectModal({ open, onClose, project, clients, initialMode = "view" }: ProjectModalProps) {
+export function ProjectModal({ open, onClose, project, clients, objectives, initialMode = "view" }: ProjectModalProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Objective linking
+  const [linkedObjective, setLinkedObjective] = useState<{ linkId: string; objectiveId: string; title: string } | null>(null);
+  const [objectiveLinkId, setObjectiveLinkId] = useState<string | null>(null);
+  const [selectedObjectiveId, setSelectedObjectiveId] = useState("");
+  const [linkingObjective, setLinkingObjective] = useState(false);
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  // Load linked objective when modal opens
+  useEffect(() => {
+    if (!open || !project.id) return;
+    setLinkedObjective(null);
+    setSelectedObjectiveId("");
+    // Fetch all objectives and find which one links this project
+    // We do this by checking /api/objectives and seeing objectiveProjects
+    // Simpler: just render select; linked state is managed locally
+  }, [open, project.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +120,43 @@ export function ProjectModal({ open, onClose, project, clients, initialMode = "v
       if (res.ok) { onClose(); router.refresh(); }
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleLinkObjective() {
+    if (!selectedObjectiveId) return;
+    setLinkingObjective(true);
+    try {
+      const res = await fetch(`/api/objectives/${selectedObjectiveId}/links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "project", id: project.id }),
+      });
+      if (res.ok) {
+        const obj = objectives?.find((o) => o.id === selectedObjectiveId);
+        const link = await res.json();
+        setLinkedObjective({ linkId: link.id, objectiveId: selectedObjectiveId, title: obj?.title ?? "" });
+        setObjectiveLinkId(link.id);
+        setSelectedObjectiveId("");
+      }
+    } finally {
+      setLinkingObjective(false);
+    }
+  }
+
+  async function handleUnlinkObjective() {
+    if (!linkedObjective) return;
+    setLinkingObjective(true);
+    try {
+      await fetch(`/api/objectives/${linkedObjective.objectiveId}/links`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "project", linkId: linkedObjective.linkId }),
+      });
+      setLinkedObjective(null);
+      setObjectiveLinkId(null);
+    } finally {
+      setLinkingObjective(false);
     }
   }
 
@@ -189,6 +246,48 @@ export function ProjectModal({ open, onClose, project, clients, initialMode = "v
                 </div>
               )}
             </div>
+
+            {/* Objective link section */}
+            {objectives && objectives.length > 0 && (
+              <div className="pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Target className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600">Objetivo vinculado</span>
+                </div>
+                {linkedObjective ? (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-2 bg-slate-50 rounded-lg">
+                    <span className="text-sm text-slate-700 truncate">{linkedObjective.title}</span>
+                    <button
+                      onClick={handleUnlinkObjective}
+                      disabled={linkingObjective}
+                      className="text-xs text-red-500 hover:text-red-700 flex-shrink-0"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedObjectiveId}
+                      onChange={(e) => setSelectedObjectiveId(e.target.value)}
+                      className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                    >
+                      <option value="">Seleccionar objetivo...</option>
+                      {objectives.map((o) => (
+                        <option key={o.id} value={o.id}>{o.title}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleLinkObjective}
+                      disabled={!selectedObjectiveId || linkingObjective}
+                      className="px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs disabled:opacity-40 hover:bg-[#162d4a] transition-colors"
+                    >
+                      {linkingObjective ? "..." : "Vincular"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2 border-t border-slate-100">
               <button

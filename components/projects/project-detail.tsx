@@ -32,6 +32,7 @@ const statusConfig = {
 
 type AgentOption = { id: string; name: string; avatar: string; color: string };
 type ClientOption = { id: string; name: string };
+type ObjectiveOption = { id: string; title: string };
 
 export function ProjectDetail({
   project,
@@ -40,6 +41,7 @@ export function ProjectDetail({
   users,
   agents,
   clients,
+  objectives,
   customColumns,
   currentUserId,
 }: {
@@ -49,6 +51,7 @@ export function ProjectDetail({
   users?: { id: string; name: string | null }[];
   agents?: AgentOption[];
   clients?: ClientOption[];
+  objectives?: ObjectiveOption[];
   customColumns?: CustomColumn[];
   currentUserId?: string;
 }) {
@@ -114,6 +117,7 @@ export function ProjectDetail({
           users={users}
           agents={agents}
           clients={clients}
+          objectives={objectives}
           currentUserId={currentUserId}
         />
       </div>

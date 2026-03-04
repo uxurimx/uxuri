@@ -4,9 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   CheckCircle2, Clock, AlertTriangle, Calendar, Folder,
-  Bot, Settings, X, ChevronRight, Flag, Eye, EyeOff,
+  Bot, Settings, X, ChevronRight, Flag, Eye, EyeOff, Target,
 } from "lucide-react";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
+import { TimeAwarenessWidget } from "./time-awareness-widget";
+import { PinnedObjectivesWidget } from "./pinned-objectives-widget";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,18 +51,20 @@ type AgentRow = {
 
 // ── Widget system ──────────────────────────────────────────────────────────
 
-type WidgetId = "my-tasks" | "urgent" | "overdue" | "completed-today" | "projects" | "agents";
+type WidgetId = "my-tasks" | "urgent" | "overdue" | "completed-today" | "projects" | "agents" | "time-awareness" | "pinned-objectives";
 
 const WIDGET_META: Record<WidgetId, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  "my-tasks":       { label: "Mis tareas pendientes",    icon: Clock },
-  "urgent":         { label: "Urgentes / Alta prioridad", icon: AlertTriangle },
-  "overdue":        { label: "Vencidas",                 icon: Calendar },
-  "completed-today":{ label: "Completadas hoy",          icon: CheckCircle2 },
-  "projects":       { label: "Proyectos activos",        icon: Folder },
-  "agents":         { label: "Actividad de agentes",     icon: Bot },
+  "my-tasks":          { label: "Mis tareas pendientes",    icon: Clock },
+  "urgent":            { label: "Urgentes / Alta prioridad", icon: AlertTriangle },
+  "overdue":           { label: "Vencidas",                 icon: Calendar },
+  "completed-today":   { label: "Completadas hoy",          icon: CheckCircle2 },
+  "projects":          { label: "Proyectos activos",        icon: Folder },
+  "agents":            { label: "Actividad de agentes",     icon: Bot },
+  "time-awareness":    { label: "Conciencia temporal",      icon: Clock },
+  "pinned-objectives": { label: "Objetivos principales",    icon: Target },
 };
 
-const DEFAULT_WIDGETS: WidgetId[] = ["my-tasks", "urgent", "overdue", "completed-today", "projects", "agents"];
+const DEFAULT_WIDGETS: WidgetId[] = ["time-awareness", "pinned-objectives", "my-tasks", "urgent", "overdue", "completed-today", "projects", "agents"];
 
 function loadWidgets(userId: string): WidgetId[] {
   if (typeof window === "undefined") return DEFAULT_WIDGETS;
@@ -392,6 +396,14 @@ function SettingsPanel({
 
 // ── Main component ─────────────────────────────────────────────────────────
 
+type PinnedObjective = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  overallProgress: number;
+};
+
 interface DashboardClientProps {
   userId: string;
   userName: string;
@@ -402,6 +414,7 @@ interface DashboardClientProps {
   completedToday: CompletedTask[];
   agentActivity: AgentRow[];
   todayStr: string;
+  pinnedObjectives: PinnedObjective[];
 }
 
 export function DashboardClient({
@@ -414,6 +427,7 @@ export function DashboardClient({
   completedToday,
   agentActivity,
   todayStr,
+  pinnedObjectives,
 }: DashboardClientProps) {
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(() => loadWidgets(userId));
   const [showSettings, setShowSettings] = useState(false);
@@ -545,6 +559,12 @@ export function DashboardClient({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {show("time-awareness") && (
+            <TimeAwarenessWidget />
+          )}
+          {show("pinned-objectives") && (
+            <PinnedObjectivesWidget objectives={pinnedObjectives} />
+          )}
           {show("my-tasks") && (
             <MyTasksWidget tasks={myPendingTasks} />
           )}

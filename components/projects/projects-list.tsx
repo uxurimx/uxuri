@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ProjectModal, type ProjectForModal } from "./project-modal";
 
 type Client = { id: string; name: string };
+type ObjectiveOption = { id: string; title: string };
 
 const statusConfig = {
   planning:  { label: "Planeación", className: "bg-slate-100 text-slate-600" },
@@ -25,10 +26,12 @@ const priorityConfig = {
 export function ProjectsList({
   projects,
   clients,
+  objectives,
   currentUserId,
 }: {
   projects: ProjectForModal[];
   clients: Client[];
+  objectives?: ObjectiveOption[];
   currentUserId?: string;
 }) {
   const router = useRouter();
@@ -164,6 +167,7 @@ export function ProjectsList({
           onClose={() => setSelectedProject(null)}
           project={selectedProject}
           clients={clients}
+          objectives={objectives}
           initialMode={modalInitialMode}
         />
       )}

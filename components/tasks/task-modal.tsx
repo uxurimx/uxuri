@@ -83,6 +83,7 @@ type Project = { id: string; name: string };
 type Client = { id: string; name: string };
 type User = { id: string; name: string | null };
 type AgentOption = { id: string; name: string; avatar: string; color: string };
+type ObjectiveOption = { id: string; title: string };
 
 interface TaskModalProps {
   open: boolean;
@@ -93,6 +94,7 @@ interface TaskModalProps {
   clients?: Client[];
   users?: User[];
   agents?: AgentOption[];
+  objectives?: ObjectiveOption[];
   currentUserId?: string;
   initialMode?: "view" | "edit" | "create";
 }
@@ -301,6 +303,7 @@ export function TaskModal({
   clients,
   users,
   agents,
+  objectives,
   currentUserId,
   initialMode,
 }: TaskModalProps) {
@@ -331,6 +334,9 @@ export function TaskModal({
 
   // Typing indicator for AI agents
   const [typingAgents, setTypingAgents] = useState<TypingAgent[]>([]);
+
+  // Objective linking (create mode)
+  const [selectedObjectiveId, setSelectedObjectiveId] = useState("");
 
   // Personal done
   const [markingDone, setMarkingDone] = useState(false);
@@ -467,7 +473,18 @@ export function TaskModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (res.ok) { router.refresh(); onClose(); }
+      if (res.ok) {
+        if (!isExisting && selectedObjectiveId) {
+          const newTask = await res.json();
+          await fetch(`/api/objectives/${selectedObjectiveId}/links`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "task", id: newTask.id }),
+          });
+        }
+        router.refresh();
+        onClose();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1083,6 +1100,22 @@ export function TaskModal({
                   <option value="">Sin agente</option>
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>{a.avatar} {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {!isExisting && objectives && objectives.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Vincular a objetivo</label>
+                <select
+                  value={selectedObjectiveId}
+                  onChange={(e) => setSelectedObjectiveId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                >
+                  <option value="">Sin objetivo</option>
+                  {objectives.map((o) => (
+                    <option key={o.id} value={o.id}>{o.title}</option>
                   ))}
                 </select>
               </div>

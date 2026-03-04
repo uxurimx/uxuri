@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 import { ObjectiveProgress } from "./objective-progress";
 import { MilestoneChecklist } from "./milestone-checklist";
 import { ObjectiveAttachments } from "./objective-attachments";
+import { ObjectiveAreasManager } from "./objective-areas-manager";
+import { ObjectiveLinksPanel } from "./objective-links-panel";
+import { ObjectiveTimeline } from "./objective-timeline";
 import { ContextFeed } from "@/components/context/context-feed";
 
 interface Milestone {
@@ -32,6 +35,7 @@ interface LinkedItem {
   name?: string;
   title?: string;
   status?: string;
+  areaId?: string;
 }
 
 interface LinkedAgent {
@@ -42,6 +46,16 @@ interface LinkedAgent {
   color: string;
 }
 
+interface ObjectiveArea {
+  id: string;
+  objectiveId: string;
+  name: string;
+  color: string;
+  emoji: string | null;
+  sortOrder: number | null;
+  createdAt: Date;
+}
+
 interface ObjectiveDetailData {
   id: string;
   title: string;
@@ -50,11 +64,12 @@ interface ObjectiveDetailData {
   priority: string;
   targetDate: string | null;
   createdAt: string;
-  milestones: Milestone[];
-  linkedProjects: (LinkedItem & { name: string })[];
-  linkedTasks: (LinkedItem & { title: string })[];
+  milestones: (Milestone & { dueDate?: string })[];
+  linkedProjects: (LinkedItem & { name: string; endDate?: string })[];
+  linkedTasks: (LinkedItem & { title: string; dueDate?: string })[];
   linkedAgents: LinkedAgent[];
   attachments: Attachment[];
+  areas: ObjectiveArea[];
   progress: {
     tasks: number | null;
     projects: number | null;
@@ -73,8 +88,10 @@ const statusConfig = {
 
 const TABS = [
   { id: "summary",     label: "Resumen" },
+  { id: "areas",       label: "Áreas" },
   { id: "milestones",  label: "Hitos" },
   { id: "links",       label: "Vínculos" },
+  { id: "timeline",    label: "Timeline" },
   { id: "attachments", label: "Adjuntos" },
   { id: "context",     label: "Contexto" },
 ];
@@ -92,6 +109,41 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
   const [editDescription, setEditDescription] = useState(initial.description ?? "");
   const [editStatus, setEditStatus] = useState(initial.status);
   const [saving, setSaving] = useState(false);
+
+  const handleAreaAdded = (area: ObjectiveArea) => {
+    setObjective((prev) => ({
+      ...prev,
+      areas: [...prev.areas, area],
+    }));
+  };
+
+  const handleAreaUpdated = (area: ObjectiveArea) => {
+    setObjective((prev) => ({
+      ...prev,
+      areas: prev.areas.map((a) => (a.id === area.id ? area : a)),
+    }));
+  };
+
+  const handleAreaDeleted = (areaId: string) => {
+    setObjective((prev) => ({
+      ...prev,
+      areas: prev.areas.filter((a) => a.id !== areaId),
+      linkedTasks: prev.linkedTasks.map((t) =>
+        t.areaId === areaId ? { ...t, areaId: undefined } : t
+      ),
+      linkedProjects: prev.linkedProjects.map((p) =>
+        p.areaId === areaId ? { ...p, areaId: undefined } : p
+      ),
+    }));
+  };
+
+  const handleLinksUpdate = () => {
+    // Refetch objective data
+    fetch(`/api/objectives/${objective.id}`)
+      .then((res) => res.json())
+      .then((data) => setObjective(data))
+      .catch(console.error);
+  };
 
   const sc = statusConfig[objective.status];
 
@@ -306,90 +358,45 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
           </div>
         )}
 
+        {/* Areas */}
+        {activeTab === "areas" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 max-w-2xl">
+            <h3 className="font-semibold text-slate-900 mb-4">Áreas</h3>
+            <ObjectiveAreasManager
+              areas={objective.areas}
+              objectiveId={objective.id}
+              onAreaAdded={handleAreaAdded}
+              onAreaUpdated={handleAreaUpdated}
+              onAreaDeleted={handleAreaDeleted}
+            />
+          </div>
+        )}
+
         {/* Links */}
         {activeTab === "links" && (
-          <div className="space-y-5 max-w-2xl">
-            {/* Projects */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="font-semibold text-slate-900 mb-3">
-                Proyectos ({objective.linkedProjects.length})
-              </h3>
-              {objective.linkedProjects.length === 0 ? (
-                <p className="text-sm text-slate-400">No hay proyectos vinculados.</p>
-              ) : (
-                <div className="space-y-2">
-                  {objective.linkedProjects.map((p) => (
-                    <div key={p.linkId} className="flex items-center justify-between p-2 rounded-lg border border-slate-100">
-                      <Link href={`/projects/${p.id}`} className="text-sm text-slate-700 hover:text-[#1e3a5f]">
-                        {p.name}
-                      </Link>
-                      <button
-                        onClick={() => deleteLink("project", p.linkId)}
-                        className="text-slate-300 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-5 max-w-2xl">
+            <h3 className="font-semibold text-slate-900 mb-4">Vínculos</h3>
+            <ObjectiveLinksPanel
+              objectiveId={objective.id}
+              areas={objective.areas}
+              linkedTasks={objective.linkedTasks}
+              linkedProjects={objective.linkedProjects}
+              onLinkAdded={handleLinksUpdate}
+              onLinkRemoved={handleLinksUpdate}
+            />
+          </div>
+        )}
 
-            {/* Tasks */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="font-semibold text-slate-900 mb-3">
-                Tareas ({objective.linkedTasks.length})
-              </h3>
-              {objective.linkedTasks.length === 0 ? (
-                <p className="text-sm text-slate-400">No hay tareas vinculadas.</p>
-              ) : (
-                <div className="space-y-2">
-                  {objective.linkedTasks.map((t) => (
-                    <div key={t.linkId} className="flex items-center justify-between p-2 rounded-lg border border-slate-100">
-                      <span className="text-sm text-slate-700">{t.title}</span>
-                      <button
-                        onClick={() => deleteLink("task", t.linkId)}
-                        className="text-slate-300 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Agents */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="font-semibold text-slate-900 mb-3">
-                Agentes ({objective.linkedAgents.length})
-              </h3>
-              {objective.linkedAgents.length === 0 ? (
-                <p className="text-sm text-slate-400">No hay agentes vinculados.</p>
-              ) : (
-                <div className="space-y-2">
-                  {objective.linkedAgents.map((a) => (
-                    <div key={a.linkId} className="flex items-center gap-2 p-2 rounded-lg border border-slate-100">
-                      <span
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-sm flex-shrink-0"
-                        style={{ background: a.color }}
-                      >
-                        {a.avatar}
-                      </span>
-                      <Link href={`/agents/${a.id}`} className="flex-1 text-sm text-slate-700 hover:text-[#1e3a5f]">
-                        {a.name}
-                      </Link>
-                      <button
-                        onClick={() => deleteLink("agent", a.linkId)}
-                        className="text-slate-300 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* Timeline */}
+        {activeTab === "timeline" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-900 mb-4">Línea de tiempo</h3>
+            <ObjectiveTimeline
+              linkedTasks={objective.linkedTasks}
+              linkedProjects={objective.linkedProjects}
+              milestones={objective.milestones}
+              areas={objective.areas}
+            />
           </div>
         )}
 

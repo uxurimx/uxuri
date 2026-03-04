@@ -1,7 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { objectives, objectiveMilestones, objectiveProjects, objectiveTasks } from "@/db/schema";
-import { eq, count } from "drizzle-orm";
+import {
+  objectives,
+  objectiveMilestones,
+  objectiveProjects,
+  objectiveTasks,
+  projects,
+  tasks,
+} from "@/db/schema";
+import { eq, count, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -24,9 +31,12 @@ export async function GET() {
     .select({
       objectiveId: objectiveMilestones.objectiveId,
       total: count(),
+      done: count(objectiveMilestones.id).as("done"),
     })
     .from(objectiveMilestones)
     .groupBy(objectiveMilestones.objectiveId);
+
+  const allMilestones = await db.select().from(objectiveMilestones);
 
   const projectCounts = await db
     .select({
@@ -44,12 +54,55 @@ export async function GET() {
     .from(objectiveTasks)
     .groupBy(objectiveTasks.objectiveId);
 
-  const result = rows.map((obj) => ({
-    ...obj,
-    milestoneCount: milestoneCounts.find((m) => m.objectiveId === obj.id)?.total ?? 0,
-    projectCount: projectCounts.find((p) => p.objectiveId === obj.id)?.total ?? 0,
-    taskCount: taskCounts.find((t) => t.objectiveId === obj.id)?.total ?? 0,
-  }));
+  // For each objective, get linked tasks and projects with their completion status
+  const linkedProjectsData = await db
+    .select({
+      objectiveId: objectiveProjects.objectiveId,
+      projectId: objectiveProjects.projectId,
+      status: projects.status,
+    })
+    .from(objectiveProjects)
+    .leftJoin(projects, eq(objectiveProjects.projectId, projects.id));
+
+  const linkedTasksData = await db
+    .select({
+      objectiveId: objectiveTasks.objectiveId,
+      taskId: objectiveTasks.taskId,
+      status: tasks.status,
+    })
+    .from(objectiveTasks)
+    .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id));
+
+  const result = rows.map((obj) => {
+    const mCount = milestoneCounts.find((m) => m.objectiveId === obj.id);
+    const mTotal = mCount?.total ?? 0;
+    const mDone = allMilestones.filter((m) => m.objectiveId === obj.id && m.done).length;
+    const mProgress = mTotal > 0 ? Math.round((mDone / mTotal) * 100) : null;
+
+    const pCount = projectCounts.find((p) => p.objectiveId === obj.id)?.total ?? 0;
+    const pCompleted = linkedProjectsData.filter(
+      (p) => p.objectiveId === obj.id && p.status === "completed"
+    ).length;
+    const pProgress = pCount > 0 ? Math.round((pCompleted / pCount) * 100) : null;
+
+    const tCount = taskCounts.find((t) => t.objectiveId === obj.id)?.total ?? 0;
+    const tDone = linkedTasksData.filter(
+      (t) => t.objectiveId === obj.id && t.status === "done"
+    ).length;
+    const tProgress = tCount > 0 ? Math.round((tDone / tCount) * 100) : null;
+
+    const parts = [mProgress, pProgress, tProgress].filter((v): v is number => v !== null);
+    const overallProgress =
+      parts.length > 0 ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : 0;
+
+    return {
+      ...obj,
+      milestoneCount: mTotal,
+      projectCount: pCount,
+      taskCount: tCount,
+      overallProgress,
+    };
+  });
 
   return NextResponse.json(result);
 }

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients } from "@/db/schema";
+import { projects, clients, objectives } from "@/db/schema";
 import { eq, or } from "drizzle-orm";
 import { ProjectsHeader } from "@/components/projects/projects-header";
 import { ProjectsList } from "@/components/projects/projects-list";
@@ -9,7 +9,7 @@ export default async function ProjectsPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const [allProjects, allClients] = await Promise.all([
+  const [allProjects, allClients, allObjectives] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -30,12 +30,13 @@ export default async function ProjectsPage() {
       .where(or(eq(projects.privacy, "public"), eq(projects.createdBy, userId)))
       .orderBy(projects.createdAt),
     db.select({ id: clients.id, name: clients.name }).from(clients).orderBy(clients.name),
+    db.select({ id: objectives.id, title: objectives.title }).from(objectives).orderBy(objectives.createdAt),
   ]);
 
   return (
     <div className="space-y-6">
       <ProjectsHeader />
-      <ProjectsList projects={allProjects} clients={allClients} currentUserId={userId} />
+      <ProjectsList projects={allProjects} clients={allClients} objectives={allObjectives} currentUserId={userId} />
     </div>
   );
 }

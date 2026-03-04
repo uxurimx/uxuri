@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   date,
+  boolean,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
@@ -24,6 +25,7 @@ export const objectives = pgTable("objectives", {
   status: objectiveStatusEnum("status").default("draft").notNull(),
   priority: varchar("priority", { length: 20 }).default("medium").notNull(),
   targetDate: date("target_date"),
+  pinnedToDashboard: boolean("pinned_to_dashboard").default(false).notNull(),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

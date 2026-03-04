@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import {
-  tasks, projects, users, agents, agentSessions, taskActivity,
+  tasks, projects, users, agents, agentSessions, taskActivity, objectives,
+  objectiveMilestones, objectiveProjects, objectiveTasks,
 } from "@/db/schema";
 import { eq, and, or, gte, lt, sql, count, isNotNull, desc, not } from "drizzle-orm";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
@@ -22,6 +23,10 @@ export default async function DashboardPage() {
     activeProjects,
     completedToday,
     agentActivity,
+    pinnedObjectivesRaw,
+    allMilestonesRaw,
+    linkedProjectsRaw,
+    linkedTasksRaw,
   ] = await Promise.all([
 
     // Current user name
@@ -129,7 +134,29 @@ export default async function DashboardPage() {
       .where(gte(agentSessions.startedAt, today))
       .groupBy(agents.id, agents.name, agents.avatar, agents.color)
       .limit(6),
+
+    // Pinned objectives
+    db.select().from(objectives).where(eq(objectives.pinnedToDashboard, true)),
+    db.select().from(objectiveMilestones),
+    db.select({ objectiveId: objectiveProjects.objectiveId, status: projects.status })
+      .from(objectiveProjects)
+      .leftJoin(projects, eq(objectiveProjects.projectId, projects.id)),
+    db.select({ objectiveId: objectiveTasks.objectiveId, status: tasks.status })
+      .from(objectiveTasks)
+      .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id)),
   ]);
+
+  const pinnedObjectives = pinnedObjectivesRaw.map((obj) => {
+    const mils = allMilestonesRaw.filter((m) => m.objectiveId === obj.id);
+    const mProgress = mils.length > 0 ? Math.round((mils.filter((m) => m.done).length / mils.length) * 100) : null;
+    const pRows = linkedProjectsRaw.filter((p) => p.objectiveId === obj.id);
+    const pProgress = pRows.length > 0 ? Math.round((pRows.filter((p) => p.status === "completed").length / pRows.length) * 100) : null;
+    const tRows = linkedTasksRaw.filter((t) => t.objectiveId === obj.id);
+    const tProgress = tRows.length > 0 ? Math.round((tRows.filter((t) => t.status === "done").length / tRows.length) * 100) : null;
+    const parts = [mProgress, pProgress, tProgress].filter((v): v is number => v !== null);
+    const overallProgress = parts.length > 0 ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : 0;
+    return { id: obj.id, title: obj.title, status: obj.status, priority: obj.priority, overallProgress };
+  });
 
   return (
     <DashboardClient
@@ -142,6 +169,7 @@ export default async function DashboardPage() {
       completedToday={completedToday}
       agentActivity={agentActivity}
       todayStr={todayStr}
+      pinnedObjectives={pinnedObjectives}
     />
   );
 }

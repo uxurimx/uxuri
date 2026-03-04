@@ -251,6 +251,7 @@ function TaskCardList({
 }
 
 type ClientOption = { id: string; name: string };
+type ObjectiveOption = { id: string; title: string };
 
 interface KanbanBoardProps {
   initialTasks: TaskWithProject[];
@@ -261,6 +262,7 @@ interface KanbanBoardProps {
   users?: User[];
   agents?: AgentOption[];
   clients?: ClientOption[];
+  objectives?: ObjectiveOption[];
   currentUserId?: string;
 }
 
@@ -273,6 +275,7 @@ export function KanbanBoard({
   users,
   agents,
   clients,
+  objectives,
   currentUserId,
 }: KanbanBoardProps) {
   const router = useRouter();
@@ -845,6 +848,7 @@ export function KanbanBoard({
         users={users}
         agents={agents}
         clients={clients}
+        objectives={objectives}
         currentUserId={currentUserId}
         initialMode={modalInitialMode}
       />

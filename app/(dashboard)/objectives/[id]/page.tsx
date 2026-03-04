@@ -7,6 +7,7 @@ import {
   objectiveTasks,
   objectiveAgents,
   objectiveAttachments,
+  objectiveAreas,
   projects,
   tasks,
   agents,
@@ -28,20 +29,25 @@ export default async function ObjectiveDetailPage({
   const [objective] = await db.select().from(objectives).where(eq(objectives.id, id));
   if (!objective) notFound();
 
-  const [milestones, linkedProjectRows, linkedTaskRows, linkedAgentRows, attachments] =
+  const [areas, milestones, linkedProjectRows, linkedTaskRows, linkedAgentRows, attachments] =
     await Promise.all([
+      db
+        .select()
+        .from(objectiveAreas)
+        .where(eq(objectiveAreas.objectiveId, id))
+        .orderBy(objectiveAreas.sortOrder),
       db
         .select()
         .from(objectiveMilestones)
         .where(eq(objectiveMilestones.objectiveId, id))
         .orderBy(objectiveMilestones.sortOrder, objectiveMilestones.createdAt),
       db
-        .select({ linkId: objectiveProjects.id, project: projects })
+        .select({ linkId: objectiveProjects.id, areaId: objectiveProjects.areaId, project: projects })
         .from(objectiveProjects)
         .leftJoin(projects, eq(objectiveProjects.projectId, projects.id))
         .where(eq(objectiveProjects.objectiveId, id)),
       db
-        .select({ linkId: objectiveTasks.id, task: tasks })
+        .select({ linkId: objectiveTasks.id, areaId: objectiveTasks.areaId, task: tasks })
         .from(objectiveTasks)
         .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id))
         .where(eq(objectiveTasks.objectiveId, id)),
@@ -86,13 +92,14 @@ export default async function ObjectiveDetailPage({
 
   const data = {
     ...objective,
+    areas,
     milestones,
     linkedProjects: linkedProjectRows
       .filter((r) => r.project)
-      .map((r) => ({ linkId: r.linkId, ...r.project! })),
+      .map((r) => ({ linkId: r.linkId, areaId: r.areaId, ...r.project! })),
     linkedTasks: linkedTaskRows
       .filter((r) => r.task)
-      .map((r) => ({ linkId: r.linkId, ...r.task! })),
+      .map((r) => ({ linkId: r.linkId, areaId: r.areaId, ...r.task! })),
     linkedAgents: linkedAgentRows
       .filter((r) => r.agent)
       .map((r) => ({ linkId: r.linkId, ...r.agent! })),

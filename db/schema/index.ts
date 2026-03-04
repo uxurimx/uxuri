@@ -18,5 +18,6 @@ export * from "./chat-messages";
 export * from "./objectives";
 export * from "./objective-links";
 export * from "./objective-milestones";
+export * from "./objective-areas";
 export * from "./objective-attachments";
 export * from "./context-entries";

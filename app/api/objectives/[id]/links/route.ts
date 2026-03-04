@@ -8,6 +8,7 @@ import { z } from "zod";
 const linkSchema = z.object({
   type: z.enum(["project", "task", "agent"]),
   id: z.string().uuid(),
+  areaId: z.string().uuid().optional(),
 });
 
 const unlinkSchema = z.object({
@@ -29,21 +30,48 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { type, id } = parsed.data;
+  const { type, id, areaId } = parsed.data;
 
   if (type === "project") {
+    // Check for duplicate
+    const existing = await db
+      .select()
+      .from(objectiveProjects)
+      .where(and(eq(objectiveProjects.objectiveId, objectiveId), eq(objectiveProjects.projectId, id)));
+    if (existing.length > 0) {
+      return NextResponse.json({ error: "Already linked" }, { status: 409 });
+    }
+
     const [row] = await db
       .insert(objectiveProjects)
-      .values({ objectiveId, projectId: id })
+      .values({ objectiveId, projectId: id, areaId })
       .returning();
     return NextResponse.json(row, { status: 201 });
   } else if (type === "task") {
+    // Check for duplicate
+    const existing = await db
+      .select()
+      .from(objectiveTasks)
+      .where(and(eq(objectiveTasks.objectiveId, objectiveId), eq(objectiveTasks.taskId, id)));
+    if (existing.length > 0) {
+      return NextResponse.json({ error: "Already linked" }, { status: 409 });
+    }
+
     const [row] = await db
       .insert(objectiveTasks)
-      .values({ objectiveId, taskId: id })
+      .values({ objectiveId, taskId: id, areaId })
       .returning();
     return NextResponse.json(row, { status: 201 });
   } else {
+    // Check for duplicate
+    const existing = await db
+      .select()
+      .from(objectiveAgents)
+      .where(and(eq(objectiveAgents.objectiveId, objectiveId), eq(objectiveAgents.agentId, id)));
+    if (existing.length > 0) {
+      return NextResponse.json({ error: "Already linked" }, { status: 409 });
+    }
+
     const [row] = await db
       .insert(objectiveAgents)
       .values({ objectiveId, agentId: id })

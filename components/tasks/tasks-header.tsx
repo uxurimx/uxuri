@@ -8,18 +8,21 @@ type Project = { id: string; name: string };
 type User = { id: string; name: string | null };
 type AgentOption = { id: string; name: string; avatar: string; color: string };
 type Client = { id: string; name: string };
+type ObjectiveOption = { id: string; title: string };
 
 export function TasksHeader({
   projects,
   users,
   agents,
   clients,
+  objectives,
   currentUserId,
 }: {
   projects?: Project[];
   users?: User[];
   agents?: AgentOption[];
   clients?: Client[];
+  objectives?: ObjectiveOption[];
   currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -46,6 +49,7 @@ export function TasksHeader({
         users={users}
         agents={agents}
         clients={clients}
+        objectives={objectives}
         currentUserId={currentUserId}
       />
     </>

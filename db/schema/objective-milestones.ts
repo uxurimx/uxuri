@@ -5,6 +5,7 @@ import {
   boolean,
   integer,
   timestamp,
+  date,
 } from "drizzle-orm/pg-core";
 import { objectives } from "./objectives";
 
@@ -13,6 +14,7 @@ export const objectiveMilestones = pgTable("objective_milestones", {
   objectiveId: uuid("objective_id").references(() => objectives.id, { onDelete: "cascade" }),
   title: varchar("title", { length: 255 }).notNull(),
   done: boolean("done").default(false).notNull(),
+  dueDate: date("due_date"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
