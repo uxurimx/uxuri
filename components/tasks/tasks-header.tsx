@@ -7,16 +7,19 @@ import { TaskModal } from "./task-modal";
 type Project = { id: string; name: string };
 type User = { id: string; name: string | null };
 type AgentOption = { id: string; name: string; avatar: string; color: string };
+type Client = { id: string; name: string };
 
 export function TasksHeader({
   projects,
   users,
   agents,
+  clients,
   currentUserId,
 }: {
   projects?: Project[];
   users?: User[];
   agents?: AgentOption[];
+  clients?: Client[];
   currentUserId?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -42,6 +45,7 @@ export function TasksHeader({
         projects={projects}
         users={users}
         agents={agents}
+        clients={clients}
         currentUserId={currentUserId}
       />
     </>

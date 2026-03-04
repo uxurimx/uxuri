@@ -250,6 +250,8 @@ function TaskCardList({
   );
 }
 
+type ClientOption = { id: string; name: string };
+
 interface KanbanBoardProps {
   initialTasks: TaskWithProject[];
   initialCustomColumns?: CustomColumn[];
@@ -258,6 +260,7 @@ interface KanbanBoardProps {
   projects?: { id: string; name: string }[];
   users?: User[];
   agents?: AgentOption[];
+  clients?: ClientOption[];
   currentUserId?: string;
 }
 
@@ -269,6 +272,7 @@ export function KanbanBoard({
   projects,
   users,
   agents,
+  clients,
   currentUserId,
 }: KanbanBoardProps) {
   const router = useRouter();
@@ -839,6 +843,7 @@ export function KanbanBoard({
         projects={projects}
         users={users}
         agents={agents}
+        clients={clients}
         currentUserId={currentUserId}
         initialMode={modalInitialMode}
       />

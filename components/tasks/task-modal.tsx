@@ -23,6 +23,7 @@ const schema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   dueDate: z.string().optional(),
   projectId: z.string().optional(),
+  clientId: z.string().optional(),
   assignedTo: z.string().optional(),
   agentId: z.string().optional(),
 });
@@ -38,6 +39,7 @@ export type TaskForModal = {
   dueDate: string | null;
   projectId?: string | null;
   projectName?: string | null;
+  clientId?: string | null;
   assignedTo?: string | null;
   agentId?: string | null;
   agentStatus?: string | null;
@@ -78,6 +80,7 @@ type ActivityEvent = {
 };
 
 type Project = { id: string; name: string };
+type Client = { id: string; name: string };
 type User = { id: string; name: string | null };
 type AgentOption = { id: string; name: string; avatar: string; color: string };
 
@@ -87,6 +90,7 @@ interface TaskModalProps {
   task?: TaskForModal | null;
   projectId?: string;
   projects?: Project[];
+  clients?: Client[];
   users?: User[];
   agents?: AgentOption[];
   currentUserId?: string;
@@ -294,6 +298,7 @@ export function TaskModal({
   task,
   projectId,
   projects,
+  clients,
   users,
   agents,
   currentUserId,
@@ -356,11 +361,12 @@ export function TaskModal({
         priority: task.priority,
         dueDate: task.dueDate ?? "",
         projectId: task.projectId ?? "",
+        clientId: task.clientId ?? "",
         assignedTo: task.assignedTo ?? "",
         agentId: task.agentId ?? "",
       });
     } else {
-      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", assignedTo: "", agentId: "" });
+      reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", clientId: "", assignedTo: "", agentId: "" });
     }
   }, [open, task, initialMode, projectId, reset]);
 
@@ -451,6 +457,7 @@ export function TaskModal({
         ...data,
         dueDate: data.dueDate || null,
         projectId: data.projectId || null,
+        clientId: data.clientId || null,
         assignedTo: data.assignedTo || null,
         agentId: data.agentId || null,
       };
@@ -579,6 +586,10 @@ export function TaskModal({
     ?? projects?.find((p) => p.id === task?.projectId)?.name
     ?? null;
 
+  const taskClientName = task?.clientId
+    ? (clients?.find((c) => c.id === task.clientId)?.name ?? null)
+    : null;
+
   const assignedUser = task?.assignedTo
     ? (users?.find((u) => u.id === task.assignedTo) ?? null)
     : null;
@@ -616,12 +627,20 @@ export function TaskModal({
               {/* Task info */}
               <div>
                 <h3 className="text-xl font-semibold text-slate-900 leading-snug">{task.title}</h3>
-                {taskProjectName && (
-                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                    <Folder className="w-3 h-3" />
-                    {taskProjectName}
-                  </p>
-                )}
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  {taskProjectName && (
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <Folder className="w-3 h-3" />
+                      {taskProjectName}
+                    </p>
+                  )}
+                  {taskClientName && (
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <UserCircle className="w-3 h-3" />
+                      {taskClientName}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -1028,6 +1047,18 @@ export function TaskModal({
                   <option value="">Sin proyecto</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {clients && clients.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
+                <select {...register("clientId")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                  <option value="">Sin cliente</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>

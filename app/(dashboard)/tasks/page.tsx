@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, projects, users, agents, userTaskPreferences, workflowColumns } from "@/db/schema";
+import { tasks, projects, users, agents, clients, userTaskPreferences, workflowColumns } from "@/db/schema";
 import { eq, or, isNull, and, sql } from "drizzle-orm";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TasksHeader } from "@/components/tasks/tasks-header";
@@ -9,7 +9,7 @@ export default async function TasksPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const [allTasks, allProjects, allUsers, allAgents, allCustomColumns] = await Promise.all([
+  const [allTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients] = await Promise.all([
     db
       .select({
         id: tasks.id,
@@ -62,12 +62,13 @@ export default async function TasksPage() {
       color: workflowColumns.color,
       sortOrder: workflowColumns.sortOrder,
     }).from(workflowColumns).orderBy(workflowColumns.sortOrder),
+    db.select({ id: clients.id, name: clients.name }).from(clients).orderBy(clients.name),
   ]);
 
   return (
     <div className="space-y-6">
-      <TasksHeader projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
-      <KanbanBoard initialTasks={allTasks} initialCustomColumns={allCustomColumns} projects={allProjects} users={allUsers} agents={allAgents} currentUserId={userId} />
+      <TasksHeader projects={allProjects} users={allUsers} agents={allAgents} clients={allClients} currentUserId={userId} />
+      <KanbanBoard initialTasks={allTasks} initialCustomColumns={allCustomColumns} projects={allProjects} users={allUsers} agents={allAgents} clients={allClients} currentUserId={userId} />
     </div>
   );
 }

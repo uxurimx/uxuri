@@ -30,6 +30,7 @@ const statusConfig = {
 };
 
 type AgentOption = { id: string; name: string; avatar: string; color: string };
+type ClientOption = { id: string; name: string };
 
 export function ProjectDetail({
   project,
@@ -37,6 +38,7 @@ export function ProjectDetail({
   projects,
   users,
   agents,
+  clients,
   customColumns,
   currentUserId,
 }: {
@@ -45,6 +47,7 @@ export function ProjectDetail({
   projects?: { id: string; name: string }[];
   users?: { id: string; name: string | null }[];
   agents?: AgentOption[];
+  clients?: ClientOption[];
   customColumns?: CustomColumn[];
   currentUserId?: string;
 }) {
@@ -109,6 +112,7 @@ export function ProjectDetail({
           projects={projects}
           users={users}
           agents={agents}
+          clients={clients}
           currentUserId={currentUserId}
         />
       </div>

@@ -15,7 +15,7 @@ export default async function ProjectDetailPage({
 
   const { id } = await params;
 
-  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns] = await Promise.all([
+  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -80,6 +80,7 @@ export default async function ProjectDetailPage({
       color: workflowColumns.color,
       sortOrder: workflowColumns.sortOrder,
     }).from(workflowColumns).orderBy(workflowColumns.sortOrder),
+    db.select({ id: clients.id, name: clients.name }).from(clients).orderBy(clients.name),
   ]);
 
   if (!project) notFound();
@@ -94,6 +95,7 @@ export default async function ProjectDetailPage({
       projects={allProjects}
       users={allUsers}
       agents={allAgents}
+      clients={allClients}
       customColumns={allCustomColumns}
       currentUserId={userId}
     />
