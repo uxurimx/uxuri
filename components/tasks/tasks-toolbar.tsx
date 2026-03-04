@@ -23,6 +23,7 @@ export type TaskFilters = {
   priority: "all" | "low" | "medium" | "high" | "urgent";
   hideDone: boolean;
   assignee: "all" | "me" | "unassigned";
+  createdBy: "all" | "me";
   projectId: string;
   dueDateFilter: "all" | "overdue" | "this-week" | "no-date";
   sortBy: SortBy;
@@ -34,6 +35,7 @@ export const DEFAULT_TASK_FILTERS: TaskFilters = {
   priority: "all",
   hideDone: true,
   assignee: "all",
+  createdBy: "all",
   projectId: "",
   dueDateFilter: "all",
   sortBy: "default",
@@ -131,6 +133,8 @@ export function TasksToolbar({
     filters.dueDateFilter !== "all",
   ].filter(Boolean).length;
 
+  const createdByMeActive = filters.createdBy === "me";
+
   // Active filter chips (for row 2)
   type Chip = { label: string; onRemove: () => void };
   const chips: Chip[] = [];
@@ -162,6 +166,7 @@ export function TasksToolbar({
   const hasAnyActive =
     filters.priority !== "all" ||
     filters.assignee !== "all" ||
+    filters.createdBy !== "all" ||
     filters.projectId !== "" ||
     filters.dueDateFilter !== "all" ||
     !filters.hideDone ||
@@ -209,6 +214,23 @@ export function TasksToolbar({
           >
             <User className="w-3 h-3" />
             Mis tareas
+          </button>
+        )}
+
+        {/* Quick: Creadas por mí */}
+        {currentUserId && (
+          <button
+            onClick={() => onFiltersChange({ createdBy: createdByMeActive ? "all" : "me" })}
+            title="Mostrar solo tareas creadas por mí"
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap",
+              createdByMeActive
+                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+            )}
+          >
+            <User className="w-3 h-3" />
+            Creadas por mí
           </button>
         )}
 
@@ -473,6 +495,11 @@ export function TasksToolbar({
           {/* Mis tareas chip */}
           {filters.assignee === "me" && (
             <FilterChip label="Mis tareas" onRemove={() => onFiltersChange({ assignee: "all" })} />
+          )}
+
+          {/* Creadas por mí chip */}
+          {filters.createdBy === "me" && (
+            <FilterChip label="Creadas por mí" onRemove={() => onFiltersChange({ createdBy: "all" })} />
           )}
 
           {/* Other chips */}

@@ -17,10 +17,14 @@ export default async function DashboardLayout({
   const rawPermissions = roleData?.permissions ?? [];
   // Compatibilidad con roles existentes: /agents se agrega automáticamente
   // a cualquier rol que ya tenga /tasks (admin y manager)
-  const permissions =
+  let permissions =
     rawPermissions.includes("/tasks") && !rawPermissions.includes("/agents")
       ? [...rawPermissions, "/agents"]
       : rawPermissions;
+  // /objectives se agrega automáticamente a cualquier rol que ya tenga /projects
+  if (permissions.includes("/projects") && !permissions.includes("/objectives")) {
+    permissions = [...permissions, "/objectives"];
+  }
 
   return (
     <ToastProvider>

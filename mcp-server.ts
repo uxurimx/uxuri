@@ -204,6 +204,57 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["tasks"],
       },
     },
+    {
+      name: "get_context_entries",
+      description: "Lee el historial de contexto (notas de usuario) para un cliente, proyecto u objetivo.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          entityType: {
+            type: "string",
+            enum: ["client", "project", "objective"],
+            description: "Tipo de entidad",
+          },
+          entityId: {
+            type: "string",
+            description: "UUID de la entidad",
+          },
+        },
+        required: ["entityType", "entityId"],
+      },
+    },
+    {
+      name: "add_context_entry",
+      description: "Agrega una nota al historial de contexto de un cliente, proyecto u objetivo.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          entityType: {
+            type: "string",
+            enum: ["client", "project", "objective"],
+            description: "Tipo de entidad",
+          },
+          entityId: {
+            type: "string",
+            description: "UUID de la entidad",
+          },
+          content: {
+            type: "string",
+            description: "Contenido de la nota de contexto",
+          },
+        },
+        required: ["entityType", "entityId", "content"],
+      },
+    },
+    {
+      name: "get_objectives",
+      description: "Lista todos los objetivos del sistema con su progreso y conteos de vínculos.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {},
+        required: [],
+      },
+    },
   ],
 }));
 
@@ -489,6 +540,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: `${created.length} tarea(s) creadas:\n${created.map((t) => `• ${t.title} (${t.id})`).join("\n")}`,
             },
           ],
+        };
+      }
+
+      case "get_context_entries": {
+        const { entityType, entityId } = args as { entityType: string; entityId: string };
+        const rows = await sql`
+          SELECT id, entity_type, entity_id, content, user_name, created_at
+          FROM context_entries
+          WHERE entity_type = ${entityType} AND entity_id = ${entityId}
+          ORDER BY created_at ASC
+        `;
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }],
+        };
+      }
+
+      case "add_context_entry": {
+        const { entityType, entityId, content } = args as {
+          entityType: string;
+          entityId: string;
+          content: string;
+        };
+        const [entry] = await sql`
+          INSERT INTO context_entries (entity_type, entity_id, content, user_name)
+          VALUES (${entityType}, ${entityId}, ${content}, 'Agente IA')
+          RETURNING id, entity_type, entity_id, content, user_name, created_at
+        `;
+        return {
+          content: [{ type: "text" as const, text: `Entrada de contexto creada: ${entry.id}` }],
+        };
+      }
+
+      case "get_objectives": {
+        const rows = await sql`
+          SELECT
+            o.*,
+            COUNT(DISTINCT om.id) AS milestone_count,
+            COUNT(DISTINCT op.id) AS project_count,
+            COUNT(DISTINCT ot.id) AS task_count
+          FROM objectives o
+          LEFT JOIN objective_milestones om ON om.objective_id = o.id
+          LEFT JOIN objective_projects op ON op.objective_id = o.id
+          LEFT JOIN objective_tasks ot ON ot.objective_id = o.id
+          GROUP BY o.id
+          ORDER BY o.created_at ASC
+        `;
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }],
         };
       }
 

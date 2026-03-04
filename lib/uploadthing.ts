@@ -27,6 +27,20 @@ export const ourFileRouter = {
     .onUploadComplete(({ file }) => {
       return { url: file.ufsUrl };
     }),
+
+  objectiveUploads: f({
+    image: { maxFileSize: "16MB", maxFileCount: 1 },
+    pdf: { maxFileSize: "32MB", maxFileCount: 1 },
+    blob: { maxFileSize: "32MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const { userId } = await auth();
+      if (!userId) throw new Error("Unauthorized");
+      return { userId };
+    })
+    .onUploadComplete(({ file }) => {
+      return { url: file.ufsUrl };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

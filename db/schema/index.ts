@@ -15,3 +15,8 @@ export * from "./user-task-preferences";
 export * from "./push-subscriptions";
 export * from "./chat-channels";
 export * from "./chat-messages";
+export * from "./objectives";
+export * from "./objective-links";
+export * from "./objective-milestones";
+export * from "./objective-attachments";
+export * from "./context-entries";

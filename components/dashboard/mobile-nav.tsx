@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Bot } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Bot, Target } from "lucide-react";
 import { useChatUnread } from "@/hooks/use-chat-unread";
 
 const navItems = [
-  { href: "/dashboard", label: "Home",      icon: LayoutDashboard },
-  { href: "/clients",   label: "Clientes",  icon: Users },
-  { href: "/projects",  label: "Proyectos", icon: Briefcase },
-  { href: "/tasks",     label: "Tareas",    icon: CheckSquare },
-  { href: "/agents",    label: "Agentes",   icon: Bot },
-  { href: "/chat",      label: "Chat",      icon: MessageSquare },
-  { href: "/users",     label: "Usuarios",  icon: UserCog },
+  { href: "/dashboard",  label: "Home",      icon: LayoutDashboard },
+  { href: "/clients",    label: "Clientes",  icon: Users },
+  { href: "/projects",   label: "Proyectos", icon: Briefcase },
+  { href: "/objectives", label: "Objetivos", icon: Target },
+  { href: "/tasks",      label: "Tareas",    icon: CheckSquare },
+  { href: "/agents",     label: "Agentes",   icon: Bot },
+  { href: "/chat",       label: "Chat",      icon: MessageSquare },
+  { href: "/users",      label: "Usuarios",  icon: UserCog },
 ];
 
 export function MobileNav({ permissions, currentUserId }: { permissions: string[]; currentUserId: string }) {

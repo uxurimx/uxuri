@@ -404,6 +404,7 @@ export function KanbanBoard({
       if (filters.priority !== "all" && t.priority !== filters.priority) return false;
       if (filters.assignee === "me" && t.assignedTo !== currentUserId) return false;
       if (filters.assignee === "unassigned" && t.assignedTo !== null) return false;
+      if (filters.createdBy === "me" && t.createdBy !== currentUserId) return false;
       if (filters.projectId && t.projectId !== filters.projectId) return false;
 
       if (filters.dueDateFilter !== "all") {

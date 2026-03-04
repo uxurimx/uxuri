@@ -5,6 +5,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { ArrowLeft, Calendar, User, Flag } from "lucide-react";
 import { KanbanBoard, type TaskWithProject, type CustomColumn } from "@/components/tasks/kanban-board";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
+import { ContextFeed } from "@/components/context/context-feed";
 
 type ProjectWithClient = {
   id: string;
@@ -115,6 +116,11 @@ export function ProjectDetail({
           clients={clients}
           currentUserId={currentUserId}
         />
+      </div>
+
+      {/* Context */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <ContextFeed entityType="project" entityId={project.id} />
       </div>
 
       {/* Chat & Files */}

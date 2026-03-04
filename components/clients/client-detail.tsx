@@ -1,11 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { Client, Project } from "@/db/schema";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { Building2, Mail, Phone, FileText, ArrowLeft } from "lucide-react";
+import {
+  Building2, Mail, Phone, FileText, ArrowLeft, Pencil,
+  Globe, Calendar,
+} from "lucide-react";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
+import { ClientEditModal } from "./client-edit-modal";
+import { ContextFeed } from "@/components/context/context-feed";
+
+type ClientWithExtra = Client & { website?: string | null; registrationDate?: string | null };
 
 const statusConfig = {
   active: { label: "Activo", className: "bg-emerald-50 text-emerald-700" },
@@ -22,12 +30,13 @@ const projectStatusConfig = {
 };
 
 interface ClientDetailProps {
-  client: Client;
+  client: ClientWithExtra;
   projects: Project[];
   currentUserId?: string;
 }
 
 export function ClientDetail({ client, projects, currentUserId }: ClientDetailProps) {
+  const [showEdit, setShowEdit] = useState(false);
   const status = statusConfig[client.status];
 
   return (
@@ -39,7 +48,7 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">{client.name}</h1>
           <span
             className={cn(
@@ -50,6 +59,13 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
             {status.label}
           </span>
         </div>
+        <button
+          onClick={() => setShowEdit(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Editar
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -73,6 +89,27 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
             <div className="flex items-start gap-3">
               <Phone className="w-4 h-4 text-slate-400 mt-0.5" />
               <span className="text-sm text-slate-600">{client.phone}</span>
+            </div>
+          )}
+          {client.website && (
+            <div className="flex items-start gap-3">
+              <Globe className="w-4 h-4 text-slate-400 mt-0.5" />
+              <a
+                href={client.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-[#1e3a5f] hover:underline truncate"
+              >
+                {client.website}
+              </a>
+            </div>
+          )}
+          {client.registrationDate && (
+            <div className="flex items-start gap-3">
+              <Calendar className="w-4 h-4 text-slate-400 mt-0.5" />
+              <span className="text-sm text-slate-600">
+                Registro: {new Date(client.registrationDate).toLocaleDateString("es-MX")}
+              </span>
             </div>
           )}
           {client.notes && (
@@ -110,8 +147,7 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
           ) : (
             <div className="space-y-3">
               {projects.map((project) => {
-                const pStatus =
-                  projectStatusConfig[project.status];
+                const pStatus = projectStatusConfig[project.status];
                 return (
                   <Link
                     key={project.id}
@@ -144,11 +180,26 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
         </div>
       </div>
 
+      {/* Context */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <ContextFeed entityType="client" entityId={client.id} />
+      </div>
+
       {/* Chat & Files */}
       {currentUserId && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <EntityChatFiles entityId={client.id} entityType="client" entityName={client.name} currentUserId={currentUserId} />
+          <EntityChatFiles
+            entityId={client.id}
+            entityType="client"
+            entityName={client.name}
+            currentUserId={currentUserId}
+          />
         </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEdit && (
+        <ClientEditModal client={client as Client} onClose={() => setShowEdit(false)} />
       )}
     </div>
   );

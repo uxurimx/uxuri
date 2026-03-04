@@ -12,6 +12,8 @@ const updateClientSchema = z.object({
   company: z.string().optional(),
   status: z.enum(["active", "inactive", "prospect"]).optional(),
   notes: z.string().optional(),
+  website: z.string().optional().nullable(),
+  registrationDate: z.string().optional().nullable(),
 });
 
 export async function GET(

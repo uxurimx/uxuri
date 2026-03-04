@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   timestamp,
+  date,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
@@ -22,6 +23,8 @@ export const clients = pgTable("clients", {
   company: varchar("company", { length: 255 }),
   status: clientStatusEnum("status").default("prospect").notNull(),
   notes: text("notes"),
+  website: varchar("website", { length: 500 }),
+  registrationDate: date("registration_date"),
   userId: varchar("user_id", { length: 255 }).references(() => users.id),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
