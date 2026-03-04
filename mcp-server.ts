@@ -255,6 +255,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: [],
       },
     },
+    {
+      name: "get_user_tasks",
+      description: "Obtiene todas las tareas creadas por o asignadas a un usuario específico. Agrupa por proyecto.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          userId: {
+            type: "string",
+            description: "ID de usuario de Clerk",
+          },
+        },
+        required: ["userId"],
+      },
+    },
   ],
 }));
 
@@ -585,6 +599,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           LEFT JOIN objective_tasks ot ON ot.objective_id = o.id
           GROUP BY o.id
           ORDER BY o.created_at ASC
+        `;
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }],
+        };
+      }
+
+      case "get_user_tasks": {
+        const { userId } = args as { userId: string };
+        const rows = await sql`
+          SELECT
+            t.id, t.title, t.description, t.status, t.priority, t.due_date,
+            t.created_by, t.assigned_to, t.project_id, t.agent_id,
+            t.created_at, t.updated_at,
+            p.name AS project_name,
+            u_creator.name AS creator_name,
+            u_assigned.name AS assigned_name,
+            a.name AS agent_name
+          FROM tasks t
+          LEFT JOIN projects p ON t.project_id = p.id
+          LEFT JOIN users u_creator ON t.created_by = u_creator.id
+          LEFT JOIN users u_assigned ON t.assigned_to = u_assigned.id
+          LEFT JOIN agents a ON t.agent_id = a.id
+          WHERE t.created_by = ${userId} OR t.assigned_to = ${userId}
+          ORDER BY p.name, t.status, t.priority DESC, t.created_at DESC
         `;
         return {
           content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }],
