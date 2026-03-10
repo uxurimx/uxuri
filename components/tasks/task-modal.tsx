@@ -8,7 +8,7 @@ import {
   X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
   MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
   FileText, Clock, UserCheck, UserMinus, History, CheckCircle2,
-  Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap, Brain,
+  Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap, Brain, Sun,
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
 import { MentionInput, renderWithMentions } from "./mention-input";
@@ -360,6 +360,11 @@ export function TaskModal({
   // Personal done
   const [markingDone, setMarkingDone] = useState(false);
 
+  // Fijar para hoy
+  const [pinningToday, setPinningToday] = useState(false);
+  const [pinnedToday, setPinnedToday] = useState(false);
+  const [pinMessage, setPinMessage] = useState<string | null>(null);
+
   // Subtasks
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [subtasksLoading, setSubtasksLoading] = useState(false);
@@ -515,6 +520,29 @@ export function TaskModal({
       }
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handlePinToday() {
+    if (!task) return;
+    setPinningToday(true);
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const res = await fetch("/api/daily-focus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: task.id, date: todayStr }),
+      });
+      if (res.ok) {
+        setPinnedToday(true);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPinMessage(data.error ?? "No se pudo fijar");
+        setTimeout(() => setPinMessage(null), 3000);
+      }
+    } finally {
+      setPinningToday(false);
     }
   }
 
@@ -905,6 +933,27 @@ export function TaskModal({
                     <Pencil className="w-3.5 h-3.5" />
                     Editar
                   </button>
+                )}
+
+                {/* Fijar para hoy */}
+                {task.status !== "done" && !pinnedToday && (
+                  <button
+                    onClick={handlePinToday}
+                    disabled={pinningToday}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-amber-200 text-amber-700 rounded-lg text-sm hover:bg-amber-50 transition-colors disabled:opacity-50"
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                    {pinningToday ? "Fijando..." : "Fijar para hoy"}
+                  </button>
+                )}
+                {pinnedToday && (
+                  <span className="flex items-center gap-1.5 text-sm text-amber-600 font-medium py-2">
+                    <Sun className="w-3.5 h-3.5" />
+                    Fijada para hoy
+                  </span>
+                )}
+                {pinMessage && (
+                  <span className="text-xs text-red-500 py-2">{pinMessage}</span>
                 )}
 
                 {/* Planificar */}
