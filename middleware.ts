@@ -4,6 +4,7 @@ import { createRouteMatcher } from "@clerk/nextjs/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/manifest.json",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/setup",
