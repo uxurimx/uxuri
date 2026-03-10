@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushSetup } from "@/components/notifications/push-setup";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ActiveTimer } from "@/components/timer/active-timer";
 
 export async function Topbar() {
   const user = await currentUser();
@@ -19,6 +20,7 @@ export async function Topbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <ActiveTimer />
         <PushSetup />
         <NotificationBell />
         <ThemeToggle />

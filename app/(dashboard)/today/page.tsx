@@ -2,9 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import {
   tasks, projects, users, objectives,
-  objectiveMilestones, objectiveProjects, objectiveTasks, dailyFocus,
+  objectiveMilestones, objectiveProjects, objectiveTasks, dailyFocus, timeSessions,
 } from "@/db/schema";
-import { eq, and, or, lt, not, sql } from "drizzle-orm";
+import { eq, and, or, lt, not, sql, gte, ne } from "drizzle-orm";
 import { TodayClient } from "@/components/today/today-client";
 
 export const metadata = { title: "Hoy — Uxuri" };
@@ -109,6 +109,39 @@ export default async function TodayPage() {
       .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id)),
   ]);
 
+  // Time stats
+  const now = new Date();
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+  const dow = now.getDay();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+  weekStart.setHours(0, 0, 0, 0);
+
+  const [todaySessionRows, weekSessionRows] = await Promise.all([
+    db.select({ elapsedSeconds: timeSessions.elapsedSeconds })
+      .from(timeSessions)
+      .where(and(
+        eq(timeSessions.userId, userId),
+        gte(timeSessions.startedAt, todayStart),
+        ne(timeSessions.status, "running"),
+      )),
+    db.select({ elapsedSeconds: timeSessions.elapsedSeconds })
+      .from(timeSessions)
+      .where(and(
+        eq(timeSessions.userId, userId),
+        gte(timeSessions.startedAt, weekStart),
+        ne(timeSessions.status, "running"),
+      )),
+  ]);
+
+  const timeStats = {
+    todaySeconds: todaySessionRows.reduce((s, r) => s + r.elapsedSeconds, 0),
+    weekSeconds: weekSessionRows.reduce((s, r) => s + r.elapsedSeconds, 0),
+    todaySessions: todaySessionRows.length,
+    weekSessions: weekSessionRows.length,
+  };
+
   // Calculate objective progress
   const activeObjectives = activeObjectivesRaw.map((obj) => {
     const mils = allMilestonesRaw.filter((m) => m.objectiveId === obj.id);
@@ -131,6 +164,7 @@ export default async function TodayPage() {
       dueTodayTasks={dueTodayRows}
       overdueTasks={overdueRows}
       activeObjectives={activeObjectives}
+      timeStats={timeStats}
     />
   );
 }

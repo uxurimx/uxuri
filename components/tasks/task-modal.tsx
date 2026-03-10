@@ -11,6 +11,7 @@ import {
   Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap, Brain, Sun,
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
+import { startTimer } from "@/components/timer/active-timer";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
@@ -546,6 +547,10 @@ export function TaskModal({
     }
   }
 
+  async function startTimerForTask(taskId: string, title: string) {
+    await startTimer({ taskId, description: title });
+  }
+
   async function saveMoodField(patch: Record<string, unknown>) {
     if (!task?.id) return;
     setMoodSaving(true);
@@ -954,6 +959,17 @@ export function TaskModal({
                 )}
                 {pinMessage && (
                   <span className="text-xs text-red-500 py-2">{pinMessage}</span>
+                )}
+
+                {/* Timer */}
+                {task.status !== "done" && (
+                  <button
+                    onClick={() => startTimerForTask(task.id, task.title)}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-emerald-200 text-emerald-700 rounded-lg text-sm hover:bg-emerald-50 transition-colors"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Iniciar timer
+                  </button>
                 )}
 
                 {/* Planificar */}

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock } from "lucide-react";
+import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock, Play, Timer } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
+import { startTimer } from "@/components/timer/active-timer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,13 @@ function daysOverdue(dueDate: string, todayStr: string): number {
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
+export type TimeStats = {
+  todaySeconds: number;
+  weekSeconds: number;
+  todaySessions: number;
+  weekSessions: number;
+};
+
 interface TodayClientProps {
   userName: string;
   todayStr: string;
@@ -86,9 +94,17 @@ interface TodayClientProps {
   dueTodayTasks: PendingTask[];
   overdueTasks: PendingTask[];
   activeObjectives: ActiveObjective[];
+  timeStats: TimeStats;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
+
+function formatSeconds(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
 
 export function TodayClient({
   userName,
@@ -98,6 +114,7 @@ export function TodayClient({
   dueTodayTasks,
   overdueTasks,
   activeObjectives,
+  timeStats,
 }: TodayClientProps) {
   const router = useRouter();
   const weekPct = getWeekProgress();
@@ -252,6 +269,13 @@ export function TodayClient({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => startTimer({ taskId: task.taskId, description: task.title })}
+                      title="Iniciar timer"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-[#1e3a5f]/10 transition-colors"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => handleComplete(task.taskId, task.focusId)}
                       disabled={completingTaskId === task.taskId}
@@ -413,6 +437,32 @@ export function TodayClient({
               </div>
             </div>
           </div>
+
+          {/* Time tracking stats */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-[#1e3a5f]" />
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tiempo registrado</h3>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Hoy</span>
+                <span className="text-sm font-bold text-[#1e3a5f]">
+                  {timeStats.todaySeconds > 0 ? formatSeconds(timeStats.todaySeconds) : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Esta semana</span>
+                <span className="text-sm font-bold text-slate-700">
+                  {timeStats.weekSeconds > 0 ? formatSeconds(timeStats.weekSeconds) : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                <span className="text-xs text-slate-400">Sesiones esta semana</span>
+                <span className="text-xs text-slate-500">{timeStats.weekSessions}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -475,15 +525,24 @@ function TaskRow({
         </div>
       </div>
 
-      <button
-        onClick={onPin}
-        disabled={isLoading || !canPin}
-        title={canPin ? "Fijar para hoy" : "Límite de 3 alcanzado"}
-        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#1e3a5f]/30 text-[#1e3a5f] hover:bg-[#1e3a5f] hover:text-white transition-all disabled:opacity-40 flex-shrink-0"
-      >
-        <Pin className="w-3 h-3" />
-        Fijar
-      </button>
+      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 flex-shrink-0 transition-opacity">
+        <button
+          onClick={() => startTimer({ taskId: task.id, description: task.title })}
+          title="Iniciar timer"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-[#1e3a5f]/10 transition-colors"
+        >
+          <Play className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={onPin}
+          disabled={isLoading || !canPin}
+          title={canPin ? "Fijar para hoy" : "Límite de 3 alcanzado"}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#1e3a5f]/30 text-[#1e3a5f] hover:bg-[#1e3a5f] hover:text-white transition-all disabled:opacity-40"
+        >
+          <Pin className="w-3 h-3" />
+          Fijar
+        </button>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,7 @@ export const objectives = pgTable("objectives", {
   description: text("description"),
   status: objectiveStatusEnum("status").default("draft").notNull(),
   priority: varchar("priority", { length: 20 }).default("medium").notNull(),
+  horizon: varchar("horizon", { length: 20 }),  // daily | weekly | monthly | quarterly | yearly | life
   targetDate: date("target_date"),
   pinnedToDashboard: boolean("pinned_to_dashboard").default(false).notNull(),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),

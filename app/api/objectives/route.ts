@@ -18,6 +18,7 @@ const createSchema = z.object({
   description: z.string().optional(),
   status: z.enum(["draft", "active", "paused", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  horizon: z.enum(["daily", "weekly", "monthly", "quarterly", "yearly", "life"]).optional().nullable(),
   targetDate: z.string().optional().nullable(),
 });
 
