@@ -30,6 +30,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --color-background: #0f172a;
   --color-foreground: #f1f5f9;
   --color-secondary: #1e293b;
@@ -50,6 +52,20 @@
   --skin-header-text-muted: #94a3b8;
   --skin-header-text-strong: #e2e8f0;
   --skin-border: #334155;
+}
+
+/* Fix native select/input/textarea in dark mode */
+.dark select,
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark textarea {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+.dark select option {
+  background-color: #1e293b;
+  color: #f1f5f9;
 }
 
 /* ============================================================

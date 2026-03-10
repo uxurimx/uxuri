@@ -8,7 +8,7 @@ import {
   X, Trash2, Pencil, Flag, Calendar, ArrowLeft, Folder, Send,
   MessageSquare, UserCircle, PlusCircle, ArrowRightLeft,
   FileText, Clock, UserCheck, UserMinus, History, CheckCircle2,
-  Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap,
+  Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap, Brain,
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
 import { MentionInput, renderWithMentions } from "./mention-input";
@@ -325,7 +325,20 @@ export function TaskModal({
   const [isDeleting, setIsDeleting] = useState(false);
 
   // View tabs
-  const [activeTab, setActiveTab] = useState<"comments" | "details" | "agente">("comments");
+  const [activeTab, setActiveTab] = useState<"comments" | "details" | "agente" | "recomendaciones">("comments");
+
+  // Mood fields state (for Recomendaciones tab in view mode)
+  const [moodValues, setMoodValues] = useState<{
+    energyLevel: "low" | "medium" | "high" | null;
+    estMinutes: number | null;
+    taskType: "revenue" | "creative" | "admin" | "strategic" | "ops" | null;
+  }>({
+    energyLevel: (task?.energyLevel as "low" | "medium" | "high" | null) ?? null,
+    estMinutes: task?.estMinutes ?? null,
+    taskType: (task?.taskType as "revenue" | "creative" | "admin" | "strategic" | "ops" | null) ?? null,
+  });
+  const [moodSaving, setMoodSaving] = useState(false);
+  const [moodEstInput, setMoodEstInput] = useState(task?.estMinutes?.toString() ?? "");
 
   // Comments state
   const [comments, setComments] = useState<Comment[]>([]);
@@ -365,6 +378,12 @@ export function TaskModal({
     const m = initialMode ?? (task ? "view" : "create");
     setMode(m);
     setActiveTab("comments");
+    setMoodValues({
+      energyLevel: (task?.energyLevel as "low" | "medium" | "high" | null) ?? null,
+      estMinutes: task?.estMinutes ?? null,
+      taskType: (task?.taskType as "revenue" | "creative" | "admin" | "strategic" | "ops" | null) ?? null,
+    });
+    setMoodEstInput(task?.estMinutes?.toString() ?? "");
     if (task) {
       reset({
         title: task.title,
@@ -496,6 +515,22 @@ export function TaskModal({
       }
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function saveMoodField(patch: Record<string, unknown>) {
+    if (!task?.id) return;
+    setMoodSaving(true);
+    setMoodValues((prev) => ({ ...prev, ...patch }));
+    try {
+      await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      router.refresh();
+    } finally {
+      setMoodSaving(false);
     }
   }
 
@@ -946,6 +981,18 @@ export function TaskModal({
                       Agente
                     </button>
                   )}
+                  <button
+                    onClick={() => setActiveTab("recomendaciones")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
+                      activeTab === "recomendaciones"
+                        ? "border-[#1e3a5f] text-[#1e3a5f]"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    <Brain className="w-3.5 h-3.5" />
+                    Ánimo
+                  </button>
                 </div>
               </div>
 
@@ -1047,6 +1094,91 @@ export function TaskModal({
                   <AgentChat taskId={task.id} agentStatus={task.agentStatus ?? null} />
                 </div>
               )}
+
+              {/* ── Recomendaciones tab ── */}
+              {activeTab === "recomendaciones" && (
+                <div className="space-y-4 pt-2">
+                  <p className="text-xs text-slate-400">
+                    Configura estos campos para recibir recomendaciones según tu estado de ánimo. No son obligatorios.
+                  </p>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Energía requerida</label>
+                    <div className="flex gap-1.5">
+                      {([["low", "🔋 Baja"], ["medium", "⚡ Media"], ["high", "🔥 Alta"]] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          disabled={moodSaving}
+                          onClick={() => saveMoodField({ energyLevel: moodValues.energyLevel === val ? null : val })}
+                          className={cn(
+                            "flex-1 text-xs py-2 rounded-lg border transition-colors disabled:opacity-60",
+                            moodValues.energyLevel === val
+                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Tipo de tarea</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([
+                        ["revenue", "💰 Ingresos"],
+                        ["creative", "🎨 Creativa"],
+                        ["admin", "📋 Admin"],
+                        ["strategic", "🎯 Estratégica"],
+                        ["ops", "⚙️ Operativa"],
+                      ] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          disabled={moodSaving}
+                          onClick={() => saveMoodField({ taskType: moodValues.taskType === val ? null : val })}
+                          className={cn(
+                            "text-xs px-3 py-1.5 rounded-full border transition-colors disabled:opacity-60",
+                            moodValues.taskType === val
+                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Tiempo estimado (min)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        value={moodEstInput}
+                        onChange={(e) => setMoodEstInput(e.target.value)}
+                        onBlur={() => saveMoodField({ estMinutes: moodEstInput ? parseInt(moodEstInput, 10) : null })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveMoodField({ estMinutes: moodEstInput ? parseInt(moodEstInput, 10) : null });
+                        }}
+                        placeholder="ej. 30"
+                        className="w-32 px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                      />
+                      {moodValues.estMinutes && (
+                        <span className="text-xs text-slate-400">
+                          {moodValues.estMinutes >= 60
+                            ? `${Math.floor(moodValues.estMinutes / 60)}h${moodValues.estMinutes % 60 > 0 ? ` ${moodValues.estMinutes % 60}min` : ""}`
+                            : `${moodValues.estMinutes}min`}
+                        </span>
+                      )}
+                      {moodSaving && <span className="text-xs text-slate-400">Guardando...</span>}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1069,7 +1201,7 @@ export function TaskModal({
               <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
               <textarea
                 {...register("description")}
-                rows={2}
+                rows={4}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 resize-none"
                 placeholder="Descripción opcional..."
               />
@@ -1165,8 +1297,8 @@ export function TaskModal({
               <input {...register("dueDate")} type="date" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
             </div>
 
-            {/* ── Mood / Energy fields ── */}
-            <div className="border-t border-slate-100 pt-3 space-y-3">
+            {/* ── Mood / Energy fields — solo en creación, en edición están en la pestaña Ánimo ── */}
+            {mode === "create" && <div className="border-t border-slate-100 pt-3 space-y-3">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Para recomendaciones por estado de ánimo</p>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1197,7 +1329,7 @@ export function TaskModal({
                     type="number"
                     min={1}
                     placeholder="ej. 30"
-                    {...register("estMinutes", { valueAsNumber: true })}
+                    {...register("estMinutes", { setValueAs: (v: string) => v === "" ? undefined : parseInt(v, 10) || undefined })}
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
                   />
                 </div>
@@ -1229,7 +1361,7 @@ export function TaskModal({
                   ))}
                 </div>
               </div>
-            </div>
+            </div>}
 
             <div className="flex gap-3 pt-2">
               {mode === "edit" && (

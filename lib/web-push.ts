@@ -28,7 +28,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     subs.map((sub) =>
       webPush.sendNotification(
         { endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } },
-        JSON.stringify(payload)
+        JSON.stringify(payload),
+        { urgency: "high", TTL: 86400 }
       )
     )
   );
