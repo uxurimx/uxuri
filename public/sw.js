@@ -1,4 +1,10 @@
-// Service Worker for Uxuri PWA push notifications
+// Service Worker for Uxuri PWA
+
+// Required by Chrome for PWA installability: must handle fetch events
+self.addEventListener("fetch", (event) => {
+  // Network-first passthrough — keeps app installable without breaking dynamic routes
+  event.respondWith(fetch(event.request));
+});
 
 self.addEventListener("push", (event) => {
   if (!event.data) return;

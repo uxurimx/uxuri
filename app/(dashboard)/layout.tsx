@@ -6,6 +6,7 @@ import { MobileTopActions } from "@/components/dashboard/mobile-top-actions";
 import { getUserRoleData } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/toast";
 import { NotificationListener } from "@/components/notifications/notification-listener";
+import { PwaRegister } from "@/components/pwa-register";
 
 export default async function DashboardLayout({
   children,
@@ -44,6 +45,7 @@ export default async function DashboardLayout({
         <MobileTopActions />
       </div>
       {userId && <NotificationListener userId={userId} />}
+      <PwaRegister />
     </ToastProvider>
   );
 }
