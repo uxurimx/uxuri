@@ -34,6 +34,10 @@ export default async function DashboardLayout({
   if (permissions.includes("/tasks") && !permissions.includes("/today")) {
     permissions = [...permissions, "/today"];
   }
+  // /habits se agrega automáticamente a cualquier rol que ya tenga /tasks
+  if (permissions.includes("/tasks") && !permissions.includes("/habits")) {
+    permissions = [...permissions, "/habits"];
+  }
 
   return (
     <ToastProvider>

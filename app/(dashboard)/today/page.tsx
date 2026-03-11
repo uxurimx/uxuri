@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import {
   tasks, projects, users, objectives,
-  objectiveMilestones, objectiveProjects, objectiveTasks, dailyFocus, timeSessions,
+  objectiveMilestones, objectiveProjects, objectiveTasks, dailyFocus, timeSessions, habits, habitLogs,
 } from "@/db/schema";
 import { eq, and, or, lt, not, sql, gte, ne } from "drizzle-orm";
 import { TodayClient } from "@/components/today/today-client";
@@ -28,6 +28,8 @@ export default async function TodayPage() {
     allMilestonesRaw,
     linkedProjectsRaw,
     linkedTasksRaw,
+    todayHabits,
+    todayHabitLogs,
   ] = await Promise.all([
 
     db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
@@ -107,6 +109,14 @@ export default async function TodayPage() {
     db.select({ objectiveId: objectiveTasks.objectiveId, status: tasks.status })
       .from(objectiveTasks)
       .leftJoin(tasks, eq(objectiveTasks.taskId, tasks.id)),
+
+    // Habits for today
+    db.select().from(habits)
+      .where(and(eq(habits.userId, userId), eq(habits.isActive, true)))
+      .orderBy(habits.sortOrder, habits.createdAt),
+
+    db.select().from(habitLogs)
+      .where(and(eq(habitLogs.userId, userId), eq(habitLogs.date, todayStr))),
   ]);
 
   // Time stats
@@ -142,6 +152,16 @@ export default async function TodayPage() {
     weekSessions: weekSessionRows.length,
   };
 
+  // Today's habits with done status
+  const doneTodayIds = new Set(todayHabitLogs.map((l) => l.habitId));
+  const todayHabitsWithStatus = todayHabits.map((h) => ({
+    id: h.id,
+    title: h.title,
+    icon: h.icon,
+    color: h.color,
+    doneToday: doneTodayIds.has(h.id),
+  }));
+
   // Calculate objective progress
   const activeObjectives = activeObjectivesRaw.map((obj) => {
     const mils = allMilestonesRaw.filter((m) => m.objectiveId === obj.id);
@@ -165,6 +185,7 @@ export default async function TodayPage() {
       overdueTasks={overdueRows}
       activeObjectives={activeObjectives}
       timeStats={timeStats}
+      todayHabits={todayHabitsWithStatus}
     />
   );
 }

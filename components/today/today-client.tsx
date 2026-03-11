@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock, Play, Timer } from "lucide-react";
+import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock, Play, Timer, Repeat2 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { startTimer } from "@/components/timer/active-timer";
 
@@ -86,6 +86,14 @@ export type TimeStats = {
   weekSessions: number;
 };
 
+export type TodayHabit = {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+  doneToday: boolean;
+};
+
 interface TodayClientProps {
   userName: string;
   todayStr: string;
@@ -95,6 +103,7 @@ interface TodayClientProps {
   overdueTasks: PendingTask[];
   activeObjectives: ActiveObjective[];
   timeStats: TimeStats;
+  todayHabits: TodayHabit[];
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -115,6 +124,7 @@ export function TodayClient({
   overdueTasks,
   activeObjectives,
   timeStats,
+  todayHabits: initialHabits,
 }: TodayClientProps) {
   const router = useRouter();
   const weekPct = getWeekProgress();
@@ -122,6 +132,7 @@ export function TodayClient({
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [focusTasks, setFocusTasks] = useState<FocusTask[]>(initialFocus);
   const [pinLimitHit, setPinLimitHit] = useState(false);
+  const [habits, setHabits] = useState<TodayHabit[]>(initialHabits);
 
   const focusTaskIds = new Set(focusTasks.map((f) => f.taskId));
   const canPin = focusTasks.length < 3;
@@ -170,6 +181,20 @@ export function TodayClient({
       }
     } finally {
       setLoadingTaskId(null);
+    }
+  }
+
+  async function handleHabitToggle(habit: TodayHabit) {
+    const wasDone = habit.doneToday;
+    setHabits((prev) => prev.map((h) => h.id === habit.id ? { ...h, doneToday: !wasDone } : h));
+    if (wasDone) {
+      await fetch(`/api/habits/${habit.id}/log?date=${todayStr}`, { method: "DELETE" });
+    } else {
+      await fetch(`/api/habits/${habit.id}/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: todayStr }),
+      });
     }
   }
 
@@ -232,6 +257,40 @@ export function TodayClient({
 
         {/* ── Left: Tasks ── */}
         <div className="lg:col-span-2 space-y-5">
+
+          {/* Hábitos del día */}
+          {habits.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Repeat2 className="w-4 h-4 text-[#1e3a5f]" />
+                  <h2 className="font-semibold text-slate-800 text-sm">Hábitos de hoy</h2>
+                  <span className="text-xs text-slate-400">{habits.filter((h) => h.doneToday).length}/{habits.length}</span>
+                </div>
+                <a href="/habits" className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#1e3a5f] transition-colors">
+                  Ver todos <ChevronRight className="w-3 h-3" />
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {habits.map((habit) => (
+                  <button
+                    key={habit.id}
+                    onClick={() => handleHabitToggle(habit)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
+                      habit.doneToday
+                        ? "border-transparent text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    )}
+                    style={habit.doneToday ? { backgroundColor: habit.color } : {}}
+                  >
+                    <span>{habit.icon}</span>
+                    <span className={habit.doneToday ? "line-through opacity-80" : ""}>{habit.title}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Mis 3 del día */}
           <section>
