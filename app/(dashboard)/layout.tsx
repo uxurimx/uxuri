@@ -38,6 +38,19 @@ export default async function DashboardLayout({
   if (permissions.includes("/tasks") && !permissions.includes("/habits")) {
     permissions = [...permissions, "/habits"];
   }
+  // /journal + /notes se agregan automáticamente a cualquier rol que ya tenga /tasks
+  if (permissions.includes("/tasks") && !permissions.includes("/journal")) {
+    permissions = [...permissions, "/journal"];
+  }
+  if (permissions.includes("/tasks") && !permissions.includes("/notes")) {
+    permissions = [...permissions, "/notes"];
+  }
+  if (permissions.includes("/tasks") && !permissions.includes("/schedule")) {
+    permissions = [...permissions, "/schedule"];
+  }
+  if (permissions.includes("/tasks") && !permissions.includes("/review")) {
+    permissions = [...permissions, "/review"];
+  }
 
   return (
     <ToastProvider>

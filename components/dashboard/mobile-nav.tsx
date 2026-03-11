@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Bot, Target, Sun, Repeat2 } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Bot, Target, Sun, Repeat2, BookOpen, StickyNote, CalendarDays, RefreshCw } from "lucide-react";
 import { useChatUnread } from "@/hooks/use-chat-unread";
 
 const navItems = [
   { href: "/dashboard",  label: "Home",      icon: LayoutDashboard },
   { href: "/today",      label: "Hoy",       icon: Sun },
   { href: "/habits",     label: "Hábitos",   icon: Repeat2 },
+  { href: "/journal",    label: "Diario",    icon: BookOpen },
+  { href: "/notes",      label: "Notas",     icon: StickyNote },
+  { href: "/schedule",   label: "Agenda",    icon: CalendarDays },
+  { href: "/review",     label: "Revisión",  icon: RefreshCw },
   { href: "/clients",    label: "Clientes",  icon: Users },
   { href: "/projects",   label: "Proyectos", icon: Briefcase },
   { href: "/objectives", label: "Objetivos", icon: Target },

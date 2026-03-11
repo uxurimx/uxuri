@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock, Play, Timer, Repeat2 } from "lucide-react";
+import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock, Play, Timer, Repeat2, BookOpen, CalendarDays, RefreshCw } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { startTimer } from "@/components/timer/active-timer";
 
@@ -232,6 +232,17 @@ export function TodayClient({
               </h1>
             </div>
             <p className="text-sm text-slate-500 capitalize">{formattedDate}</p>
+            <div className="flex flex-wrap gap-3 mt-2">
+              <a href={`/journal?date=${todayStr}`} className="inline-flex items-center gap-1.5 text-xs text-[#1e3a5f] hover:underline font-medium">
+                <BookOpen className="w-3.5 h-3.5" /> Diario de hoy
+              </a>
+              <a href="/schedule" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#1e3a5f] hover:underline font-medium">
+                <CalendarDays className="w-3.5 h-3.5" /> Agenda
+              </a>
+              <a href="/review" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#1e3a5f] hover:underline font-medium">
+                <RefreshCw className="w-3.5 h-3.5" /> Revisión semanal
+              </a>
+            </div>
           </div>
           <div className="text-right min-w-[140px]">
             <p className="text-xs text-slate-400 mb-1">Progreso de la semana</p>
