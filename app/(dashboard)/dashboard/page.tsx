@@ -136,7 +136,7 @@ export default async function DashboardPage() {
       .limit(6),
 
     // Pinned objectives
-    db.select().from(objectives).where(eq(objectives.pinnedToDashboard, true)),
+    db.select().from(objectives).where(and(eq(objectives.pinnedToDashboard, true), eq(objectives.createdBy, userId))),
     db.select().from(objectiveMilestones),
     db.select({ objectiveId: objectiveProjects.objectiveId, status: projects.status })
       .from(objectiveProjects)

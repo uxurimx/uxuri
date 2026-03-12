@@ -31,3 +31,4 @@ export * from "./journal-entries";
 export * from "./notes";
 export * from "./time-blocks";
 export * from "./weekly-reviews";
+export * from "./shares";

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { agents, tasks, projects, agentSessions } from "@/db/schema";
 import { eq, and, ne, or, gte, sql, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { getRole } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AgentPanel } from "@/components/agents/agent-panel";
@@ -24,6 +25,14 @@ export default async function AgentDetailPage({
     .where(and(eq(agents.id, id), eq(agents.isActive, true)));
 
   if (!agent) notFound();
+
+  const role = await getRole();
+  const isAdmin = role === "admin";
+
+  // Only the creator or admin can view this agent's detail
+  if (agent.createdBy && agent.createdBy !== userId && !isAdmin) {
+    notFound();
+  }
 
   // Active tasks assigned to this agent (not done)
   const agentTasks = await db
@@ -134,10 +143,11 @@ export default async function AgentDetailPage({
     .groupBy(tasks.id, tasks.title, tasks.status, tasks.priority, tasks.projectId, projects.name)
     .orderBy(sql`MAX(${agentSessions.endedAt}) DESC NULLS LAST`);
 
-  // All projects (for the quick-add task form)
+  // All projects owned by this user (for the quick-add task form)
   const allProjects = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
+    .where(isAdmin ? undefined : eq(projects.createdBy, userId))
     .orderBy(asc(projects.name));
 
   const initialSessions = activeSessions.map((s) => ({

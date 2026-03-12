@@ -5,6 +5,7 @@ import { eq, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
+import { assertTaskAccess } from "@/lib/task-access";
 
 export async function GET(req: Request) {
   const { userId } = await auth();
@@ -13,6 +14,9 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const taskId = searchParams.get("taskId");
   if (!taskId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
+
+  const access = await assertTaskAccess(userId, taskId, "view");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
 
   const messages = await db
     .select()
@@ -37,6 +41,9 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const { taskId, content } = parsed.data;
+
+  const taskAccess = await assertTaskAccess(userId, taskId, "view");
+  if (!taskAccess.ok) return NextResponse.json({ error: "Forbidden" }, { status: taskAccess.status });
 
   const [message] = await db
     .insert(agentMessages)

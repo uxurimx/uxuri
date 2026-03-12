@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDate, cn } from "@/lib/utils";
-import { Pencil, Trash2, ExternalLink, Lock } from "lucide-react";
+import { Pencil, Trash2, ExternalLink, Lock, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ProjectModal, type ProjectForModal } from "./project-modal";
 
@@ -116,21 +116,34 @@ export function ProjectsList({
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      onClick={(e) => openEdit(e, project)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(e, project)}
-                      disabled={deletingId === project.id}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!project.isShared && (
+                      <>
+                        <button
+                          onClick={(e) => openEdit(e, project)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(e, project)}
+                          disabled={deletingId === project.id}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                    {project.isShared && project.sharedPermission === "edit" && (
+                      <button
+                        onClick={(e) => openEdit(e, project)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-slate-100 transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-start justify-between mb-3 pr-20">
@@ -142,6 +155,15 @@ export function ProjectsList({
                       {status.label}
                     </span>
                   </div>
+
+                  {project.isShared && (
+                    <div className="mb-2">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        <Users className="w-3 h-3" />
+                        Compartido contigo · {project.sharedPermission === "edit" ? "Editar" : "Ver"}
+                      </span>
+                    </div>
+                  )}
 
                   {project.description && (
                     <p className="text-sm text-slate-500 line-clamp-2 mb-3">{project.description}</p>

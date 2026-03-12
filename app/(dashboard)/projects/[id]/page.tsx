@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns, objectives } from "@/db/schema";
 import { eq, or, and, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { canAccess } from "@/lib/access";
 import { ProjectDetail } from "@/components/projects/project-detail";
 
 export default async function ProjectDetailPage({
@@ -14,6 +15,15 @@ export default async function ProjectDetailPage({
   if (!userId) return null;
 
   const { id } = await params;
+
+  // Access check
+  const [projectCheck] = await db
+    .select({ createdBy: projects.createdBy })
+    .from(projects)
+    .where(eq(projects.id, id));
+  if (!projectCheck) notFound();
+  const hasAccess = await canAccess(userId, "project", id, projectCheck.createdBy, "view");
+  if (!hasAccess) notFound();
 
   const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients, allObjectives] = await Promise.all([
     db

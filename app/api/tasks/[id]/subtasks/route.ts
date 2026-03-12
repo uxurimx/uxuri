@@ -4,6 +4,7 @@ import { subtasks } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertTaskAccess } from "@/lib/task-access";
 
 const createSchema = z.object({ title: z.string().min(1) });
 
@@ -15,6 +16,9 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: taskId } = await params;
+  const access = await assertTaskAccess(userId, taskId, "view");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const items = await db
     .select()
     .from(subtasks)
@@ -32,6 +36,9 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: taskId } = await params;
+  const access = await assertTaskAccess(userId, taskId, "view");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const body = await req.json();
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

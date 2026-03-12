@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { assertObjectiveAccess } from "@/lib/objective-access";
 import { ObjectiveDetail } from "@/components/objectives/objective-detail";
 
 export default async function ObjectiveDetailPage({
@@ -30,6 +31,9 @@ export default async function ObjectiveDetailPage({
 
   const [objective] = await db.select().from(objectives).where(eq(objectives.id, id));
   if (!objective) notFound();
+
+  const access = await assertObjectiveAccess(userId, id, "view");
+  if (!access.ok) notFound();
 
   const [areas, milestones, linkedProjectRows, linkedTaskRows, linkedAgentRows, attachments] =
     await Promise.all([

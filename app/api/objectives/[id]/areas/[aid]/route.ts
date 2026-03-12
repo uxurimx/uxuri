@@ -4,6 +4,7 @@ import { objectiveAreas } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertObjectiveAccess } from "@/lib/objective-access";
 
 const updateAreaSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -20,6 +21,9 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: objectiveId, aid } = await params;
+  const access = await assertObjectiveAccess(userId, objectiveId, "edit");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const body = await req.json();
   const parsed = updateAreaSchema.safeParse(body);
   if (!parsed.success) {
@@ -44,6 +48,9 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: objectiveId, aid } = await params;
+  const access = await assertObjectiveAccess(userId, objectiveId, "edit");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   await db
     .delete(objectiveAreas)
     .where(and(eq(objectiveAreas.id, aid), eq(objectiveAreas.objectiveId, objectiveId)));

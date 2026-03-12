@@ -2,11 +2,20 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { agents, tasks } from "@/db/schema";
 import { eq, and, ne, count } from "drizzle-orm";
+import { getRole } from "@/lib/auth";
 import { AgentsList } from "@/components/agents/agents-list";
 
 export default async function AgentsPage() {
   const { userId } = await auth();
   if (!userId) return null;
+
+  const role = await getRole();
+  const isAdmin = role === "admin";
+
+  const baseWhere = eq(agents.isActive, true);
+  const whereClause = isAdmin
+    ? baseWhere
+    : and(baseWhere, eq(agents.createdBy, userId));
 
   const agentsWithCount = await db
     .select({
@@ -24,7 +33,7 @@ export default async function AgentsPage() {
     })
     .from(agents)
     .leftJoin(tasks, and(eq(tasks.agentId, agents.id), ne(tasks.status, "done")))
-    .where(eq(agents.isActive, true))
+    .where(whereClause)
     .groupBy(agents.id)
     .orderBy(agents.createdAt);
 

@@ -43,6 +43,14 @@ export async function GET(
   const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const isCreator = !task.createdBy || task.createdBy === userId;
+  const isAssigned = task.assignedTo === userId;
+  if (!isCreator && !isAssigned) {
+    const { getRole } = await import("@/lib/auth");
+    const role = await getRole();
+    if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   return NextResponse.json(task);
 }
 

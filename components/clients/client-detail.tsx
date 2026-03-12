@@ -7,8 +7,9 @@ import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   Building2, Mail, Phone, FileText, ArrowLeft, Pencil,
-  Globe, Calendar,
+  Globe, Calendar, Users,
 } from "lucide-react";
+import { ShareModal } from "@/components/sharing/share-modal";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ClientEditModal } from "./client-edit-modal";
 import { ContextFeed } from "@/components/context/context-feed";
@@ -37,6 +38,7 @@ interface ClientDetailProps {
 
 export function ClientDetail({ client, projects, currentUserId }: ClientDetailProps) {
   const [showEdit, setShowEdit] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const status = statusConfig[client.status];
 
   return (
@@ -59,6 +61,13 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
             {status.label}
           </span>
         </div>
+        <button
+          onClick={() => setShowShare(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+        >
+          <Users className="w-3.5 h-3.5" />
+          Compartir
+        </button>
         <button
           onClick={() => setShowEdit(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors"
@@ -200,6 +209,15 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
       {/* Edit Modal */}
       {showEdit && (
         <ClientEditModal client={client as Client} onClose={() => setShowEdit(false)} />
+      )}
+
+      {showShare && (
+        <ShareModal
+          resourceType="client"
+          resourceId={client.id}
+          resourceTitle={client.name}
+          onClose={() => setShowShare(false)}
+        />
       )}
     </div>
   );

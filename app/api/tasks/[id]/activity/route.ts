@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { taskActivity } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { assertTaskAccess } from "@/lib/task-access";
 
 export async function GET(
   _req: Request,
@@ -12,6 +13,9 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const access = await assertTaskAccess(userId, id, "view");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const events = await db
     .select()
     .from(taskActivity)

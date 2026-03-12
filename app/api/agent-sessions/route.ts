@@ -4,6 +4,7 @@ import { agentSessions, tasks, agents, taskActivity } from "@/db/schema";
 import { eq, and, or, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertTaskAccess } from "@/lib/task-access";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "Por hacer", in_progress: "En progreso", review: "Revisión", done: "Hecho",
@@ -26,6 +27,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "agentId and taskId are required" }, { status: 400 });
   }
 
+  const access = await assertTaskAccess(userId, taskId, "view");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const sessions = await db
     .select()
     .from(agentSessions)
@@ -47,6 +51,9 @@ export async function POST(req: Request) {
 
   const { agentId, taskId } = parsed.data;
   const now = new Date();
+
+  const taskAccess = await assertTaskAccess(userId, taskId, "view");
+  if (!taskAccess.ok) return NextResponse.json({ error: "Forbidden" }, { status: taskAccess.status });
 
   // Get agent info for activity log
   const [agent] = await db.select({ name: agents.name }).from(agents).where(eq(agents.id, agentId));

@@ -4,6 +4,7 @@ import { objectiveProjects, objectiveTasks, objectiveAgents } from "@/db/schema"
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertObjectiveAccess } from "@/lib/objective-access";
 
 const linkSchema = z.object({
   type: z.enum(["project", "task", "agent"]),
@@ -24,6 +25,9 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: objectiveId } = await params;
+  const access = await assertObjectiveAccess(userId, objectiveId, "edit");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const body = await req.json();
   const parsed = linkSchema.safeParse(body);
   if (!parsed.success) {
@@ -88,6 +92,9 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: objectiveId } = await params;
+  const access = await assertObjectiveAccess(userId, objectiveId, "edit");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const body = await req.json();
   const parsed = unlinkSchema.safeParse(body);
   if (!parsed.success) {

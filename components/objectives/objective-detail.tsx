@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Target, Pencil, X, Check } from "lucide-react";
+import { ArrowLeft, Target, Pencil, X, Check, Users } from "lucide-react";
+import { ShareModal } from "@/components/sharing/share-modal";
 import { cn } from "@/lib/utils";
 import { ObjectiveProgress } from "./objective-progress";
 import { MilestoneChecklist } from "./milestone-checklist";
@@ -109,6 +110,7 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
   const [editDescription, setEditDescription] = useState(initial.description ?? "");
   const [editStatus, setEditStatus] = useState(initial.status);
   const [saving, setSaving] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const handleAreaAdded = (area: ObjectiveArea) => {
     setObjective((prev) => ({
@@ -255,6 +257,13 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
                   {sc.label}
                 </span>
               </div>
+              <button
+                onClick={() => setShowShare(true)}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+                title="Compartir"
+              >
+                <Users className="w-4 h-4" /> Compartir
+              </button>
               <button
                 onClick={() => setEditingTitle(true)}
                 className="flex-shrink-0 p-1.5 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 transition-colors"
@@ -418,6 +427,15 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
           </div>
         )}
       </div>
+
+      {showShare && (
+        <ShareModal
+          resourceType="objective"
+          resourceId={objective.id}
+          resourceTitle={objective.title}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap } from "lucide-react";
+import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap, Users } from "lucide-react";
+import { ShareModal } from "@/components/sharing/share-modal";
 import { formatDate, cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -35,6 +36,8 @@ export type ProjectForModal = {
   startDate: string | null;
   endDate: string | null;
   createdBy?: string | null;
+  isShared?: boolean;
+  sharedPermission?: "view" | "edit";
 };
 
 type Client = { id: string; name: string };
@@ -66,6 +69,7 @@ const priorityConfig = {
 export function ProjectModal({ open, onClose, project, clients, objectives, initialMode = "view" }: ProjectModalProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
+  const [showShare, setShowShare] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -306,6 +310,13 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
                 Ver proyecto
               </button>
               <button
+                onClick={() => setShowShare(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm"
+              >
+                <Users className="w-3.5 h-3.5" />
+                Compartir
+              </button>
+              <button
                 onClick={() => { onClose(); router.push(`/planning/new?from=project&id=${project.id}`); }}
                 className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors"
               >
@@ -427,6 +438,15 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
           </form>
         )}
       </div>
+
+      {showShare && project.id && (
+        <ShareModal
+          resourceType="project"
+          resourceId={project.id}
+          resourceTitle={project.name}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   );
 }

@@ -30,6 +30,13 @@ export async function GET(
   const [agent] = await db.select().from(agents).where(eq(agents.id, id));
   if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Only the creator or admin can view agent config (system prompts, knowledge)
+  if (agent.createdBy && agent.createdBy !== userId) {
+    const { getRole } = await import("@/lib/auth");
+    const role = await getRole();
+    if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   return NextResponse.json(agent);
 }
 

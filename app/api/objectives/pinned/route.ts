@@ -8,7 +8,7 @@ import {
   projects,
   tasks,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -18,7 +18,7 @@ export async function GET() {
   const rows = await db
     .select()
     .from(objectives)
-    .where(eq(objectives.pinnedToDashboard, true))
+    .where(and(eq(objectives.pinnedToDashboard, true), eq(objectives.createdBy, userId)))
     .orderBy(objectives.createdAt);
 
   const allMilestones = await db.select().from(objectiveMilestones);

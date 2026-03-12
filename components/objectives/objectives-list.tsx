@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Target, X, Pin } from "lucide-react";
+import { Plus, Target, X, Pin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type HorizonKey = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "life";
@@ -30,6 +30,7 @@ interface ObjectiveCard {
   projectCount: number | string;
   taskCount: number | string;
   overallProgress?: number;
+  isShared?: boolean;
 }
 
 const statusConfig = {
@@ -256,6 +257,13 @@ export function ObjectivesList({ initialObjectives }: ObjectivesListProps) {
                     </span>
                   </div>
                 </div>
+
+                {obj.isShared && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    <Users className="w-3 h-3" />
+                    Compartido contigo
+                  </span>
+                )}
 
                 {obj.description && (
                   <p className="text-sm text-slate-500 line-clamp-2">{obj.description}</p>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Client } from "@/db/schema";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { Users } from "lucide-react";
 
 const statusConfig = {
   active: { label: "Activo", className: "bg-emerald-50 text-emerald-700" },
@@ -12,7 +13,9 @@ const statusConfig = {
   prospect: { label: "Prospecto", className: "bg-amber-50 text-amber-700" },
 };
 
-export function ClientsTable({ clients }: { clients: Client[] }) {
+type ClientWithShare = Client & { isShared?: boolean };
+
+export function ClientsTable({ clients }: { clients: ClientWithShare[] }) {
   const [search, setSearch] = useState("");
 
   const filtered = clients.filter(
@@ -63,12 +66,20 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
                     className="hover:bg-slate-50 transition-colors"
                   >
                     <td className="px-6 py-4">
-                      <Link
-                        href={`/clients/${client.id}`}
-                        className="text-sm font-medium text-[#1e3a5f] hover:underline"
-                      >
-                        {client.name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/clients/${client.id}`}
+                          className="text-sm font-medium text-[#1e3a5f] hover:underline"
+                        >
+                          {client.name}
+                        </Link>
+                        {client.isShared && (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                            <Users className="w-3 h-3" />
+                            Compartido
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {client.company ?? "—"}

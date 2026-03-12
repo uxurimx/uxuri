@@ -4,6 +4,7 @@ import { projects, tasks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { canAccess } from "@/lib/access";
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
@@ -26,9 +27,11 @@ export async function GET(
   const { id } = await params;
   const [project] = await db.select().from(projects).where(eq(projects.id, id));
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (project.privacy === "private" && project.createdBy !== userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+
+  // Allow if owner, shared, or project is public
+  const hasAccess = project.privacy === "public"
+    || await canAccess(userId, "project", id, project.createdBy);
+  if (!hasAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   return NextResponse.json(project);
 }
@@ -41,18 +44,21 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const [project] = await db.select({ createdBy: projects.createdBy }).from(projects).where(eq(projects.id, id));
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!await canAccess(userId, "project", id, project.createdBy, "edit")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const parsed = updateProjectSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const [updated] = await db.update(projects)
     .set({ ...parsed.data, updatedAt: new Date() })
     .where(eq(projects.id, id))
     .returning();
 
-  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(updated);
 }
 
@@ -64,6 +70,10 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const [project] = await db.select({ createdBy: projects.createdBy }).from(projects).where(eq(projects.id, id));
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (project.createdBy !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   await db.update(tasks).set({ projectId: null }).where(eq(tasks.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
   return NextResponse.json({ success: true });

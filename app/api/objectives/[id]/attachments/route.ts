@@ -4,6 +4,7 @@ import { objectiveAttachments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertObjectiveAccess } from "@/lib/objective-access";
 
 const createSchema = z.object({
   url: z.string().url(),
@@ -20,6 +21,9 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: objectiveId } = await params;
+  const access = await assertObjectiveAccess(userId, objectiveId, "view");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const rows = await db
     .select()
     .from(objectiveAttachments)
@@ -37,6 +41,9 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: objectiveId } = await params;
+  const access = await assertObjectiveAccess(userId, objectiveId, "edit");
+  if (!access.ok) return NextResponse.json({ error: "Forbidden" }, { status: access.status });
+
   const body = await req.json();
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {

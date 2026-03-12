@@ -19,6 +19,16 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+
+  // Verify caller owns the agent (or is admin)
+  const [agent] = await db.select({ createdBy: agents.createdBy }).from(agents).where(eq(agents.id, id));
+  if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (agent.createdBy && agent.createdBy !== userId) {
+    const { getRole } = await import("@/lib/auth");
+    const role = await getRole();
+    if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const items = await db
     .select()
     .from(agentKnowledge)
