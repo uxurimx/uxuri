@@ -30,7 +30,7 @@ export function MobileNav({ permissions, currentUserId }: { permissions: string[
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 bg-[var(--skin-header-bg)] border-t border-[var(--skin-border)] z-40">
-      <div className="flex items-center justify-around py-2">
+      <div className="flex items-center py-2 overflow-x-auto scrollbar-none px-2 gap-1">
         {visibleItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           const showDot = item.href === "/chat" && hasUnread && !isActive;
@@ -39,7 +39,7 @@ export function MobileNav({ permissions, currentUserId }: { permissions: string[
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors",
+                "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors shrink-0",
                 isActive ? "text-[var(--skin-active-text)]" : "text-[var(--skin-sidebar-text)]"
               )}
             >
