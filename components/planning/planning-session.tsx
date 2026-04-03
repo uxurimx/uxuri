@@ -2,17 +2,23 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Zap, Plus, Archive, Loader2, Map } from "lucide-react";
+import {
+  Send, Zap, Archive, Loader2, Map,
+  CheckSquare, FolderOpen, Target, StickyNote,
+  CheckCircle, Bot,
+} from "lucide-react";
 import { PlanningActionsPanel } from "./planning-actions-panel";
 import { PlanningMindmap } from "./planning-mindmap";
 import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher";
+import type { PlanningMessageMetadata } from "@/db/schema/planning-messages";
 
 type Message = {
   id: string;
   sessionId: string;
   role: "user" | "assistant";
   content: string;
+  metadata: PlanningMessageMetadata | null;
   createdAt: string;
 };
 
@@ -27,22 +33,58 @@ type Session = {
   messages: Message[];
 };
 
+const SLASH_COMMANDS = [
+  { cmd: "bot",      Icon: Bot,         hint: "Consultar al asistente AI" },
+  { cmd: "tarea",    Icon: CheckSquare, hint: "Crear tarea rápida" },
+  { cmd: "proyecto", Icon: FolderOpen,  hint: "Crear proyecto nuevo" },
+  { cmd: "nota",     Icon: StickyNote,  hint: "Guardar nota" },
+  { cmd: "objetivo", Icon: Target,      hint: "Crear objetivo" },
+] as const;
+
+const COMMAND_MAP: Record<string, "task" | "project" | "objective" | "note"> = {
+  tarea: "task",
+  proyecto: "project",
+  objetivo: "objective",
+  nota: "note",
+};
+
+const COMMAND_META: Record<string, { Icon: typeof CheckSquare; label: string }> = {
+  task:      { Icon: CheckSquare, label: "Tarea" },
+  project:   { Icon: FolderOpen,  label: "Proyecto" },
+  objective: { Icon: Target,      label: "Objetivo" },
+  note:      { Icon: StickyNote,  label: "Nota" },
+};
+
 export function PlanningSession({ session: initialSession }: { session: Session }) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialSession.messages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showTyping, setShowTyping] = useState(false);
   const [showMindmap, setShowMindmap] = useState(false);
   const [title, setTitle] = useState(initialSession.title);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [selectedCmdIdx, setSelectedCmdIdx] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Slash command autocomplete state
+  const isSlashOnly = input.startsWith("/") && !input.includes(" ");
+  const slashQuery = isSlashOnly ? input.slice(1).toLowerCase() : null;
+  const slashCmds = slashQuery !== null
+    ? SLASH_COMMANDS.filter((c) => c.cmd.startsWith(slashQuery))
+    : [];
+  const showSlashMenu = slashCmds.length > 0;
+
+  useEffect(() => {
+    if (showSlashMenu) setSelectedCmdIdx(0);
+  }, [slashQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, showTyping]);
 
-  // Escuchar mensajes del agente externo (Planning Agent MCP via Pusher)
+  // Pusher: escuchar mensajes del agente externo (MCP)
   useEffect(() => {
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`planning-${initialSession.id}`);
@@ -58,26 +100,35 @@ export function PlanningSession({ session: initialSession }: { session: Session 
     };
   }, [initialSession.id]);
 
-  async function sendMessage() {
-    if (!input.trim() || loading) return;
-    const content = input.trim();
-    setInput("");
-
-    const optimistic: Message = {
+  function optimistic(content: string): Message {
+    return {
       id: `tmp-${Date.now()}`,
       sessionId: initialSession.id,
       role: "user",
       content,
+      metadata: null,
       createdAt: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, optimistic]);
-    setLoading(true);
+  }
 
+  async function saveNote(content: string) {
+    setMessages((prev) => [...prev, optimistic(content)]);
+    await fetch(`/api/planning/${initialSession.id}/note`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async function sendToAI(text: string, displayContent: string) {
+    setMessages((prev) => [...prev, optimistic(displayContent)]);
+    setLoading(true);
+    setShowTyping(true);
     try {
       const res = await fetch(`/api/planning/${initialSession.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: text }),
       });
       if (res.ok) {
         const { message } = await res.json();
@@ -85,6 +136,83 @@ export function PlanningSession({ session: initialSession }: { session: Session 
       }
     } finally {
       setLoading(false);
+      setShowTyping(false);
+    }
+  }
+
+  async function executeCommand(
+    commandType: "task" | "project" | "objective" | "note",
+    entityTitle: string,
+    rawInput: string
+  ) {
+    setMessages((prev) => [...prev, optimistic(rawInput)]);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/planning/${initialSession.id}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: commandType, title: entityTitle, rawInput }),
+      });
+      if (res.ok) {
+        const { resultMessage } = await res.json();
+        setMessages((prev) => [...prev, resultMessage]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const content = input.trim();
+    setInput("");
+
+    if (content.startsWith("/")) {
+      const spaceIdx = content.indexOf(" ");
+      const cmd = (spaceIdx === -1 ? content.slice(1) : content.slice(1, spaceIdx)).toLowerCase();
+      const rest = spaceIdx === -1 ? "" : content.slice(spaceIdx + 1).trim();
+
+      if (cmd === "bot") {
+        await sendToAI(rest || "Hola", content);
+        return;
+      }
+
+      const commandType = COMMAND_MAP[cmd];
+      if (commandType) {
+        await executeCommand(commandType, rest || "Sin título", content);
+        return;
+      }
+    }
+
+    await saveNote(content);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (showSlashMenu) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedCmdIdx((i) => Math.min(i + 1, slashCmds.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedCmdIdx((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        const selected = slashCmds[selectedCmdIdx];
+        if (selected) setInput(`/${selected.cmd} `);
+        return;
+      }
+      if (e.key === "Escape") {
+        setInput("");
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
   }
 
@@ -109,12 +237,13 @@ export function PlanningSession({ session: initialSession }: { session: Session 
     router.push("/planning");
   }
 
+  function formatTime(iso: string) {
+    return new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  }
+
   const contextLabel: Record<string, string> = {
-    blank: "Sesión libre",
-    task: "Tarea",
-    project: "Proyecto",
-    objective: "Objetivo",
-    client: "Cliente",
+    blank: "Sesión libre", task: "Tarea", project: "Proyecto",
+    objective: "Objetivo", client: "Cliente",
   };
 
   return (
@@ -128,7 +257,7 @@ export function PlanningSession({ session: initialSession }: { session: Session 
         />
       </div>
 
-      {/* CENTER: Chat */}
+      {/* CENTER: Minuta */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-4 gap-3">
@@ -183,43 +312,81 @@ export function PlanningSession({ session: initialSession }: { session: Session 
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && (
             <div className="text-center py-16 text-slate-400">
               <Zap className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">NEXUS está listo</p>
-              <p className="text-sm mt-1">Describe tu idea, problema o contexto para comenzar</p>
+              <p className="font-medium">Minuta de sesión</p>
+              <p className="text-sm mt-1">
+                Escribe tus notas. Usa{" "}
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 text-xs">/bot</code>{" "}
+                para el asistente.
+              </p>
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex gap-3",
-                msg.role === "user" ? "justify-end" : "justify-start"
-              )}
-            >
-              {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-full bg-[#1e3a5f] flex items-center justify-center flex-shrink-0 mt-0.5">
+          {messages.map((msg) => {
+            // Command result bubble
+            if (msg.metadata?.commandType) {
+              const meta = COMMAND_META[msg.metadata.commandType];
+              const Icon = meta?.Icon ?? CheckCircle;
+              return (
+                <div key={msg.id} className="flex gap-3 items-end">
+                  <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="bg-teal-50 border border-teal-200 rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm">
+                    <div className="flex items-center gap-1.5 text-teal-700 font-medium text-xs mb-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      {meta?.label ?? "Elemento"} creado
+                    </div>
+                    <div className="text-slate-800 font-medium">"{msg.metadata.entityTitle}"</div>
+                    <a
+                      href={msg.metadata.url}
+                      className="text-teal-600 text-xs mt-1 block hover:underline"
+                    >
+                      Ver {meta?.label?.toLowerCase() ?? "elemento"} →
+                    </a>
+                  </div>
+                  <span className="text-xs text-slate-400 mb-1 flex-shrink-0">
+                    {formatTime(msg.createdAt)}
+                  </span>
+                </div>
+              );
+            }
+
+            // User message
+            if (msg.role === "user") {
+              return (
+                <div key={msg.id} className="flex gap-2 justify-end items-end">
+                  <span className="text-xs text-slate-400 flex-shrink-0">
+                    {formatTime(msg.createdAt)}
+                  </span>
+                  <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed bg-[#1e3a5f] text-white">
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </div>
+              );
+            }
+
+            // Assistant message (/bot response)
+            return (
+              <div key={msg.id} className="flex gap-3 items-end">
+                <div className="w-8 h-8 rounded-full bg-[#1e3a5f] flex items-center justify-center flex-shrink-0">
                   <Zap className="w-4 h-4 text-white" />
                 </div>
-              )}
-              <div
-                className={cn(
-                  "max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                  msg.role === "user"
-                    ? "bg-[#1e3a5f] text-white rounded-tr-sm"
-                    : "bg-white border border-slate-200 text-slate-900 rounded-tl-sm shadow-sm"
-                )}
-              >
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+                <div className="max-w-[75%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed bg-white border border-slate-200 text-slate-900 shadow-sm">
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                </div>
+                <span className="text-xs text-slate-400 mb-1 flex-shrink-0">
+                  {formatTime(msg.createdAt)}
+                </span>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {loading && (
-            <div className="flex gap-3 justify-start">
+          {showTyping && (
+            <div className="flex gap-3 items-center">
               <div className="w-8 h-8 rounded-full bg-[#1e3a5f] flex items-center justify-center flex-shrink-0">
                 <Zap className="w-4 h-4 text-white" />
               </div>
@@ -240,20 +407,39 @@ export function PlanningSession({ session: initialSession }: { session: Session 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
+        {/* Input area */}
         <div className="border-t border-slate-200 bg-white p-3">
-          <div className="flex gap-2 items-end">
+          <div className="relative flex gap-2 items-end">
+            {/* Slash command popup */}
+            {showSlashMenu && (
+              <div className="absolute bottom-full left-0 mb-2 w-72 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
+                {slashCmds.map((c, i) => (
+                  <button
+                    key={c.cmd}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                      selectedCmdIdx === i ? "bg-slate-100" : "hover:bg-slate-50"
+                    )}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setInput(`/${c.cmd} `);
+                      textareaRef.current?.focus();
+                    }}
+                  >
+                    <c.Icon className="w-4 h-4 text-[#1e3a5f] flex-shrink-0" />
+                    <span className="font-mono text-sm text-[#1e3a5f] font-semibold">/{c.cmd}</span>
+                    <span className="text-xs text-slate-400">{c.hint}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              placeholder="Describe tu idea, problema o contexto... (Enter para enviar)"
+              onKeyDown={handleKeyDown}
+              placeholder="Escribe tu nota... usa /bot para el asistente"
               rows={2}
               className="flex-1 resize-none border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
             />
