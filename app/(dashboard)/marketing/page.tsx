@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { mktLeads, mktCampaigns, mktStrategies, mktInteractions } from "@/db/schema";
 import { eq, count, desc, gte, and } from "drizzle-orm";
 import { requireAccess } from "@/lib/auth";
-import { Megaphone, Users, Target, Zap, TrendingUp, ArrowRight, Key } from "lucide-react";
+import { Megaphone, Users, Target, Zap, TrendingUp, ArrowRight, Key, BarChart2 } from "lucide-react";
 import Link from "next/link";
 
 export default async function MarketingPage() {
@@ -160,12 +160,13 @@ export default async function MarketingPage() {
       {/* Módulos rápidos */}
       <div>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Módulos</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { href: "/marketing/strategies", label: "Estrategias", icon: Target, desc: "Nichos y productos", color: "text-blue-600", count: totalStrategies[0].count },
             { href: "/marketing/campaigns", label: "Campañas", icon: Zap, desc: "Ejecuciones programadas", color: "text-yellow-600", count: activeCampaigns[0].count },
             { href: "/marketing/copies", label: "Copies", icon: Megaphone, desc: "Biblioteca de mensajes", color: "text-purple-600", count: null },
             { href: "/marketing/leads", label: "Leads", icon: Users, desc: "Pipeline completo", color: "text-green-600", count: totalLeads[0].count },
+            { href: "/marketing/analytics", label: "Analytics", icon: BarChart2, desc: "Métricas y rendimiento", color: "text-indigo-600", count: null },
           ].map((m) => (
             <Link
               key={m.href}
