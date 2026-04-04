@@ -93,11 +93,12 @@ export function FileSpace({ channelId }: { channelId: string }) {
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           className="hidden"
           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) startUpload([f]);
+            const files = e.target.files;
+            if (files && files.length > 0) startUpload(Array.from(files));
             e.target.value = "";
           }}
         />

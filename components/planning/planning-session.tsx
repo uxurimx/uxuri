@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Send, Zap, Archive, Loader2, Map,
   CheckSquare, FolderOpen, Target, StickyNote,
-  CheckCircle, Bot,
+  CheckCircle, Bot, Plus, X as XIcon,
 } from "lucide-react";
 import { PlanningActionsPanel } from "./planning-actions-panel";
 import { PlanningMindmap } from "./planning-mindmap";
@@ -112,7 +112,9 @@ export function PlanningSession({ session: initialSession }: { session: Session 
   const [title, setTitle] = useState(initialSession.title);
   const [editingTitle, setEditingTitle] = useState(false);
   const [selectedCmdIdx, setSelectedCmdIdx] = useState(0);
+  const [showActionsDrawer, setShowActionsDrawer] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Slash command autocomplete state
@@ -128,7 +130,8 @@ export function PlanningSession({ session: initialSession }: { session: Session 
   }, [slashQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
   }, [messages, showTyping]);
 
   // Pusher: escuchar mensajes del agente externo (MCP)
@@ -341,8 +344,21 @@ export function PlanningSession({ session: initialSession }: { session: Session 
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden -m-6">
-      {/* LEFT: Actions Panel */}
-      <div className="w-64 flex-shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto">
+
+      {/* Mobile drawer backdrop */}
+      {showActionsDrawer && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={() => setShowActionsDrawer(false)}
+        />
+      )}
+
+      {/* LEFT: Actions Panel — desktop always visible, mobile as drawer */}
+      <div className={cn(
+        "flex-shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto transition-transform duration-200",
+        // Desktop: always visible, fixed width
+        "hidden md:block md:w-64",
+      )}>
         <PlanningActionsPanel
           sessionId={initialSession.id}
           contextType={initialSession.contextType}
@@ -350,12 +366,44 @@ export function PlanningSession({ session: initialSession }: { session: Session 
         />
       </div>
 
+      {/* Mobile drawer */}
+      <div className={cn(
+        "md:hidden fixed left-0 top-0 bottom-0 z-50 w-72 bg-slate-50 border-r border-slate-200 overflow-y-auto transition-transform duration-200 flex flex-col",
+        showActionsDrawer ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex items-center justify-between px-4 h-14 border-b border-slate-200 flex-shrink-0 bg-white">
+          <span className="text-sm font-semibold text-slate-800">Crear desde sesión</span>
+          <button
+            onClick={() => setShowActionsDrawer(false)}
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <PlanningActionsPanel
+            sessionId={initialSession.id}
+            contextType={initialSession.contextType}
+            contextSnapshot={initialSession.contextSnapshot}
+          />
+        </div>
+      </div>
+
       {/* CENTER: Minuta */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-4 gap-3">
+        <div className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-3 md:px-4 gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Zap className="w-4 h-4 text-[#1e3a5f] flex-shrink-0" />
+            {/* Mobile: drawer toggle */}
+            <button
+              onClick={() => setShowActionsDrawer(true)}
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-[#1e3a5f] hover:bg-slate-50 transition-colors flex-shrink-0"
+              title="Crear tarea / proyecto / objetivo"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+
+            <Zap className="hidden md:block w-4 h-4 text-[#1e3a5f] flex-shrink-0" />
             {editingTitle ? (
               <input
                 autoFocus
@@ -370,42 +418,42 @@ export function PlanningSession({ session: initialSession }: { session: Session 
             ) : (
               <button
                 onClick={() => setEditingTitle(true)}
-                className="text-sm font-semibold text-slate-900 hover:text-[#1e3a5f] truncate text-left"
+                className="text-sm font-semibold text-slate-900 hover:text-[#1e3a5f] truncate text-left flex-1 min-w-0"
               >
                 {title}
               </button>
             )}
             {initialSession.contextType !== "blank" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 flex-shrink-0 hidden sm:inline">
                 {contextLabel[initialSession.contextType] ?? initialSession.contextType}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setShowMindmap(!showMindmap)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors",
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors",
                 showMindmap
                   ? "bg-[#1e3a5f] text-white"
                   : "border border-slate-200 text-slate-600 hover:bg-slate-50"
               )}
             >
               <Map className="w-3.5 h-3.5" />
-              Mapa
+              <span className="hidden sm:inline">Mapa</span>
             </button>
             <button
               onClick={archive}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs hover:bg-slate-50 transition-colors"
             >
               <Archive className="w-3.5 h-3.5" />
-              Archivar
+              <span className="hidden sm:inline">Archivar</span>
             </button>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && (
             <div className="text-center py-16 text-slate-400">
               <Zap className="w-10 h-10 mx-auto mb-3 opacity-30" />

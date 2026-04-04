@@ -122,11 +122,12 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             className="hidden"
             accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) startUpload([file]);
+              const files = e.target.files;
+              if (files && files.length > 0) startUpload(Array.from(files));
               e.target.value = "";
             }}
           />

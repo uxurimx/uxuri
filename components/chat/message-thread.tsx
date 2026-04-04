@@ -132,13 +132,13 @@ export function MessageThread({
     }
   }, [loading]);
 
-  // Auto-scroll on new message (only if near bottom)
+  // Auto-scroll on new message (only if near bottom) — scroll only the container, not the page
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
     if (isNearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      container.scrollTop = container.scrollHeight;
     }
   }, [messages.length]);
 
