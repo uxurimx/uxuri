@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   const { leads, scrapedBy } = parsed.data;
 
   let inserted = 0;
-  let updated = 0;
+  const mappings: { sourceId: string; id: string }[] = [];
 
   // Batch en grupos de 50 para no saturar la conexión
   const BATCH = 50;
@@ -124,11 +124,12 @@ export async function POST(req: Request) {
         })
         .returning({ id: mktLeads.id, sourceId: mktLeads.sourceId });
 
-      // Drizzle onConflictDoUpdate siempre retorna 1 fila
-      // Diferenciamos insert vs update por si el id era nuevo
-      if (result.length > 0) inserted++;
+      if (result.length > 0) {
+        inserted++;
+        mappings.push({ sourceId: result[0].sourceId!, id: result[0].id });
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, total: leads.length, processed: inserted });
+  return NextResponse.json({ ok: true, total: leads.length, processed: inserted, mappings });
 }

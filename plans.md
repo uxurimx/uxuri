@@ -234,4 +234,8 @@
   Próximo paso inmediato                                                                                                                   
                                                                                                                                            
   Agrega en .env.local:                                                                                                                    
-  MKT_API_KEY=$(openssl rand -hex 32)  
+  MKT_API_KEY=$(openssl rand -hex 32)
+
+  fase 2 -----
+  
+    

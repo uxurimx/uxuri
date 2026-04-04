@@ -8,7 +8,8 @@ import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
 
 const createSchema = z.object({
-  leadId: z.string().uuid(),
+  leadId: z.string().uuid().nullish(),
+  sourceLeadId: z.string().nullish(),  // SQLite ID — alternative to leadId
   type: z.enum([
     "scraped", "sent", "replied", "followup_sent", "followup_replied",
     "interested", "not_interested", "call", "meeting", "converted", "lost", "note",
@@ -36,7 +37,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { leadId, type, message, copyId, campaignId, workerId, updateLeadStatus } = parsed.data;
+  let { leadId, sourceLeadId, type, message, copyId, campaignId, workerId, updateLeadStatus } = parsed.data;
+
+  // Resolve sourceLeadId → leadId if needed
+  if (!leadId && sourceLeadId) {
+    const [found] = await db
+      .select({ id: mktLeads.id })
+      .from(mktLeads)
+      .where(eq(mktLeads.sourceId, sourceLeadId));
+    if (!found) return NextResponse.json({ error: "Lead no encontrado por sourceLeadId" }, { status: 404 });
+    leadId = found.id;
+  }
+  if (!leadId) return NextResponse.json({ error: "leadId o sourceLeadId requerido" }, { status: 400 });
 
   const [interaction] = await db.insert(mktInteractions).values({
     leadId,
