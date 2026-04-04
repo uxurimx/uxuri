@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap, Users } from "lucide-react";
+import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap, Users, Clock, Tag } from "lucide-react";
 import { ShareModal } from "@/components/sharing/share-modal";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -18,6 +18,8 @@ const schema = z.object({
   status: z.enum(["planning", "active", "paused", "completed", "cancelled"]),
   priority: z.enum(["low", "medium", "high"]),
   privacy: z.enum(["public", "private"]),
+  range: z.enum(["short", "long"]).optional(),
+  category: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -33,6 +35,8 @@ export type ProjectForModal = {
   status: "planning" | "active" | "paused" | "completed" | "cancelled";
   priority: "low" | "medium" | "high";
   privacy: string;
+  range?: string | null;
+  category?: string | null;
   startDate: string | null;
   endDate: string | null;
   createdBy?: string | null;
@@ -103,6 +107,8 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
       status: project.status,
       priority: project.priority,
       privacy: (project.privacy as "public" | "private") ?? "public",
+      range: (project.range as "short" | "long" | undefined) ?? undefined,
+      category: project.category ?? "",
       startDate: project.startDate ?? new Date().toISOString().split("T")[0],
       endDate: project.endDate ?? "",
     });
@@ -117,6 +123,8 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
         body: JSON.stringify({
           ...data,
           clientId: data.clientId || null,
+          range: data.range || null,
+          category: data.category || null,
           startDate: data.startDate || null,
           endDate: data.endDate || null,
         }),
@@ -247,6 +255,18 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
                     {" → "}
                     {project.endDate ? formatDate(project.endDate) : "Sin fecha fin"}
                   </span>
+                </div>
+              )}
+              {project.range && (
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <span>{project.range === "short" ? "Corto plazo" : "Largo plazo"}</span>
+                </div>
+              )}
+              {project.category && (
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <span>{project.category}</span>
                 </div>
               )}
             </div>
@@ -413,6 +433,18 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Fecha fin</label>
                 <input {...register("endDate")} type="date" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Rango</label>
+                <select {...register("range")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                  <option value="">Sin definir</option>
+                  <option value="short">Corto plazo</option>
+                  <option value="long">Largo plazo</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
+                <input {...register("category")} placeholder="Ej: Marketing, Desarrollo..." className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
               </div>
             </div>
 

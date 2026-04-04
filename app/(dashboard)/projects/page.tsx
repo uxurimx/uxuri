@@ -28,6 +28,8 @@ export default async function ProjectsPage() {
     status: projects.status,
     priority: projects.priority,
     privacy: projects.privacy,
+    range: projects.range,
+    category: projects.category,
     startDate: projects.startDate,
     endDate: projects.endDate,
     createdAt: projects.createdAt,

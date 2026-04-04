@@ -13,6 +13,8 @@ const updateProjectSchema = z.object({
   status: z.enum(["planning", "active", "paused", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
   privacy: z.enum(["public", "private"]).optional(),
+  range: z.enum(["short", "long"]).optional().nullable(),
+  category: z.string().max(100).optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
 });

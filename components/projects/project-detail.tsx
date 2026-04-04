@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
-import { ArrowLeft, Calendar, User, Flag } from "lucide-react";
+import { ArrowLeft, Calendar, User, Flag, Pencil, Clock, Tag } from "lucide-react";
 import { KanbanBoard, type TaskWithProject, type CustomColumn } from "@/components/tasks/kanban-board";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ContextFeed } from "@/components/context/context-feed";
+import { ProjectModal, type ProjectForModal } from "./project-modal";
 
 type ProjectWithClient = {
   id: string;
@@ -15,6 +17,8 @@ type ProjectWithClient = {
   status: "planning" | "active" | "paused" | "completed" | "cancelled";
   priority: "low" | "medium" | "high";
   privacy: string;
+  range: string | null;
+  category: string | null;
   startDate: string | null;
   endDate: string | null;
   createdAt: Date;
@@ -55,21 +59,52 @@ export function ProjectDetail({
   customColumns?: CustomColumn[];
   currentUserId?: string;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const status = statusConfig[project.status];
+
+  // Scroll to top when navigating to this page
+  useEffect(() => {
+    document.querySelector("main")?.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
+
+  const projectForModal: ProjectForModal = {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    clientId: project.clientId,
+    clientName: project.clientName,
+    status: project.status,
+    priority: project.priority,
+    privacy: project.privacy,
+    range: project.range,
+    category: project.category,
+    startDate: project.startDate,
+    endDate: project.endDate,
+    createdBy: project.createdBy,
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/projects" className="text-slate-400 hover:text-slate-600 transition-colors">
+      <div className="flex items-start gap-4">
+        <Link href="/projects" className="text-slate-400 hover:text-slate-600 transition-colors mt-1">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>
-            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", status.className)}>
-              {status.label}
-            </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-slate-900 flex-1">{project.name}</h1>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", status.className)}>
+                {status.label}
+              </span>
+              <button
+                onClick={() => setEditOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 hover:border-slate-300 transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Editar
+              </button>
+            </div>
           </div>
           {project.description && (
             <p className="text-slate-500 text-sm mt-1">{project.description}</p>
@@ -79,7 +114,7 @@ export function ProjectDetail({
 
       {/* Project meta */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <div className="flex flex-wrap gap-6">
+        <div className="flex flex-wrap gap-4">
           {project.clientName && (
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <User className="w-4 h-4 text-slate-400" />
@@ -96,6 +131,18 @@ export function ProjectDetail({
               <span>
                 {formatDate(project.startDate)} → {project.endDate ? formatDate(project.endDate) : "Sin fecha"}
               </span>
+            </div>
+          )}
+          {project.range && (
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Clock className="w-4 h-4 text-slate-400" />
+              <span>{project.range === "short" ? "Corto plazo" : "Largo plazo"}</span>
+            </div>
+          )}
+          {project.category && (
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Tag className="w-4 h-4 text-slate-400" />
+              <span>{project.category}</span>
             </div>
           )}
         </div>
@@ -133,6 +180,16 @@ export function ProjectDetail({
           <EntityChatFiles entityId={project.id} entityType="project" entityName={project.name} currentUserId={currentUserId} />
         </div>
       )}
+
+      {/* Edit modal */}
+      <ProjectModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        project={projectForModal}
+        clients={clients ?? []}
+        objectives={objectives}
+        initialMode="edit"
+      />
     </div>
   );
 }

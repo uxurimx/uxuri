@@ -14,6 +14,8 @@ const createProjectSchema = z.object({
   status: z.enum(["planning", "active", "paused", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
   privacy: z.enum(["public", "private"]).optional(),
+  range: z.enum(["short", "long"]).optional(),
+  category: z.string().max(100).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });

@@ -28,6 +28,8 @@ export const projects = pgTable("projects", {
   status: projectStatusEnum("status").default("planning").notNull(),
   priority: priorityEnum("priority").default("medium").notNull(),
   privacy: varchar("privacy", { length: 10 }).default("public").notNull(),
+  range: varchar("range", { length: 10 }),    // "short" | "long"
+  category: varchar("category", { length: 100 }),
   startDate: date("start_date"),
   endDate: date("end_date"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
