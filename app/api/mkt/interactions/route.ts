@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { validateMktApiKey, unauthorizedResponse } from "@/lib/mkt-auth";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
+import { pusherServer } from "@/lib/pusher";
 
 const createSchema = z.object({
   leadId: z.string().uuid(),
@@ -61,6 +62,14 @@ export async function POST(req: Request) {
   }
 
   await db.update(mktLeads).set(leadUpdate as never).where(eq(mktLeads.id, leadId));
+
+  // Notificar en tiempo real al dashboard de marketing
+  pusherServer.trigger("marketing-activity", "lead:activity", {
+    leadId,
+    type,
+    campaignId: campaignId ?? null,
+    timestamp: interaction.createdAt,
+  }).catch(() => {});
 
   return NextResponse.json(interaction, { status: 201 });
 }
