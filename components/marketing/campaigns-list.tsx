@@ -82,7 +82,10 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
           strategyId: strategyId || null,
           copyId: copyId || null,
           assignedTo: assignedTo || null,
-          scheduledAt: scheduledAt || null,
+          // Convertir a ISO UTC en el browser (que conoce el timezone local)
+          // Sin esto, Vercel (UTC) parsea "2024-04-04T12:00" como UTC noon,
+          // y al mostrar en Mexico (UTC-6) aparece 6:00 en lugar de 12:00.
+          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
           status,
           notes: notes.trim() || null,
         }),
