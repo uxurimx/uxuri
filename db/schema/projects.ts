@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   date,
+  integer,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
@@ -35,6 +36,11 @@ export const projects = pgTable("projects", {
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Ciclos
+  cycleHours:  integer("cycle_hours"),
+  lastCycleAt: timestamp("last_cycle_at"),
+  nextCycleAt: timestamp("next_cycle_at"),
+  momentum:    integer("momentum").default(100).notNull(),
 });
 
 export type Project = typeof projects.$inferSelect;

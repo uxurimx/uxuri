@@ -37,3 +37,4 @@ export * from "./mkt-copies";
 export * from "./mkt-campaigns";
 export * from "./mkt-leads";
 export * from "./mkt-interactions";
+export * from "./mkt-workers";

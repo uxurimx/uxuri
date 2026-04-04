@@ -1,8 +1,8 @@
 import { db } from "@/db";
-import { mktLeads, mktCampaigns, mktStrategies, mktInteractions } from "@/db/schema";
-import { eq, count, desc, gte, and } from "drizzle-orm";
+import { mktLeads, mktCampaigns, mktStrategies, mktInteractions, mktWorkers } from "@/db/schema";
+import { eq, count, desc, gte, and, sql } from "drizzle-orm";
 import { requireAccess } from "@/lib/auth";
-import { Megaphone, Users, Target, Zap, TrendingUp, ArrowRight, Key, BarChart2 } from "lucide-react";
+import { Megaphone, Users, Target, Zap, TrendingUp, ArrowRight, Key, BarChart2, Server } from "lucide-react";
 import Link from "next/link";
 
 export default async function MarketingPage() {
@@ -10,6 +10,12 @@ export default async function MarketingPage() {
 
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  // Marcar offline workers sin heartbeat reciente
+  await db.execute(
+    sql`UPDATE mkt_workers SET status = 'offline'
+        WHERE last_heartbeat < NOW() - INTERVAL '90 seconds' AND status != 'offline'`
+  );
 
   const [
     totalLeads,
@@ -19,6 +25,7 @@ export default async function MarketingPage() {
     totalStrategies,
     activeCampaigns,
     recentInteractions,
+    onlineWorkers,
   ] = await Promise.all([
     db.select({ count: count() }).from(mktLeads),
     db.select({ count: count() }).from(mktLeads).where(eq(mktLeads.status, "contactado")),
@@ -30,6 +37,10 @@ export default async function MarketingPage() {
     db.select().from(mktInteractions)
       .orderBy(desc(mktInteractions.createdAt))
       .limit(8),
+    db.select().from(mktWorkers)
+      .where(eq(mktWorkers.status, "online"))
+      .orderBy(desc(mktWorkers.lastHeartbeat))
+      .limit(5),
   ]);
 
   const stats = [
@@ -95,6 +106,31 @@ export default async function MarketingPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+
+      {/* Worker Fleet Status Bar */}
+      <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-sm
+        ${onlineWorkers.length > 0
+          ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+          : "bg-slate-50 border-slate-200 text-slate-500"
+        }`}>
+        <Server className="w-4 h-4 shrink-0" />
+        {onlineWorkers.length > 0 ? (
+          <>
+            <span className="font-medium">{onlineWorkers.length} worker{onlineWorkers.length > 1 ? "s" : ""} online</span>
+            <span className="text-emerald-600">—</span>
+            {onlineWorkers.map((w) => (
+              <span key={w.id} className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-xs">{w.hostname ?? w.workerId}</span>
+                {w.currentCampaignId && <span className="text-xs text-emerald-600 font-medium">(ejecutando)</span>}
+              </span>
+            ))}
+          </>
+        ) : (
+          <span>Sin workers conectados — inicia <code className="bg-slate-100 px-1 rounded text-xs">python3 worker.py</code> en tu laptop</span>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

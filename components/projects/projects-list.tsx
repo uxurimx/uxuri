@@ -5,6 +5,7 @@ import { formatDate, cn } from "@/lib/utils";
 import { Trash2, Lock, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ProjectForModal } from "./project-modal";
+import { getCycleInfo } from "@/lib/cycles";
 
 type Client = { id: string; name: string };
 type ObjectiveOption = { id: string; title: string };
@@ -89,66 +90,85 @@ export function ProjectsList({
           {filtered.map((project) => {
             const status = statusConfig[project.status];
             const priority = priorityConfig[project.priority];
+            const cycle = getCycleInfo(project.cycleHours, project.lastCycleAt, project.nextCycleAt);
             return (
               <div
                 key={project.id}
                 onClick={() => router.push(`/projects/${project.id}`)}
-                className="group relative bg-white rounded-xl border border-slate-200 p-5 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
+                className="group relative bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
               >
-                {/* Delete hover action (only for owner) */}
-                {!project.isShared && (
-                  <div className="absolute top-3 right-3 hidden group-hover:flex items-center gap-1">
-                    <button
-                      onClick={(e) => handleDelete(e, project)}
-                      disabled={deletingId === project.id}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                {/* Contenido con padding */}
+                <div className="p-5">
+                  {/* Delete hover action */}
+                  {!project.isShared && (
+                    <div className="absolute top-3 right-3 hidden group-hover:flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleDelete(e, project)}
+                        disabled={deletingId === project.id}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
 
-                <div className="flex items-start justify-between mb-3 pr-10">
-                  <h3 className="font-semibold text-slate-900 line-clamp-1 flex items-center gap-1.5">
-                    {project.privacy === "private" && <Lock className="w-3 h-3 text-slate-400 flex-shrink-0" />}
-                    {project.name}
-                  </h3>
-                  <span className={cn("ml-2 text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap flex-shrink-0", status.className)}>
-                    {status.label}
-                  </span>
-                </div>
-
-                {project.isShared && (
-                  <div className="mb-2">
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                      <Users className="w-3 h-3" />
-                      Compartido · {project.sharedPermission === "edit" ? "Editar" : "Ver"}
+                  <div className="flex items-start justify-between mb-3 pr-10">
+                    <h3 className="font-semibold text-slate-900 line-clamp-1 flex items-center gap-1.5">
+                      {project.privacy === "private" && <Lock className="w-3 h-3 text-slate-400 flex-shrink-0" />}
+                      {project.name}
+                    </h3>
+                    <span className={cn("ml-2 text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap flex-shrink-0", status.className)}>
+                      {status.label}
                     </span>
                   </div>
-                )}
 
-                {project.description && (
-                  <p className="text-sm text-slate-500 line-clamp-2 mb-3">{project.description}</p>
-                )}
+                  {project.isShared && (
+                    <div className="mb-2">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        <Users className="w-3 h-3" />
+                        Compartido · {project.sharedPermission === "edit" ? "Editar" : "Ver"}
+                      </span>
+                    </div>
+                  )}
 
-                <div className="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("font-medium", priority.className)}>{priority.label}</span>
-                    {project.range && (
-                      <span className="text-slate-400">{rangeConfig[project.range]}</span>
-                    )}
-                    {project.category && (
-                      <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{project.category}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {project.clientName && (
-                      <span className="truncate max-w-[100px]">{project.clientName}</span>
-                    )}
-                    {project.endDate && <span>{formatDate(project.endDate)}</span>}
+                  {project.description && (
+                    <p className="text-sm text-slate-500 line-clamp-2 mb-3">{project.description}</p>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("font-medium", priority.className)}>{priority.label}</span>
+                      {project.range && (
+                        <span className="text-slate-400">{rangeConfig[project.range]}</span>
+                      )}
+                      {project.category && (
+                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{project.category}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {cycle.phase !== "none" && (
+                        <span className={cn("px-1.5 py-0.5 rounded font-medium", cycle.badgeClass)}>
+                          {cycle.label}
+                        </span>
+                      )}
+                      {project.clientName && (
+                        <span className="truncate max-w-[100px]">{project.clientName}</span>
+                      )}
+                      {project.endDate && <span>{formatDate(project.endDate)}</span>}
+                    </div>
                   </div>
                 </div>
+
+                {/* Barra de fase del ciclo — fuera del padding, toca los bordes */}
+                {cycle.phase !== "none" && (
+                  <div className="h-1 bg-slate-100">
+                    <div
+                      className={cn("h-full transition-all duration-700", cycle.barColor)}
+                      style={{ width: `${Math.min(cycle.pct, 100)}%` }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}

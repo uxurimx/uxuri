@@ -6,6 +6,12 @@ import { validateMktApiKey, unauthorizedResponse } from "@/lib/mkt-auth";
 import { z } from "zod";
 
 const patchSchema = z.object({
+  // Campos de perfil — actualizables desde el EditDialog de mkt
+  name: z.string().nullish(),
+  phone: z.string().nullish(),
+  email: z.string().nullish(),
+  website: z.string().nullish(),
+  // Campos operacionales
   status: z.string().nullish(),
   hasWhatsapp: z.number().int().nullish(),
   templateUsed: z.string().nullish(),
@@ -40,6 +46,10 @@ export async function PATCH(
   const data = parsed.data;
   const update: Record<string, unknown> = { updatedAt: new Date() };
 
+  if (data.name !== undefined)         update.name = data.name;
+  if (data.phone !== undefined)        update.phone = data.phone;
+  if (data.email !== undefined)        update.email = data.email;
+  if (data.website !== undefined)      update.website = data.website;
   if (data.status !== undefined)       update.status = data.status;
   if (data.hasWhatsapp !== undefined)  update.hasWhatsapp = data.hasWhatsapp;
   if (data.templateUsed !== undefined) update.templateUsed = data.templateUsed;

@@ -35,6 +35,10 @@ export default async function ProjectsPage() {
     createdAt: projects.createdAt,
     createdBy: projects.createdBy,
     clientName: clients.name,
+    cycleHours:  projects.cycleHours,
+    lastCycleAt: projects.lastCycleAt,
+    nextCycleAt: projects.nextCycleAt,
+    momentum:    projects.momentum,
   } as const;
 
   const [ownedProjects, sharedProjects, allClients, allObjectives] = await Promise.all([

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
 import { ArrowLeft, Calendar, User, Flag, Pencil, Clock, Tag } from "lucide-react";
+import { CyclePanel } from "./cycle-panel";
 import { KanbanBoard, type TaskWithProject, type CustomColumn } from "@/components/tasks/kanban-board";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ContextFeed } from "@/components/context/context-feed";
@@ -24,6 +25,10 @@ type ProjectWithClient = {
   createdAt: Date;
   createdBy: string | null;
   clientName: string | null;
+  cycleHours:  number | null;
+  lastCycleAt: Date | null;
+  nextCycleAt: Date | null;
+  momentum:    number;
 };
 
 const statusConfig = {
@@ -142,6 +147,15 @@ export function ProjectDetail({
           )}
         </div>
       </div>
+
+      {/* Ciclo de revisión */}
+      <CyclePanel
+        projectId={project.id}
+        cycleHours={project.cycleHours}
+        lastCycleAt={project.lastCycleAt}
+        nextCycleAt={project.nextCycleAt}
+        momentum={project.momentum}
+      />
 
       {/* Kanban de tareas del proyecto */}
       <div>

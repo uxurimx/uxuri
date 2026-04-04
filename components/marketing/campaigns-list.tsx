@@ -3,16 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, X, Zap, ArrowRight, Play, Pause, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Plus, X, Zap, ArrowRight, Play, Pause, CheckCircle2, Clock, AlertCircle, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CampaignProgress } from "./campaign-progress";
 
 const STATUS_CONFIG = {
-  draft:     { label: "Borrador",  icon: Clock,        color: "bg-slate-100 text-slate-600" },
-  queued:    { label: "En cola",   icon: Clock,        color: "bg-amber-50 text-amber-700" },
-  running:   { label: "Activa",    icon: Play,         color: "bg-emerald-50 text-emerald-700" },
-  completed: { label: "Completada",icon: CheckCircle2, color: "bg-blue-50 text-blue-700" },
-  paused:    { label: "Pausada",   icon: Pause,        color: "bg-slate-100 text-slate-600" },
-  failed:    { label: "Fallida",   icon: AlertCircle,  color: "bg-red-50 text-red-700" },
+  draft:     { label: "Borrador",    icon: Clock,        color: "bg-slate-100 text-slate-600" },
+  queued:    { label: "En cola",     icon: Clock,        color: "bg-amber-50 text-amber-700" },
+  claimed:   { label: "Tomada",      icon: Loader2,      color: "bg-orange-50 text-orange-700" },
+  scraping:  { label: "Scrapeando",  icon: Search,       color: "bg-cyan-50 text-cyan-700" },
+  running:   { label: "Enviando",    icon: Play,         color: "bg-emerald-50 text-emerald-700" },
+  completed: { label: "Completada",  icon: CheckCircle2, color: "bg-blue-50 text-blue-700" },
+  paused:    { label: "Pausada",     icon: Pause,        color: "bg-slate-100 text-slate-600" },
+  failed:    { label: "Fallida",     icon: AlertCircle,  color: "bg-red-50 text-red-700" },
 } as const;
 
 type CampaignStatus = keyof typeof STATUS_CONFIG;
@@ -110,6 +113,13 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
     });
     if (res.ok) {
       setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: newStatus } : c));
+    }
+  }
+
+  async function handleLaunch(id: string) {
+    const res = await fetch(`/api/mkt/campaigns/${id}/launch`, { method: "POST" });
+    if (res.ok) {
+      setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: "queued" } : c));
     }
   }
 
@@ -218,11 +228,15 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
 
                   {/* Acciones rápidas */}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    {c.status === "draft" || c.status === "paused" ? (
-                      <button onClick={() => handleStatusChange(c.id, "running")} title="Iniciar" className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
+                    {(c.status === "draft" || c.status === "paused" || c.status === "failed") ? (
+                      <button
+                        onClick={() => handleLaunch(c.id)}
+                        title="Lanzar al worker"
+                        className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
+                      >
                         <Play className="w-4 h-4" />
                       </button>
-                    ) : c.status === "running" ? (
+                    ) : (c.status === "running" || c.status === "scraping") ? (
                       <button onClick={() => handleStatusChange(c.id, "paused")} title="Pausar" className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors">
                         <Pause className="w-4 h-4" />
                       </button>
@@ -232,6 +246,21 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
                     </Link>
                   </div>
                 </div>
+                {/* Progress en tiempo real — fuera del flex, ocupa todo el ancho */}
+                {(c.status === "scraping" || c.status === "running" ||
+                  c.status === "claimed" || c.status === "queued") && (
+                  <CampaignProgress
+                    campaignId={c.id}
+                    initialStatus={c.status}
+                    initialContacted={c.contacted}
+                    initialTotal={c.totalLeads}
+                    onStatusChange={(s) =>
+                      setCampaigns((prev) =>
+                        prev.map((x) => x.id === c.id ? { ...x, status: s as CampaignStatus } : x)
+                      )
+                    }
+                  />
+                )}
               </div>
             );
           })}

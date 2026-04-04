@@ -42,6 +42,10 @@ export type ProjectForModal = {
   createdBy?: string | null;
   isShared?: boolean;
   sharedPermission?: "view" | "edit";
+  cycleHours?:  number | null;
+  lastCycleAt?: Date | null;
+  nextCycleAt?: Date | null;
+  momentum?:    number;
 };
 
 type Client = { id: string; name: string };

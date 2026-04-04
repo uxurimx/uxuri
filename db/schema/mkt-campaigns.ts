@@ -3,7 +3,8 @@ import { users } from "./users";
 import { mktStrategies } from "./mkt-strategies";
 
 export const mktCampaignStatusEnum = pgEnum("mkt_campaign_status", [
-  "draft", "queued", "running", "completed", "paused", "failed",
+  "draft", "queued", "claimed", "scraping", "running",
+  "paused", "completed", "failed",
 ]);
 
 export const mktCampaigns = pgTable("mkt_campaigns", {
@@ -22,8 +23,14 @@ export const mktCampaigns = pgTable("mkt_campaigns", {
   responded: integer("responded").default(0).notNull(),
   interested: integer("interested").default(0).notNull(),
   converted: integer("converted").default(0).notNull(),
-  notes: text("notes"),
-  assignedTo: varchar("assigned_to", { length: 255 }).references(() => users.id),
+  // Worker que ejecuta esta campaña
+  workerId:     varchar("worker_id", { length: 128 }),
+  claimedAt:    timestamp("claimed_at"),
+  failedCount:  integer("failed_count").default(0).notNull(),
+  scrapedCount: integer("scraped_count").default(0).notNull(),
+  errorMessage: text("error_message"),
+  notes:        text("notes"),
+  assignedTo:   varchar("assigned_to", { length: 255 }).references(() => users.id),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
