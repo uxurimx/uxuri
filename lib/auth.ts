@@ -23,7 +23,26 @@ export async function getRole(): Promise<string | null> {
   return user?.role ?? null;
 }
 
-/** Devuelve nombre del rol + permisos del usuario actual. */
+/**
+ * Aplica la misma lógica de auto-augmentación de layout.tsx.
+ * Centralizado aquí para que tanto layout como requireAccess usen el mismo resultado.
+ */
+export function augmentPermissions(raw: string[]): string[] {
+  let p = [...raw];
+  if (p.includes("/tasks") && !p.includes("/agents"))    p = [...p, "/agents"];
+  if (p.includes("/projects") && !p.includes("/objectives")) p = [...p, "/objectives"];
+  if (p.includes("/objectives") && !p.includes("/planning")) p = [...p, "/planning"];
+  if (p.includes("/tasks") && !p.includes("/today"))     p = [...p, "/today"];
+  if (p.includes("/tasks") && !p.includes("/habits"))    p = [...p, "/habits"];
+  if (p.includes("/tasks") && !p.includes("/journal"))   p = [...p, "/journal"];
+  if (p.includes("/tasks") && !p.includes("/notes"))     p = [...p, "/notes"];
+  if (p.includes("/tasks") && !p.includes("/schedule"))  p = [...p, "/schedule"];
+  if (p.includes("/tasks") && !p.includes("/review"))    p = [...p, "/review"];
+  if (p.includes("/clients") && !p.includes("/marketing")) p = [...p, "/marketing"];
+  return p;
+}
+
+/** Devuelve nombre del rol + permisos del usuario actual (ya augmentados). */
 export async function getUserRoleData(): Promise<{ roleName: string; permissions: string[] } | null> {
   const roleName = await getRole();
   if (!roleName) return null;
@@ -34,8 +53,8 @@ export async function getUserRoleData(): Promise<{ roleName: string; permissions
     .where(eq(roles.name, roleName));
 
   // Fallback: si el rol no está en la tabla, /dashboard siempre visible
-  const permissions = roleRecord?.permissions ?? ["/dashboard"];
-  return { roleName, permissions };
+  const raw = roleRecord?.permissions ?? ["/dashboard"];
+  return { roleName, permissions: augmentPermissions(raw) };
 }
 
 /** Redirige a /dashboard si el usuario no tiene acceso al path dado. */

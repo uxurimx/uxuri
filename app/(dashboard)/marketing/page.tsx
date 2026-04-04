@@ -108,7 +108,7 @@ export default async function MarketingPage() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/marketing/strategies/new"
+            href="/marketing/strategies"
             className="px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#16305a] transition-colors"
           >
             + Estrategia

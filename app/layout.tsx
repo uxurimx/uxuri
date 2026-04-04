@@ -1,15 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
 import { SkinProvider } from "@/components/providers/skin-provider";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  themeColor: "#1e3a5f",
+};
 
 export const metadata: Metadata = {
   title: "Uxuri — Administración Personal y Empresarial",
   description:
     "Sistema completo de gestión de clientes, proyectos y tareas para profesionales y empresas.",
   manifest: "/manifest.json",
-  themeColor: "#1e3a5f",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

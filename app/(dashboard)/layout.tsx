@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { MobileTopActions } from "@/components/dashboard/mobile-top-actions";
-import { getUserRoleData } from "@/lib/auth";
+import { getUserRoleData, augmentPermissions } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/toast";
 import { NotificationListener } from "@/components/notifications/notification-listener";
 import { PwaRegister } from "@/components/pwa-register";
@@ -17,46 +17,8 @@ export default async function DashboardLayout({
 }) {
   const { userId } = await auth();
   const roleData = await getUserRoleData();
-  const rawPermissions = roleData?.permissions ?? [];
-  // Compatibilidad con roles existentes: /agents se agrega automáticamente
-  // a cualquier rol que ya tenga /tasks (admin y manager)
-  let permissions =
-    rawPermissions.includes("/tasks") && !rawPermissions.includes("/agents")
-      ? [...rawPermissions, "/agents"]
-      : rawPermissions;
-  // /objectives se agrega automáticamente a cualquier rol que ya tenga /projects
-  if (permissions.includes("/projects") && !permissions.includes("/objectives")) {
-    permissions = [...permissions, "/objectives"];
-  }
-  // /planning se agrega automáticamente a cualquier rol que ya tenga /objectives
-  if (permissions.includes("/objectives") && !permissions.includes("/planning")) {
-    permissions = [...permissions, "/planning"];
-  }
-  // /today se agrega automáticamente a cualquier rol que ya tenga /tasks
-  if (permissions.includes("/tasks") && !permissions.includes("/today")) {
-    permissions = [...permissions, "/today"];
-  }
-  // /habits se agrega automáticamente a cualquier rol que ya tenga /tasks
-  if (permissions.includes("/tasks") && !permissions.includes("/habits")) {
-    permissions = [...permissions, "/habits"];
-  }
-  // /journal + /notes se agregan automáticamente a cualquier rol que ya tenga /tasks
-  if (permissions.includes("/tasks") && !permissions.includes("/journal")) {
-    permissions = [...permissions, "/journal"];
-  }
-  if (permissions.includes("/tasks") && !permissions.includes("/notes")) {
-    permissions = [...permissions, "/notes"];
-  }
-  if (permissions.includes("/tasks") && !permissions.includes("/schedule")) {
-    permissions = [...permissions, "/schedule"];
-  }
-  if (permissions.includes("/tasks") && !permissions.includes("/review")) {
-    permissions = [...permissions, "/review"];
-  }
-  // /marketing se agrega automáticamente a cualquier rol que ya tenga /clients
-  if (permissions.includes("/clients") && !permissions.includes("/marketing")) {
-    permissions = [...permissions, "/marketing"];
-  }
+  // augmentPermissions ya fue aplicado dentro de getUserRoleData
+  const permissions = roleData?.permissions ?? [];
 
   return (
     <ToastProvider>
