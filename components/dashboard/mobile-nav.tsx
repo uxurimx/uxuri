@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Bot, Target, Sun, Repeat2, BookOpen, StickyNote, CalendarDays, RefreshCw, Zap, Megaphone } from "lucide-react";
 import { useChatUnread } from "@/hooks/use-chat-unread";
+import { applyNavLayout, type NavLayoutItem } from "@/lib/nav-layout";
 
 const navItems = [
   { href: "/dashboard",  label: "Home",      icon: LayoutDashboard },
@@ -25,10 +26,15 @@ const navItems = [
   { href: "/users",      label: "Usuarios",  icon: UserCog },
 ];
 
-export function MobileNav({ permissions, currentUserId }: { permissions: string[]; currentUserId: string }) {
+export function MobileNav({ permissions, currentUserId, navLayout }: {
+  permissions: string[];
+  currentUserId: string;
+  navLayout?: NavLayoutItem[] | null;
+}) {
   const pathname = usePathname();
   const hasUnread = useChatUnread(currentUserId);
-  const visibleItems = navItems.filter((item) => permissions.includes(item.href));
+  const permitted = navItems.filter((item) => permissions.includes(item.href));
+  const visibleItems = applyNavLayout(permitted, navLayout);
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 bg-[var(--skin-header-bg)] border-t border-[var(--skin-border)] z-40">

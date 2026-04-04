@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { RotateCcw, Zap } from "lucide-react";
 import { getCycleInfo } from "@/lib/cycles";
@@ -45,6 +45,10 @@ export function CyclePanel({
   const [localNext, setLocalNext] = useState(nextCycleAt);
   const [localLast, setLocalLast] = useState(lastCycleAt);
   const [reviewed, setReviewed] = useState(false);
+  const [customInput, setCustomInput] = useState("");
+  const customRef = useRef<HTMLInputElement>(null);
+
+  const isCustom = localCycle !== null && !CYCLE_PRESETS.some(p => p.value === localCycle);
 
   const info = getCycleInfo(localCycle, localLast, localNext);
   const phase = PHASE_CONFIG[info.phase];
@@ -104,7 +108,44 @@ export function CyclePanel({
               {p.label}
             </button>
           ))}
+
+          {/* Input libre */}
+          <div className={cn(
+            "flex items-center gap-1 rounded-lg border text-xs font-medium transition-all overflow-hidden",
+            isCustom ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-slate-200 bg-white"
+          )}>
+            <input
+              ref={customRef}
+              type="number"
+              min="1"
+              max="8760"
+              placeholder="…h"
+              value={isCustom ? (customInput || String(localCycle)) : customInput}
+              onChange={(e) => setCustomInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const h = parseInt(customInput);
+                  if (h > 0) handleSetCycle(h);
+                }
+              }}
+              onBlur={() => {
+                const h = parseInt(customInput);
+                if (h > 0) handleSetCycle(h);
+                else setCustomInput("");
+              }}
+              className={cn(
+                "w-14 px-2 py-1.5 bg-transparent outline-none text-xs",
+                isCustom ? "text-white placeholder-blue-300" : "text-slate-600 placeholder-slate-400"
+              )}
+            />
+            {customInput && (
+              <span className={cn("pr-2 text-xs", isCustom ? "text-blue-200" : "text-slate-400")}>h</span>
+            )}
+          </div>
         </div>
+        {isCustom && (
+          <p className="text-xs text-slate-400 mt-1.5">Ciclo personalizado: cada {localCycle}h</p>
+        )}
       </div>
 
       {localCycle && (

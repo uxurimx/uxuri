@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Settings, Bot, Target, Zap, Sun, Repeat2, BookOpen, StickyNote, CalendarDays, RefreshCw, Megaphone } from "lucide-react";
 import { useChatUnread } from "@/hooks/use-chat-unread";
+import { applyNavLayout, type NavLayoutItem } from "@/lib/nav-layout";
 
 const navItems = [
   { href: "/dashboard",  label: "Dashboard",     icon: LayoutDashboard },
@@ -25,10 +26,15 @@ const navItems = [
   { href: "/users",      label: "Usuarios",      icon: UserCog },
 ];
 
-export function Sidebar({ permissions, currentUserId }: { permissions: string[]; currentUserId: string }) {
+export function Sidebar({ permissions, currentUserId, navLayout }: {
+  permissions: string[];
+  currentUserId: string;
+  navLayout?: NavLayoutItem[] | null;
+}) {
   const pathname = usePathname();
   const hasUnread = useChatUnread(currentUserId);
-  const visibleItems = navItems.filter((item) => permissions.includes(item.href));
+  const permitted = navItems.filter((item) => permissions.includes(item.href));
+  const visibleItems = applyNavLayout(permitted, navLayout);
   const isSettingsActive = pathname === "/settings" || pathname.startsWith("/settings/");
 
   return (
