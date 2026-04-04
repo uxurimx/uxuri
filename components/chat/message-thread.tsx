@@ -5,6 +5,7 @@ import { getPusherClient } from "@/lib/pusher";
 import { formatDateTime, cn } from "@/lib/utils";
 import { MessageInput } from "./message-input";
 import { Download, FileText, Image as ImageIcon } from "lucide-react";
+import { FileViewerModal } from "@/components/ui/file-viewer-modal";
 import type { ChatMessage } from "@/db/schema";
 
 function formatBytes(bytes: number): string {
@@ -33,18 +34,27 @@ function Avatar({ name, isSelf }: { name: string; isSelf: boolean }) {
   );
 }
 
-function FileAttachment({ msg }: { msg: ChatMessage }) {
+function FileAttachment({
+  msg,
+  onOpen,
+}: {
+  msg: ChatMessage;
+  onOpen: (file: { url: string; name: string; type?: string | null }) => void;
+}) {
   if (!msg.fileUrl) return null;
 
   if (isImage(msg.fileType)) {
     return (
-      <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="block mt-1">
+      <button
+        onClick={() => onOpen({ url: msg.fileUrl!, name: msg.fileName ?? "imagen", type: msg.fileType })}
+        className="block mt-1 text-left"
+      >
         <img
           src={msg.fileUrl}
           alt={msg.fileName ?? "imagen"}
-          className="max-w-[240px] max-h-48 rounded-lg object-cover border border-white/20 hover:opacity-90 transition-opacity"
+          className="max-w-[240px] max-h-48 rounded-lg object-cover border border-white/20 hover:opacity-90 transition-opacity cursor-zoom-in"
         />
-      </a>
+      </button>
     );
   }
 
@@ -62,11 +72,9 @@ function FileAttachment({ msg }: { msg: ChatMessage }) {
   }
 
   return (
-    <a
-      href={msg.fileUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 mt-1 px-3 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors max-w-[240px]"
+    <button
+      onClick={() => onOpen({ url: msg.fileUrl!, name: msg.fileName ?? "archivo", type: msg.fileType })}
+      className="flex items-center gap-2 mt-1 px-3 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors max-w-[240px] text-left w-full"
     >
       <FileText className="w-4 h-4 flex-shrink-0" />
       <div className="flex-1 min-w-0">
@@ -76,7 +84,7 @@ function FileAttachment({ msg }: { msg: ChatMessage }) {
         )}
       </div>
       <Download className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
-    </a>
+    </button>
   );
 }
 
@@ -91,6 +99,7 @@ export function MessageThread({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string; type?: string | null } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,10 +125,10 @@ export function MessageThread({
       .finally(() => setLoading(false));
   }, [channelId, fetchMessages]);
 
-  // Scroll to bottom on initial load
+  // Scroll to bottom on initial load — only scroll the container, not the page
   useEffect(() => {
-    if (!loading) {
-      bottomRef.current?.scrollIntoView();
+    if (!loading && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [loading]);
 
@@ -192,6 +201,13 @@ export function MessageThread({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {viewerFile && (
+        <FileViewerModal
+          file={viewerFile}
+          onClose={() => setViewerFile(null)}
+        />
+      )}
+
       {/* Messages */}
       <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {hasMore && (
@@ -244,7 +260,7 @@ export function MessageThread({
                   )}
                 >
                   {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
-                  <FileAttachment msg={msg} />
+                  <FileAttachment msg={msg} onOpen={setViewerFile} />
                 </div>
                 <span className="text-[10px] text-slate-400 mt-0.5 px-1">
                   {formatDateTime(msg.createdAt)}

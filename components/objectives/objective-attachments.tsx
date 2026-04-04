@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useUploadThing } from "@/lib/uploadthing-react";
-import { Paperclip, Trash2, Upload, ExternalLink } from "lucide-react";
+import { Paperclip, Trash2, Upload, Eye } from "lucide-react";
+import { FileViewerModal } from "@/components/ui/file-viewer-modal";
 
 interface Attachment {
   id: string;
@@ -32,6 +33,7 @@ export function ObjectiveAttachments({
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string; type?: string | null } | null>(null);
 
   const { startUpload } = useUploadThing("objectiveUploads", {
     onUploadBegin: () => setUploading(true),
@@ -70,6 +72,14 @@ export function ObjectiveAttachments({
 
   return (
     <div className="space-y-4">
+      {viewerFile && (
+        <FileViewerModal
+          file={viewerFile}
+          allFiles={attachments.map((a) => ({ url: a.url, name: a.name, type: a.type }))}
+          onClose={() => setViewerFile(null)}
+        />
+      )}
+
       {/* Dropzone */}
       <label
         className={`flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
@@ -114,15 +124,13 @@ export function ObjectiveAttachments({
                   <p className="text-xs text-slate-400">{formatSize(att.size)}</p>
                 )}
               </div>
-              <a
-                href={att.url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => setViewerFile({ url: att.url, name: att.name, type: att.type })}
                 className="text-slate-400 hover:text-[#1e3a5f] transition-colors"
-                title="Abrir archivo"
+                title="Ver archivo"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+                <Eye className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={() => deleteAttachment(att.id)}
                 className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { Download, FileText, Image as ImageIcon, Loader2, Upload } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-react";
 import { formatDateTime } from "@/lib/utils";
+import { FileViewerModal } from "@/components/ui/file-viewer-modal";
 import type { ChatMessage } from "@/db/schema";
 
 function formatBytes(bytes: number): string {
@@ -18,6 +19,7 @@ export function FileSpace({ channelId }: { channelId: string }) {
   const [files, setFiles] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "images" | "docs">("all");
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string; type?: string | null } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { startUpload, isUploading } = useUploadThing("chatFile", {
@@ -113,27 +115,44 @@ export function FileSpace({ channelId }: { channelId: string }) {
           <p className="text-xs mt-1">Sube el primer archivo usando el botón de arriba</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filtered.map((f) =>
-            isImage(f.fileType) ? (
-              <ImageCard key={f.id} file={f} />
-            ) : (
-              <DocCard key={f.id} file={f} />
-            )
+        <>
+          {viewerFile && (
+            <FileViewerModal
+              file={viewerFile}
+              allFiles={filtered
+                .filter((f) => f.fileUrl)
+                .map((f) => ({ url: f.fileUrl!, name: f.fileName ?? "archivo", type: f.fileType }))}
+              onClose={() => setViewerFile(null)}
+            />
           )}
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filtered.map((f) =>
+              isImage(f.fileType) ? (
+                <ImageCard
+                  key={f.id}
+                  file={f}
+                  onOpen={() => setViewerFile({ url: f.fileUrl!, name: f.fileName ?? "imagen", type: f.fileType })}
+                />
+              ) : (
+                <DocCard
+                  key={f.id}
+                  file={f}
+                  onOpen={() => setViewerFile({ url: f.fileUrl!, name: f.fileName ?? "archivo", type: f.fileType })}
+                />
+              )
+            )}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-function ImageCard({ file: f }: { file: ChatMessage }) {
+function ImageCard({ file: f, onOpen }: { file: ChatMessage; onOpen: () => void }) {
   return (
-    <a
-      href={f.fileUrl!}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow"
+    <button
+      onClick={onOpen}
+      className="group block bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow w-full text-left"
     >
       <div className="aspect-square bg-slate-50 overflow-hidden">
         <img
@@ -148,18 +167,15 @@ function ImageCard({ file: f }: { file: ChatMessage }) {
           {f.userName} · {formatDateTime(f.createdAt)}
         </p>
       </div>
-    </a>
+    </button>
   );
 }
 
-function DocCard({ file: f }: { file: ChatMessage }) {
+function DocCard({ file: f, onOpen }: { file: ChatMessage; onOpen: () => void }) {
   return (
-    <a
-      href={f.fileUrl!}
-      target="_blank"
-      rel="noopener noreferrer"
-      download={f.fileName ?? true}
-      className="group flex flex-col bg-white rounded-xl border border-slate-200 p-3 hover:shadow-md transition-shadow"
+    <button
+      onClick={onOpen}
+      className="group flex flex-col bg-white rounded-xl border border-slate-200 p-3 hover:shadow-md transition-shadow w-full text-left"
     >
       <div className="flex items-center justify-between mb-2">
         <FileText className="w-8 h-8 text-[#1e3a5f]" />
@@ -170,6 +186,6 @@ function DocCard({ file: f }: { file: ChatMessage }) {
         <p className="text-[10px] text-slate-400 mt-0.5">{formatBytes(f.fileSize)}</p>
       )}
       <p className="text-[10px] text-slate-400 mt-0.5 truncate">{f.userName}</p>
-    </a>
+    </button>
   );
 }
