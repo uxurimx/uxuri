@@ -8,6 +8,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { NotificationListener } from "@/components/notifications/notification-listener";
 import { PwaRegister } from "@/components/pwa-register";
 import { GlobalQuickAddProvider } from "@/components/global/global-quick-add-provider";
+import { ScrollReset } from "@/components/scroll-reset";
 
 export default async function DashboardLayout({
   children,
@@ -61,6 +62,7 @@ export default async function DashboardLayout({
           <div className="flex flex-col flex-1 overflow-hidden">
             <Topbar />
             <main className="flex-1 overflow-y-auto p-4 pt-12 pb-20 md:pt-4 md:pb-6 md:p-6 lg:p-8">
+              <ScrollReset />
               {children}
             </main>
           </div>

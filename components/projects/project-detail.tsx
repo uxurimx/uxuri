@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
 import { ArrowLeft, Calendar, User, Flag, Pencil, Clock, Tag } from "lucide-react";
@@ -61,11 +61,6 @@ export function ProjectDetail({
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const status = statusConfig[project.status];
-
-  // Scroll to top when navigating to this page
-  useEffect(() => {
-    document.querySelector("main")?.scrollTo({ top: 0, behavior: "instant" });
-  }, []);
 
   const projectForModal: ProjectForModal = {
     id: project.id,
