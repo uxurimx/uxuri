@@ -32,3 +32,8 @@ export * from "./notes";
 export * from "./time-blocks";
 export * from "./weekly-reviews";
 export * from "./shares";
+export * from "./mkt-strategies";
+export * from "./mkt-copies";
+export * from "./mkt-campaigns";
+export * from "./mkt-leads";
+export * from "./mkt-interactions";

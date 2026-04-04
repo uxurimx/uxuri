@@ -53,6 +53,10 @@ export default async function DashboardLayout({
   if (permissions.includes("/tasks") && !permissions.includes("/review")) {
     permissions = [...permissions, "/review"];
   }
+  // /marketing se agrega automáticamente a cualquier rol que ya tenga /clients
+  if (permissions.includes("/clients") && !permissions.includes("/marketing")) {
+    permissions = [...permissions, "/marketing"];
+  }
 
   return (
     <ToastProvider>
