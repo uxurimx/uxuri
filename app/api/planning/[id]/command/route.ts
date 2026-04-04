@@ -10,6 +10,9 @@ const schema = z.object({
   command: z.enum(["task", "project", "objective", "note"]),
   title: z.string().min(1),
   rawInput: z.string().min(1),
+  description: z.string().optional(),
+  // When true the user message is NOT saved (caller already saved the full text)
+  skipUserMessage: z.boolean().optional(),
 });
 
 const ENTITY_URLS: Record<string, string> = {
@@ -36,10 +39,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { command, title, rawInput } = parsed.data;
+  const { command, title, rawInput, description, skipUserMessage } = parsed.data;
 
-  // Save the slash command as a user message
-  await db.insert(planningMessages).values({ sessionId: id, role: "user", content: rawInput });
+  // Save user message unless the caller already saved the full text
+  if (!skipUserMessage) {
+    await db.insert(planningMessages).values({ sessionId: id, role: "user", content: rawInput });
+  }
 
   // Create the entity
   let entityId = "";
@@ -50,28 +55,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (command === "task") {
       const [task] = await db
         .insert(tasks)
-        .values({ title, status: "todo", priority: "medium", createdBy: userId })
+        .values({ title, description: description ?? null, status: "todo", priority: "medium", createdBy: userId })
         .returning();
       entityId = task.id;
       entityTitle = task.title;
     } else if (command === "project") {
       const [project] = await db
         .insert(projects)
-        .values({ name: title, status: "planning", createdBy: userId })
+        .values({ name: title, description: description ?? null, status: "planning", createdBy: userId })
         .returning();
       entityId = project.id;
       entityTitle = project.name;
     } else if (command === "objective") {
       const [objective] = await db
         .insert(objectives)
-        .values({ title, status: "active", createdBy: userId })
+        .values({ title, description: description ?? null, status: "active", createdBy: userId })
         .returning();
       entityId = objective.id;
       entityTitle = objective.title;
     } else if (command === "note") {
       const [note] = await db
         .insert(notes)
-        .values({ title, content: "", userId })
+        .values({ title, content: description ?? "", userId })
         .returning();
       entityId = note.id;
       entityTitle = note.title ?? title;

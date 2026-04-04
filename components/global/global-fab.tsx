@@ -13,7 +13,7 @@ export function GlobalFAB() {
       aria-label={isOpen ? "Cerrar acceso rápido" : "Acceso rápido (Ctrl+K)"}
       className={cn(
         // Mobile: above bottom nav (which is ~64px tall, pb-20)
-        "fixed bottom-20 right-4 md:bottom-6 md:right-6",
+        "fixed bottom-28 right-4 md:bottom-6 md:right-6",
         "z-[130] w-14 h-14 rounded-full shadow-xl",
         "flex items-center justify-center",
         "transition-all duration-200",

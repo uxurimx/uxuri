@@ -55,6 +55,53 @@ const COMMAND_META: Record<string, { Icon: typeof CheckSquare; label: string }> 
   note:      { Icon: StickyNote,  label: "Nota" },
 };
 
+// ── Hash command parsing ──────────────────────────────────────────────────────
+// Supports: #tarea:NAME:DESC  #proyecto:NAME  #nota:NAME  #objetivo:NAME
+
+type HashCommand = {
+  type: "task" | "project" | "objective" | "note";
+  title: string;
+  description?: string;
+};
+
+const HASH_TYPE_MAP: Record<string, "task" | "project" | "objective" | "note"> = {
+  tarea: "task",
+  proyecto: "project",
+  objetivo: "objective",
+  nota: "note",
+};
+
+function parseHashCommands(text: string): HashCommand[] {
+  const pattern = /#(tarea|proyecto|nota|objetivo):([^:#\n\s][^:#\n]*)(?::([^#\n]+))?/gi;
+  const results: HashCommand[] = [];
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    const type = HASH_TYPE_MAP[match[1].toLowerCase()];
+    if (type) {
+      results.push({
+        type,
+        title: match[2].trim(),
+        description: match[3]?.trim() || undefined,
+      });
+    }
+  }
+  return results;
+}
+
+// Render user message text with #hashtag commands highlighted
+function renderMessageText(content: string): React.ReactNode {
+  const parts = content.split(/(#(?:tarea|proyecto|nota|objetivo):[^\s#\n][^#\n]*)/gi);
+  return parts.map((part, i) =>
+    /^#(?:tarea|proyecto|nota|objetivo):/i.test(part) ? (
+      <span key={i} className="bg-white/20 text-white px-1.5 py-0.5 rounded font-mono text-xs">
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
 export function PlanningSession({ session: initialSession }: { session: Session }) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialSession.messages);
@@ -162,11 +209,49 @@ export function PlanningSession({ session: initialSession }: { session: Session 
     }
   }
 
+  // Execute all hash commands found in a piece of text.
+  // The full text is saved once as a user note; each entity is created via
+  // /command with skipUserMessage so we don't duplicate the message row.
+  async function executeHashCommands(content: string, cmds: HashCommand[]) {
+    setMessages((prev) => [...prev, optimistic(content)]);
+    setLoading(true);
+    try {
+      // Persist the full natural-language text once
+      await fetch(`/api/planning/${initialSession.id}/note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+
+      // Create each entity and append its result bubble
+      for (const cmd of cmds) {
+        const res = await fetch(`/api/planning/${initialSession.id}/command`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            command: cmd.type,
+            title: cmd.title,
+            description: cmd.description,
+            rawInput: content,
+            skipUserMessage: true,
+          }),
+        });
+        if (res.ok) {
+          const { resultMessage } = await res.json();
+          setMessages((prev) => [...prev, resultMessage]);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function sendMessage() {
     if (!input.trim() || loading) return;
     const content = input.trim();
     setInput("");
 
+    // 1. Slash command (must be at the start)
     if (content.startsWith("/")) {
       const spaceIdx = content.indexOf(" ");
       const cmd = (spaceIdx === -1 ? content.slice(1) : content.slice(1, spaceIdx)).toLowerCase();
@@ -184,6 +269,14 @@ export function PlanningSession({ session: initialSession }: { session: Session 
       }
     }
 
+    // 2. Inline hash commands anywhere in the text
+    const hashCmds = parseHashCommands(content);
+    if (hashCmds.length > 0) {
+      await executeHashCommands(content, hashCmds);
+      return;
+    }
+
+    // 3. Plain note
     await saveNote(content);
   }
 
@@ -320,7 +413,9 @@ export function PlanningSession({ session: initialSession }: { session: Session 
               <p className="text-sm mt-1">
                 Escribe tus notas. Usa{" "}
                 <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 text-xs">/bot</code>{" "}
-                para el asistente.
+                para el asistente o{" "}
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 text-xs">#tarea:Nombre</code>{" "}
+                para crear entidades al vuelo.
               </p>
             </div>
           )}
@@ -363,7 +458,7 @@ export function PlanningSession({ session: initialSession }: { session: Session 
                     {formatTime(msg.createdAt)}
                   </span>
                   <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed bg-[#1e3a5f] text-white">
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="whitespace-pre-wrap">{renderMessageText(msg.content)}</div>
                   </div>
                 </div>
               );
@@ -439,7 +534,7 @@ export function PlanningSession({ session: initialSession }: { session: Session 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Escribe tu nota... usa /bot para el asistente"
+              placeholder="Escribe tu nota... /bot para AI · #tarea:Nombre · #proyecto:Nombre"
               rows={2}
               className="flex-1 resize-none border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
             />
