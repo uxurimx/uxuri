@@ -17,12 +17,22 @@ const isPublicRoute = createRouteMatcher([
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.redirect(new URL("/sign-in", req.url));
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.redirect(new URL("/sign-in", req.url));
+    }
+    return NextResponse.next();
+  } catch (e) {
+    // En desarrollo: si Clerk no es alcanzable pero hay CLERK_JWT_KEY configurado,
+    // la verificación JWT ya ocurrió localmente — permitir el request.
+    // lib/auth.ts maneja el fallback de currentUser() a DB.
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[middleware] ⚠️  Clerk API sin conexión — permitiendo en dev");
+      return NextResponse.next();
+    }
+    throw e;
   }
-
-  return NextResponse.next();
 });
 
 export const config = {

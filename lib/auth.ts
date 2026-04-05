@@ -7,14 +7,51 @@ import { canAccessPath } from "@/lib/permissions";
 
 export type Role = string;
 
+/**
+ * Construye un objeto con la forma mínima de Clerk User usando datos de la DB.
+ * Se usa cuando Clerk API no es alcanzable (offline).
+ */
+function buildFallbackUser(user: typeof users.$inferSelect) {
+  return {
+    id: user.id,
+    firstName: user.name?.split(" ")[0] ?? "Dev",
+    lastName: user.name?.split(" ").slice(1).join(" ") ?? "",
+    emailAddresses: [{ emailAddress: user.email ?? "" }],
+    imageUrl: user.imageUrl ?? "",
+    publicMetadata: { role: user.role },
+  } as unknown as Awaited<ReturnType<typeof currentUser>>;
+}
+
 export async function getAuthUser() {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
-  return user;
+  // Intenta Clerk API (funciona online + offline si hay CLERK_JWT_KEY válido)
+  try {
+    const user = await currentUser();
+    if (user) return user;
+  } catch {
+    // Clerk API no alcanzable: fallback a DB via JWT local
+  }
+
+  // JWT verificado localmente con CLERK_JWT_KEY → obtener userId
+  let userId: string | null = null;
+  try {
+    const session = await auth();
+    userId = session.userId;
+  } catch {
+    // JWT también falló (sin sesión activa)
+  }
+
+  if (!userId) redirect("/sign-in");
+
+  const [dbUser] = await db.select().from(users).where(eq(users.id, userId!));
+  if (!dbUser) redirect("/sign-in");
+
+  console.warn("[auth] 🏠 Clerk offline → usuario cargado desde DB");
+  return buildFallbackUser(dbUser);
 }
 
 /** Devuelve el nombre del rol del usuario actual (JWT → fallback DB). */
 export async function getRole(): Promise<string | null> {
+  // auth() con CLERK_JWT_KEY verifica el JWT localmente — funciona offline
   const { userId, sessionClaims } = await auth();
   const claimRole = (sessionClaims?.metadata as { role?: string })?.role;
   if (claimRole) return claimRole;
@@ -52,7 +89,6 @@ export async function getUserRoleData(): Promise<{ roleName: string; permissions
     .from(roles)
     .where(eq(roles.name, roleName));
 
-  // Fallback: si el rol no está en la tabla, /dashboard siempre visible
   const raw = roleRecord?.permissions ?? ["/dashboard"];
   return { roleName, permissions: augmentPermissions(raw) };
 }
@@ -68,7 +104,6 @@ export async function requireAccess(path: string) {
   }
 }
 
-// Backward compat: checkRole/requireRole basados en nombre de rol
 export async function checkRole(roleName: string): Promise<boolean> {
   const userRole = await getRole();
   return userRole === roleName;
