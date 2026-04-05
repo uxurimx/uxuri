@@ -1,6 +1,7 @@
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { CategoriesSettings } from "@/components/settings/categories-settings";
 import { CyclePresetsSettings } from "@/components/settings/cycle-presets-settings";
+import { BackupSettings } from "@/components/settings/backup-settings";
 
 export default function SettingsPage() {
   return (
@@ -12,6 +13,7 @@ export default function SettingsPage() {
       <AppearanceSettings />
       <CategoriesSettings />
       <CyclePresetsSettings />
+      <BackupSettings />
     </div>
   );
 }

@@ -4,7 +4,45 @@ import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { lookup } from "dns/promises";
 import { spawn } from "child_process";
+import { readFileSync, writeFileSync } from "fs";
 import * as schema from "./schema";
+
+const BACKUP_STATE_FILE = "/tmp/uxuri_backup_state.json";
+
+function readBackupState() {
+  try { return JSON.parse(readFileSync(BACKUP_STATE_FILE, "utf-8")); } catch { return {}; }
+}
+
+/** Lanza backup programado según configuración guardada */
+function maybeScheduledBackup() {
+  const state = readBackupState();
+  const schedule: string = state.schedule ?? "manual";
+  const direction: string = state.scheduleDirection ?? "push";
+  const lastBackup: string | null = state.lastBackup ?? null;
+  if (schedule === "manual") return;
+
+  const intervalMs: Record<string, number> = {
+    hourly: 60 * 60 * 1000,
+    daily:  24 * 60 * 60 * 1000,
+    weekly: 7  * 24 * 60 * 60 * 1000,
+  };
+  const ms = intervalMs[schedule];
+  if (!ms) return;
+  if (lastBackup && Date.now() - new Date(lastBackup).getTime() < ms) return;
+
+  console.log(`[db] 📦 Respaldo automático (${schedule}) → ${direction}...`);
+  const proc = spawn("npx", ["tsx", "scripts/sync-db.ts", direction], {
+    stdio: "pipe", cwd: process.cwd(),
+  });
+  proc.on("close", (code) => {
+    if (code === 0) {
+      writeFileSync(BACKUP_STATE_FILE, JSON.stringify({
+        ...readBackupState(), lastBackup: new Date().toISOString(), lastDirection: direction,
+      }));
+      console.log("[db] 📦 Respaldo automático completado");
+    }
+  });
+}
 
 type Db = NeonHttpDatabase<typeof schema>;
 
@@ -84,6 +122,7 @@ function startWatcher() {
   _watcherStarted = true;
 
   const interval = setInterval(async () => {
+    maybeScheduledBackup();
     if (_syncing) return;
 
     const online = await checkOnline();
