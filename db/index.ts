@@ -52,7 +52,6 @@ let _isLocal = false;
 let _localDb: Db | null = null;
 let _neonDb: Db | null = null;
 let _watcherOnline: boolean | null = null; // null = no verificado aún
-let _syncing = false;
 let _watcherStarted = false;
 
 // ── Constructores de instancias ───────────────────────────────────────────────
@@ -95,26 +94,6 @@ async function checkOnline(): Promise<boolean> {
   }
 }
 
-// ── Sincronización local → Neon ───────────────────────────────────────────────
-function syncLocalToNeon(): Promise<void> {
-  return new Promise((resolve) => {
-    console.log("[db] 🔄 Sincronizando local → Neon...");
-    const proc = spawn("npx", ["tsx", "scripts/sync-db.ts", "push"], {
-      stdio: "inherit",
-      cwd: process.cwd(),
-    });
-    proc.on("close", (code) => {
-      if (code === 0) console.log("[db] ✅ Sincronización local → Neon completa");
-      else console.warn("[db] ⚠️ Sincronización completada con advertencias");
-      resolve();
-    });
-    proc.on("error", (e) => {
-      console.warn("[db] ⚠️ Error al sincronizar:", e.message);
-      resolve();
-    });
-  });
-}
-
 // ── Watcher de conectividad ───────────────────────────────────────────────────
 function startWatcher() {
   if (_watcherStarted) return;
@@ -123,23 +102,16 @@ function startWatcher() {
 
   const interval = setInterval(async () => {
     maybeScheduledBackup();
-    if (_syncing) return;
-
     const online = await checkOnline();
     if (online === _watcherOnline) return; // sin cambio
 
     if (online && _watcherOnline === false) {
       // ── OFFLINE → ONLINE ────────────────────────────────────────────────────
-      // Actualizar estado ANTES de await para evitar double-trigger si el interval
-      // vuelve a disparar mientras el sync está en curso
+      // Solo cambiar conexión — el sync manual se hace desde Settings > Respaldo
       _watcherOnline = online;
-      _syncing = true;
-      console.log("[db] 🌐 Internet detectado → sincronizando y cambiando a Neon...");
-      await syncLocalToNeon();
       _active = getNeonDb();
       _isLocal = false;
-      _syncing = false;
-      console.log("[db] ☁️  Neon activo");
+      console.log("[db] ☁️  Internet detectado → Neon activo (sync manual desde Configuración)");
     } else if (!online && _watcherOnline === true) {
       // ── ONLINE → OFFLINE ────────────────────────────────────────────────────
       _watcherOnline = online;
