@@ -133,32 +133,6 @@ export function BackupSettings() {
         </span>
       </div>
 
-      {/* Config ciclo automático */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Ciclo automático
-          </label>
-          <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
-            siempre bidireccional (merge)
-          </span>
-        </div>
-        <select
-          value={status.schedule}
-          onChange={(e) => saveConfig({ schedule: e.target.value as BackupStatus["schedule"] })}
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {Object.entries(SCHEDULE_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
-        {status.schedule !== "manual" && (
-          <p className="text-xs text-slate-400">
-            El ciclo automático usa merge inteligente: combina local + Neon, gana la versión más nueva por fila. No sobreescribe datos de ningún lado.
-          </p>
-        )}
-      </div>
-
       {/* Botón principal: Merge */}
       <button
         onClick={() => runAction("merge")}
