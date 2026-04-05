@@ -12,7 +12,9 @@
     "db:generate": "drizzle-kit generate",
     "db:local": "USE_LOCAL_DB=true drizzle-kit push",
     "db:pull-neon": "npx tsx scripts/sync-db.ts pull",
-    "db:push-neon": "npx tsx scripts/sync-db.ts push"
+    "db:push-neon": "npx tsx scripts/sync-db.ts push",
+    "db:merge": "npx tsx scripts/sync-merge.ts",
+    "db:merge-dry": "npx tsx scripts/sync-merge.ts --dry"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.9.3",
