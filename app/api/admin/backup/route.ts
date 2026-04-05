@@ -3,7 +3,7 @@ import { spawn } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import { isLocalDb } from "@/db";
 
-const STATE_FILE = "/tmp/uxuri_backup_state.json";
+const STATE_FILE = `${process.cwd()}/backups/backup_state.json`;
 
 interface BackupState {
   lastBackup: string | null;

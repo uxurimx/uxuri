@@ -10,15 +10,17 @@
  *   npx tsx scripts/sync-db.ts push   → local → Neon
  */
 import { execSync } from "child_process";
-import { writeFileSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
 
 try { process.loadEnvFile(".env.local"); } catch {}
 
 const direction = process.argv[2] as "pull" | "push";
 const NEON  = process.env.DATABASE_URL;
 const LOCAL = process.env.LOCAL_DATABASE_URL;
-const DUMP  = "/tmp/uxuri_data.dump";
-const TRUNCATE_SQL = "/tmp/uxuri_truncate.sql";
+const BACKUPS_DIR = `${process.cwd()}/backups`;
+mkdirSync(BACKUPS_DIR, { recursive: true });
+const DUMP  = `${BACKUPS_DIR}/uxuri_data.dump`;
+const TRUNCATE_SQL = `${BACKUPS_DIR}/uxuri_truncate.sql`;
 
 if (!NEON)  { console.error("❌  DATABASE_URL no configurado");       process.exit(1); }
 if (!LOCAL) { console.error("❌  LOCAL_DATABASE_URL no configurado"); process.exit(1); }

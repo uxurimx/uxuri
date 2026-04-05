@@ -7,7 +7,7 @@ import { spawn } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import * as schema from "./schema";
 
-const BACKUP_STATE_FILE = "/tmp/uxuri_backup_state.json";
+const BACKUP_STATE_FILE = `${process.cwd()}/backups/backup_state.json`;
 
 function readBackupState() {
   try { return JSON.parse(readFileSync(BACKUP_STATE_FILE, "utf-8")); } catch { return {}; }
