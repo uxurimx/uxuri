@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Database, CloudUpload, CloudDownload, RefreshCw, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Database, CloudUpload, CloudDownload, RefreshCw, CheckCircle, AlertCircle, Clock, ArrowLeftRight } from "lucide-react";
 
 interface BackupStatus {
   lastBackup: string | null;
-  lastDirection: "push" | "pull" | null;
+  lastDirection: "push" | "pull" | "merge" | null;
   schedule: "manual" | "hourly" | "daily" | "weekly";
   scheduleDirection: "push" | "pull";
   isLocal: boolean;
@@ -20,9 +20,10 @@ const SCHEDULE_LABELS: Record<string, string> = {
   weekly:  "Semanal",
 };
 
-const DIRECTION_LABELS: Record<string, string> = {
-  push: "Local → Neon (subir cambios)",
-  pull: "Neon → Local (bajar cambios)",
+const DIRECTION_LABEL: Record<string, string> = {
+  push:  "↑ local→Neon",
+  pull:  "↓ Neon→local",
+  merge: "⇄ merge",
 };
 
 function formatRelative(iso: string | null): string {
@@ -52,18 +53,23 @@ export function BackupSettings() {
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-  async function runBackup(direction: "push" | "pull") {
+  async function runAction(action: "push" | "pull" | "merge") {
     setRunning(true);
     setResult(null);
     const res = await fetch("/api/admin/backup", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ direction }),
+      body: JSON.stringify({ action }),
     });
     const data = await res.json();
     setRunning(false);
+    const msgs: Record<string, string> = {
+      push:  "Local sincronizado a Neon (sobreescritura)",
+      pull:  "Neon sincronizado a local (sobreescritura)",
+      merge: "Merge completado: local y Neon están sincronizados",
+    };
     setResult(data.ok
-      ? { ok: true,  msg: direction === "push" ? "Local sincronizado a Neon" : "Neon sincronizado a local" }
+      ? { ok: true,  msg: msgs[action] }
       : { ok: false, msg: data.error ?? "Error desconocido" }
     );
     fetchStatus();
@@ -79,9 +85,7 @@ export function BackupSettings() {
   }
 
   if (!status) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 animate-pulse h-40" />
-    );
+    return <div className="bg-white border border-slate-200 rounded-xl p-5 animate-pulse h-40" />;
   }
 
   if (!status.available) {
@@ -124,72 +128,76 @@ export function BackupSettings() {
             </span>
           )}
           {status.lastDirection && (
-            <span className="text-slate-400 ml-1">
-              · {status.lastDirection === "push" ? "↑ local→Neon" : "↓ Neon→local"}
-            </span>
+            <span className="text-slate-400 ml-1">· {DIRECTION_LABEL[status.lastDirection]}</span>
           )}
         </span>
       </div>
 
-      {/* Config ciclo */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
+      {/* Config ciclo automático */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             Ciclo automático
           </label>
-          <select
-            value={status.schedule}
-            onChange={(e) => saveConfig({ schedule: e.target.value as BackupStatus["schedule"] })}
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Object.entries(SCHEDULE_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+          <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
+            siempre bidireccional (merge)
+          </span>
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Dirección del ciclo
-          </label>
-          <select
-            value={status.scheduleDirection}
-            onChange={(e) => saveConfig({ scheduleDirection: e.target.value as "push" | "pull" })}
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Object.entries(DIRECTION_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={status.schedule}
+          onChange={(e) => saveConfig({ schedule: e.target.value as BackupStatus["schedule"] })}
+          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {Object.entries(SCHEDULE_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+        {status.schedule !== "manual" && (
+          <p className="text-xs text-slate-400">
+            El ciclo automático usa merge inteligente: combina local + Neon, gana la versión más nueva por fila. No sobreescribe datos de ningún lado.
+          </p>
+        )}
       </div>
 
-      {/* Botones */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => runBackup("push")}
-          disabled={running}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white text-sm font-medium rounded-lg hover:bg-[#162d4a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {running ? (
-            <RefreshCw className="w-4 h-4 animate-spin" />
-          ) : (
-            <CloudUpload className="w-4 h-4" />
-          )}
-          Local → Neon
-        </button>
-        <button
-          onClick={() => runBackup("pull")}
-          disabled={running}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {running ? (
-            <RefreshCw className="w-4 h-4 animate-spin" />
-          ) : (
-            <CloudDownload className="w-4 h-4" />
-          )}
-          Neon → Local
-        </button>
-      </div>
+      {/* Botón principal: Merge */}
+      <button
+        onClick={() => runAction("merge")}
+        disabled={running}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-medium rounded-lg hover:bg-[#162d4a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowLeftRight className="w-4 h-4" />}
+        Merge bidireccional (recomendado)
+      </button>
+
+      {/* Botones manuales destructivos */}
+      <details className="group">
+        <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 select-none">
+          Sincronización manual (destructiva, avanzado)
+        </summary>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={() => runAction("push")}
+            disabled={running}
+            title="Sobreescribe Neon con tu local. Perderás datos de producción no presentes en local."
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {running ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+            Local → Neon (sobreescribir)
+          </button>
+          <button
+            onClick={() => runAction("pull")}
+            disabled={running}
+            title="Sobreescribe local con Neon. Perderás datos locales no presentes en Neon."
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {running ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CloudDownload className="w-3.5 h-3.5" />}
+            Neon → Local (sobreescribir)
+          </button>
+        </div>
+        <p className="text-xs text-amber-600 mt-1.5">
+          ⚠️ Los botones de arriba sobreescriben el destino completamente. Úsalos solo si sabes que no hay datos relevantes en el otro lado.
+        </p>
+      </details>
 
       {/* Resultado */}
       {result && (

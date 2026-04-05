@@ -13,11 +13,12 @@ function readBackupState() {
   try { return JSON.parse(readFileSync(BACKUP_STATE_FILE, "utf-8")); } catch { return {}; }
 }
 
-/** Lanza backup programado según configuración guardada */
+/** Lanza merge automático según configuración guardada.
+ *  Siempre usa sync-merge (bidireccional): mezcla local + Neon sin perder datos de ningún lado.
+ */
 function maybeScheduledBackup() {
   const state = readBackupState();
   const schedule: string = state.schedule ?? "manual";
-  const direction: string = state.scheduleDirection ?? "push";
   const lastBackup: string | null = state.lastBackup ?? null;
   if (schedule === "manual") return;
 
@@ -30,16 +31,18 @@ function maybeScheduledBackup() {
   if (!ms) return;
   if (lastBackup && Date.now() - new Date(lastBackup).getTime() < ms) return;
 
-  console.log(`[db] 📦 Respaldo automático (${schedule}) → ${direction}...`);
-  const proc = spawn("npx", ["tsx", "scripts/sync-db.ts", direction], {
+  console.log(`[db] 📦 Merge automático (${schedule})...`);
+  const proc = spawn("npx", ["tsx", "scripts/sync-merge.ts"], {
     stdio: "pipe", cwd: process.cwd(),
   });
   proc.on("close", (code) => {
     if (code === 0) {
       writeFileSync(BACKUP_STATE_FILE, JSON.stringify({
-        ...readBackupState(), lastBackup: new Date().toISOString(), lastDirection: direction,
+        ...readBackupState(), lastBackup: new Date().toISOString(), lastDirection: "merge",
       }));
-      console.log("[db] 📦 Respaldo automático completado");
+      console.log("[db] ✅ Merge automático completado");
+    } else {
+      console.warn("[db] ⚠️  Merge automático terminó con errores");
     }
   });
 }

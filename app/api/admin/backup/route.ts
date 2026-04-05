@@ -7,9 +7,9 @@ const STATE_FILE = `${process.cwd()}/backups/backup_state.json`;
 
 interface BackupState {
   lastBackup: string | null;
-  lastDirection: "push" | "pull" | null;
+  lastDirection: "push" | "pull" | "merge" | null;
   schedule: "manual" | "hourly" | "daily" | "weekly";
-  scheduleDirection: "push" | "pull";
+  scheduleDirection: "push" | "pull"; // solo para botones manuales
 }
 
 function readState(): BackupState {
@@ -46,9 +46,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const direction = (body.direction ?? "push") as "push" | "pull";
 
-  // Guardar config de ciclo si viene en el body
+  // Guardar config de ciclo si viene en el body (sin lanzar backup)
   if (body.schedule !== undefined || body.scheduleDirection !== undefined) {
     const state = readState();
     writeState({
@@ -56,16 +55,23 @@ export async function POST(req: NextRequest) {
       schedule: body.schedule ?? state.schedule,
       scheduleDirection: body.scheduleDirection ?? state.scheduleDirection,
     });
-    if (body.direction === undefined) {
+    if (body.direction === undefined && body.action === undefined) {
       return NextResponse.json({ ok: true });
     }
   }
+
+  // "merge" usa sync-merge.ts (bidireccional, sin pérdida de datos)
+  // "push" / "pull" usan sync-db.ts (destructivo, manual deliberado)
+  const action = (body.action ?? body.direction ?? "push") as "push" | "pull" | "merge";
+  const isMerge = action === "merge";
+  const script  = isMerge ? "scripts/sync-merge.ts" : "scripts/sync-db.ts";
+  const args    = isMerge ? [] : [action];
 
   _running = true;
   const start = Date.now();
 
   return new Promise<NextResponse>((resolve) => {
-    const proc = spawn("npx", ["tsx", "scripts/sync-db.ts", direction], {
+    const proc = spawn("npx", ["tsx", script, ...args], {
       stdio: "pipe",
       cwd: process.cwd(),
     });
@@ -78,7 +84,7 @@ export async function POST(req: NextRequest) {
       _running = false;
       const state = readState();
       const now = new Date().toISOString();
-      writeState({ ...state, lastBackup: now, lastDirection: direction });
+      writeState({ ...state, lastBackup: now, lastDirection: action });
 
       if (code === 0) {
         resolve(NextResponse.json({ ok: true, lastBackup: now, duration: Date.now() - start, log: lines }));
