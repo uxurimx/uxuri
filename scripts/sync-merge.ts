@@ -14,7 +14,7 @@
  *   npx tsx scripts/sync-merge.ts --dry    → solo muestra diferencias, no aplica
  */
 import { Pool } from "pg";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 
 try { process.loadEnvFile(".env.local"); } catch {}
 
