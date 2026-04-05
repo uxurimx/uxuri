@@ -259,7 +259,10 @@ async function main() {
   const { execSync } = await import("child_process");
   const BACKUPS_DIR = `${process.cwd()}/backups`;
   mkdirSync(BACKUPS_DIR, { recursive: true });
-  const DUMP_SQL = `${BACKUPS_DIR}/uxuri_merged.sql`;
+
+  // Archivo con fecha y hora — nunca sobreescribe backups anteriores
+  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const DUMP_SQL = `${BACKUPS_DIR}/uxuri_${ts}.sql`;
 
   try {
     // Dump en formato plain SQL (INSERT statements)
@@ -267,9 +270,9 @@ async function main() {
       `pg_dump "${LOCAL_URL}" --data-only --no-privileges --inserts --column-inserts -f "${DUMP_SQL}"`,
       { stdio: "pipe" }
     );
-    console.log("→ dump local OK");
+    console.log(`→ dump local OK → ${DUMP_SQL}`);
 
-    // Script completo: deshabilitar FK checks + truncate + restore + re-habilitar
+    // Script temporal de restauración (sí se sobreescribe, es solo el script de trabajo)
     const fullSQL = `${BACKUPS_DIR}/neon_restore.sql`;
     const { readFileSync: rf } = await import("fs");
     const dumpContent = rf(DUMP_SQL, "utf-8");
