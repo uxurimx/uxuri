@@ -19,7 +19,8 @@ const NEON  = process.env.DATABASE_URL;
 const LOCAL = process.env.LOCAL_DATABASE_URL;
 const BACKUPS_DIR = `${process.cwd()}/backups`;
 mkdirSync(BACKUPS_DIR, { recursive: true });
-const DUMP  = `${BACKUPS_DIR}/uxuri_data.dump`;
+const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+const DUMP  = `${BACKUPS_DIR}/uxuri_${direction}_${ts}.dump`;
 const TRUNCATE_SQL = `${BACKUPS_DIR}/uxuri_truncate.sql`;
 
 if (!NEON)  { console.error("❌  DATABASE_URL no configurado");       process.exit(1); }
