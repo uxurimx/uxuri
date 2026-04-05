@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
 import { startTimer } from "@/components/timer/active-timer";
+import { CategoryPicker } from "./category-picker";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateTime, cn } from "@/lib/utils";
@@ -29,7 +30,6 @@ const schema = z.object({
   agentId: z.string().optional(),
   energyLevel: z.enum(["low", "medium", "high"]).optional(),
   estMinutes: z.number().int().positive().optional(),
-  taskType: z.enum(["revenue", "creative", "admin", "strategic", "ops"]).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -51,7 +51,7 @@ export type TaskForModal = {
   personalDone?: boolean;
   energyLevel?: string | null;
   estMinutes?: number | null;
-  taskType?: string | null;
+  categories?: { id: string; name: string; color: string; icon: string }[];
 };
 
 type Comment = {
@@ -332,12 +332,13 @@ export function TaskModal({
   const [moodValues, setMoodValues] = useState<{
     energyLevel: "low" | "medium" | "high" | null;
     estMinutes: number | null;
-    taskType: "revenue" | "creative" | "admin" | "strategic" | "ops" | null;
   }>({
     energyLevel: (task?.energyLevel as "low" | "medium" | "high" | null) ?? null,
     estMinutes: task?.estMinutes ?? null,
-    taskType: (task?.taskType as "revenue" | "creative" | "admin" | "strategic" | "ops" | null) ?? null,
   });
+
+  // Category state — controlled separately (not in the RHF form)
+  const [categoryIds, setCategoryIds] = useState<string[]>(task?.categories?.map((c) => c.id) ?? []);
   const [moodSaving, setMoodSaving] = useState(false);
   const [moodEstInput, setMoodEstInput] = useState(task?.estMinutes?.toString() ?? "");
 
@@ -387,9 +388,9 @@ export function TaskModal({
     setMoodValues({
       energyLevel: (task?.energyLevel as "low" | "medium" | "high" | null) ?? null,
       estMinutes: task?.estMinutes ?? null,
-      taskType: (task?.taskType as "revenue" | "creative" | "admin" | "strategic" | "ops" | null) ?? null,
     });
     setMoodEstInput(task?.estMinutes?.toString() ?? "");
+    setCategoryIds(task?.categories?.map((c) => c.id) ?? []);
     if (task) {
       reset({
         title: task.title,
@@ -403,7 +404,6 @@ export function TaskModal({
         agentId: task.agentId ?? "",
         energyLevel: (task.energyLevel as "low" | "medium" | "high" | undefined) ?? undefined,
         estMinutes: task.estMinutes ?? undefined,
-        taskType: (task.taskType as "revenue" | "creative" | "admin" | "strategic" | "ops" | undefined) ?? undefined,
       });
     } else {
       reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", clientId: "", assignedTo: "", agentId: "" });
@@ -500,6 +500,7 @@ export function TaskModal({
         clientId: data.clientId || null,
         assignedTo: data.assignedTo || null,
         agentId: data.agentId || null,
+        categoryIds,
       };
 
       const res = await fetch(url, {
@@ -770,8 +771,8 @@ export function TaskModal({
                 )}
               </div>
 
-              {/* Energy / type badges */}
-              {(task.energyLevel || task.estMinutes || task.taskType) && (
+              {/* Energy / categories badges */}
+              {(task.energyLevel || task.estMinutes || (task.categories && task.categories.length > 0)) && (
                 <div className="flex flex-wrap gap-1.5">
                   {task.energyLevel && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -783,11 +784,15 @@ export function TaskModal({
                       ⏱ {task.estMinutes >= 60 ? `${Math.floor(task.estMinutes / 60)}h${task.estMinutes % 60 > 0 ? ` ${task.estMinutes % 60}min` : ""}` : `${task.estMinutes}min`}
                     </span>
                   )}
-                  {task.taskType && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                      {task.taskType === "revenue" ? "💰 Ingresos" : task.taskType === "creative" ? "🎨 Creativa" : task.taskType === "admin" ? "📋 Admin" : task.taskType === "strategic" ? "🎯 Estratégica" : "⚙️ Operativa"}
+                  {task.categories?.map((cat) => (
+                    <span
+                      key={cat.id}
+                      className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
+                      style={{ backgroundColor: cat.color }}
+                    >
+                      {cat.icon} {cat.name}
                     </span>
-                  )}
+                  ))}
                 </div>
               )}
 
@@ -1189,33 +1194,18 @@ export function TaskModal({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Tipo de tarea</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        ["revenue", "💰 Ingresos"],
-                        ["creative", "🎨 Creativa"],
-                        ["admin", "📋 Admin"],
-                        ["strategic", "🎯 Estratégica"],
-                        ["ops", "⚙️ Operativa"],
-                      ] as const).map(([val, label]) => (
-                        <button
-                          key={val}
-                          type="button"
-                          disabled={moodSaving}
-                          onClick={() => saveMoodField({ taskType: moodValues.taskType === val ? null : val })}
-                          className={cn(
-                            "text-xs px-3 py-1.5 rounded-full border transition-colors disabled:opacity-60",
-                            moodValues.taskType === val
-                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                              : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                          )}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <CategoryPicker
+                    value={categoryIds}
+                    onChange={async (ids) => {
+                      setCategoryIds(ids);
+                      setMoodSaving(true);
+                      await fetch(`/api/tasks/${task!.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ categoryIds: ids }),
+                      }).finally(() => setMoodSaving(false));
+                    }}
+                  />
 
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Tiempo estimado (min)</label>
@@ -1400,32 +1390,11 @@ export function TaskModal({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de tarea</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {([
-                    ["revenue", "💰 Ingresos"],
-                    ["creative", "🎨 Creativa"],
-                    ["admin", "📋 Admin"],
-                    ["strategic", "🎯 Estratégica"],
-                    ["ops", "⚙️ Operativa"],
-                  ] as const).map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setValue("taskType", watch("taskType") === val ? undefined : val)}
-                      className={cn(
-                        "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                        watch("taskType") === val
-                          ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <CategoryPicker
+                value={categoryIds}
+                onChange={setCategoryIds}
+                label="Categorías"
+              />
             </div>}
 
             <div className="flex gap-3 pt-2">

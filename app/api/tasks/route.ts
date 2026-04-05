@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, projects, users, taskActivity } from "@/db/schema";
+import { tasks, projects, users, taskActivity, taskCategoryLinks, taskCategories } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
 import { getRole } from "@/lib/auth";
-import { eq, or, and } from "drizzle-orm";
+import { eq, or, and, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
@@ -22,7 +22,7 @@ const createTaskSchema = z.object({
   dueDate: z.string().nullish(),
   energyLevel: z.enum(["low", "medium", "high"]).nullish(),
   estMinutes: z.number().int().positive().nullish(),
-  taskType: z.enum(["revenue", "creative", "admin", "strategic", "ops"]).nullish(),
+  categoryIds: z.array(z.string().uuid()).max(4).nullish(),
 });
 
 export async function GET(req: Request) {
@@ -53,7 +53,29 @@ export async function GET(req: Request) {
         );
   }
 
-  return NextResponse.json(result);
+  // Fetch categories for all tasks in a single query
+  const taskIds = result.map((t) => t.id);
+  const categoryMap: Record<string, { id: string; name: string; color: string; icon: string }[]> = {};
+  if (taskIds.length > 0) {
+    const links = await db
+      .select({
+        taskId: taskCategoryLinks.taskId,
+        id: taskCategories.id,
+        name: taskCategories.name,
+        color: taskCategories.color,
+        icon: taskCategories.icon,
+      })
+      .from(taskCategoryLinks)
+      .innerJoin(taskCategories, eq(taskCategoryLinks.categoryId, taskCategories.id))
+      .where(inArray(taskCategoryLinks.taskId, taskIds));
+
+    for (const link of links) {
+      if (!categoryMap[link.taskId]) categoryMap[link.taskId] = [];
+      categoryMap[link.taskId].push({ id: link.id, name: link.name, color: link.color, icon: link.icon });
+    }
+  }
+
+  return NextResponse.json(result.map((t) => ({ ...t, categories: categoryMap[t.id] ?? [] })));
 }
 
 export async function POST(req: Request) {
@@ -68,19 +90,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const { categoryIds, ...taskData } = parsed.data;
   const [task] = await db.insert(tasks).values({
-    ...parsed.data,
-    projectId: parsed.data.projectId ?? null,
-    clientId: parsed.data.clientId ?? null,
-    assignedTo: parsed.data.assignedTo ?? null,
-    agentId: parsed.data.agentId ?? null,
-    customColumnId: parsed.data.customColumnId ?? null,
-    dueDate: parsed.data.dueDate || null,
-    energyLevel: parsed.data.energyLevel ?? null,
-    estMinutes: parsed.data.estMinutes ?? null,
-    taskType: parsed.data.taskType ?? null,
+    ...taskData,
+    projectId: taskData.projectId ?? null,
+    clientId: taskData.clientId ?? null,
+    assignedTo: taskData.assignedTo ?? null,
+    agentId: taskData.agentId ?? null,
+    customColumnId: taskData.customColumnId ?? null,
+    dueDate: taskData.dueDate || null,
+    energyLevel: taskData.energyLevel ?? null,
+    estMinutes: taskData.estMinutes ?? null,
     createdBy: userId,
   }).returning();
+
+  if (categoryIds && categoryIds.length > 0) {
+    await db.insert(taskCategoryLinks).values(
+      categoryIds.map((cid) => ({ taskId: task.id, categoryId: cid }))
+    ).onConflictDoNothing();
+  }
 
   const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
   const creatorName = creator?.name ?? "Usuario";

@@ -1,5 +1,4 @@
 import { pgTable, uuid, varchar, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
-import { users } from "./users";
 import { mktLeads } from "./mkt-leads";
 
 export const mktInteractionTypeEnum = pgEnum("mkt_interaction_type", [
@@ -24,7 +23,7 @@ export const mktInteractions = pgTable("mkt_interactions", {
   message: text("message"),                         // Mensaje enviado o respuesta recibida
   copyId: uuid("copy_id"),
   campaignId: uuid("campaign_id"),
-  workerId: varchar("worker_id", { length: 255 }).references(() => users.id),
+  workerId: varchar("worker_id", { length: 255 }), // user ID o machine ID de worker
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

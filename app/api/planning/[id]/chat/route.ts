@@ -111,7 +111,7 @@ const MOOD_INSTRUCTIONS: Record<NonNullable<Mood>, string> = {
 
 function formatTask(t: {
   id: string; title: string; description: string | null; status: string; priority: string;
-  dueDate: string | null; energyLevel: string | null; estMinutes: number | null; taskType: string | null;
+  dueDate: string | null; energyLevel: string | null; estMinutes: number | null;
   projectName: string | null;
   comments: { userName: string | null; content: string; createdAt: Date }[];
   subtasks: { title: string; done: boolean }[];
@@ -123,7 +123,6 @@ function formatTask(t: {
   if (t.dueDate)     meta.push(`vence: ${t.dueDate}`);
   if (t.energyLevel) meta.push(`energía: ${t.energyLevel}`);
   if (t.estMinutes)  meta.push(`~${t.estMinutes}min`);
-  if (t.taskType)    meta.push(`tipo: ${t.taskType}`);
   if (meta.length)   lines.push(`  │ ${meta.join(" · ")}`);
   if (t.description) lines.push(`  │ Desc: ${t.description.slice(0, 200)}${t.description.length > 200 ? "..." : ""}`);
   if (t.subtasks.length > 0) {
@@ -168,7 +167,7 @@ async function fetchUserData(userId: string, mood: NonNullable<Mood>, availableM
     db.select({
       id: tasks.id, title: tasks.title, description: tasks.description,
       status: tasks.status, priority: tasks.priority, dueDate: tasks.dueDate,
-      energyLevel: tasks.energyLevel, estMinutes: tasks.estMinutes, taskType: tasks.taskType,
+      energyLevel: tasks.energyLevel, estMinutes: tasks.estMinutes,
       projectId: tasks.projectId,
     }).from(tasks).where(and(or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId)), ne(tasks.status, "done"))),
     db.select({ id: projects.id, name: projects.name, description: projects.description, status: projects.status, priority: projects.priority, startDate: projects.startDate, endDate: projects.endDate })
@@ -185,12 +184,11 @@ async function fetchUserData(userId: string, mood: NonNullable<Mood>, availableM
     const c = filtered.filter((t) => !a.includes(t) && !b.includes(t));
     filtered = [...a, ...b, ...c].slice(0, 20);
   } else if (mood === "high_energy") {
-    const a = filtered.filter((t) => t.energyLevel === "high" || t.taskType === "strategic" || t.taskType === "creative");
+    const a = filtered.filter((t) => t.energyLevel === "high");
     const b = filtered.filter((t) => !a.includes(t) && (t.priority === "urgent" || t.priority === "high"));
     filtered = [...a, ...b].slice(0, 20);
   } else if (mood === "revenue") {
-    const a = filtered.filter((t) => t.taskType === "revenue");
-    filtered = [...a, ...filtered.filter((t) => t.taskType !== "revenue")].slice(0, 20);
+    filtered = filtered.filter((t) => t.priority === "urgent" || t.priority === "high").slice(0, 20);
   } else if (mood === "overwhelmed") {
     filtered = filtered.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3)).slice(0, 10);
   } else if (mood === "time_constrained" && availableMinutes) {

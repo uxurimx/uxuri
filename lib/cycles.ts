@@ -10,48 +10,62 @@ export interface CycleInfo {
   barColor: string;
   /** Tailwind classes para el badge */
   badgeClass: string;
-  /** Horas restantes al siguiente ciclo (null si vencido o sin ciclo) */
-  hoursLeft: number | null;
+  /** Minutos restantes al siguiente ciclo (null si vencido o sin ciclo) */
+  minutesLeft: number | null;
+}
+
+/** Formatea minutos como "5m", "2h", "3d 4h", etc. */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h < 24) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh > 0 ? `${d}d ${rh}h` : `${d}d`;
 }
 
 export function getCycleInfo(
-  cycleHours: number | null | undefined,
+  cycleMinutes: number | null | undefined,
   lastCycleAt: Date | string | null | undefined,
   nextCycleAt: Date | string | null | undefined,
 ): CycleInfo {
   const none: CycleInfo = {
-    phase: "none", pct: 0, label: "", barColor: "", badgeClass: "", hoursLeft: null,
+    phase: "none", pct: 0, label: "", barColor: "", badgeClass: "", minutesLeft: null,
   };
-  if (!cycleHours || !nextCycleAt) return none;
+  if (!cycleMinutes || !nextCycleAt) return none;
 
-  const now   = Date.now();
-  const last  = lastCycleAt ? new Date(lastCycleAt).getTime() : now - cycleHours * 3_600_000;
-  const next  = new Date(nextCycleAt).getTime();
-  const total = cycleHours * 3_600_000;
-  const pct   = Math.round(((now - last) / total) * 100);
-  const msLeft = next - now;
-  const hoursLeft = msLeft > 0 ? Math.ceil(msLeft / 3_600_000) : 0;
+  const now      = Date.now();
+  const last     = lastCycleAt ? new Date(lastCycleAt).getTime() : now - cycleMinutes * 60_000;
+  const next     = new Date(nextCycleAt).getTime();
+  const total    = cycleMinutes * 60_000;
+  const pct      = Math.round(((now - last) / total) * 100);
+  const msLeft   = next - now;
+  const minLeft  = msLeft > 0 ? Math.ceil(msLeft / 60_000) : 0;
 
   if (pct < 33) return {
-    phase: "rest", pct, hoursLeft, barColor: "bg-emerald-400", badgeClass: "bg-emerald-50 text-emerald-700",
-    label: hoursLeft > 48 ? `en ${Math.ceil(hoursLeft / 24)}d` : `en ${hoursLeft}h`,
+    phase: "rest", pct, minutesLeft: minLeft,
+    barColor: "bg-emerald-400", badgeClass: "bg-emerald-50 text-emerald-700",
+    label: `en ${formatDuration(minLeft)}`,
   };
 
   if (pct < 80) return {
-    phase: "approaching", pct, hoursLeft, barColor: "bg-amber-400", badgeClass: "bg-amber-50 text-amber-700",
-    label: hoursLeft > 0 ? `en ${hoursLeft}h` : "próximo",
+    phase: "approaching", pct, minutesLeft: minLeft,
+    barColor: "bg-amber-400", badgeClass: "bg-amber-50 text-amber-700",
+    label: minLeft > 0 ? `en ${formatDuration(minLeft)}` : "próximo",
   };
 
   if (pct <= 100) return {
-    phase: "review", pct, hoursLeft: 0, barColor: "bg-orange-500", badgeClass: "bg-orange-50 text-orange-700",
+    phase: "review", pct, minutesLeft: 0,
+    barColor: "bg-orange-500", badgeClass: "bg-orange-50 text-orange-700",
     label: "revisar ya",
   };
 
-  const overdueH = Math.floor((now - next) / 3_600_000);
+  const overdueMin = Math.floor((now - next) / 60_000);
   return {
-    phase: "overdue", pct: Math.min(pct, 200), hoursLeft: null,
+    phase: "overdue", pct: Math.min(pct, 200), minutesLeft: null,
     barColor: "bg-red-300", badgeClass: "bg-red-50 text-red-500",
-    label: overdueH >= 24 ? `${Math.floor(overdueH / 24)}d vencido` : `${overdueH}h vencido`,
+    label: `${formatDuration(overdueMin)} vencido`,
   };
 }
 

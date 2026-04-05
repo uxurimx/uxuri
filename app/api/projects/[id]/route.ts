@@ -17,7 +17,7 @@ const updateProjectSchema = z.object({
   category: z.string().max(100).optional().nullable(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
-  cycleHours: z.number().int().min(1).optional().nullable(),
+  cycleMinutes: z.number().int().min(1).optional().nullable(),
 });
 
 export async function GET(
@@ -57,18 +57,16 @@ export async function PATCH(
   const parsed = updateProjectSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { cycleHours, ...rest } = parsed.data;
+  const { cycleMinutes, ...rest } = parsed.data;
   const update: Record<string, unknown> = { ...rest, updatedAt: new Date() };
 
-  if (cycleHours !== undefined) {
-    update.cycleHours = cycleHours;
-    if (cycleHours) {
-      // Calcular nextCycleAt desde ahora al activar ciclo
+  if (cycleMinutes !== undefined) {
+    update.cycleMinutes = cycleMinutes;
+    if (cycleMinutes) {
       const now = new Date();
       update.lastCycleAt = now;
-      update.nextCycleAt = new Date(now.getTime() + cycleHours * 3_600_000);
+      update.nextCycleAt = new Date(now.getTime() + cycleMinutes * 60_000);
     } else {
-      // Limpiar ciclo al desactivar
       update.lastCycleAt = null;
       update.nextCycleAt = null;
     }

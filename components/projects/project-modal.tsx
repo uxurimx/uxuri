@@ -42,7 +42,7 @@ export type ProjectForModal = {
   createdBy?: string | null;
   isShared?: boolean;
   sharedPermission?: "view" | "edit";
-  cycleHours?:  number | null;
+  cycleMinutes?:  number | null;
   lastCycleAt?: Date | null;
   nextCycleAt?: Date | null;
   momentum?:    number;

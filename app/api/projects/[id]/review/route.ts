@@ -19,7 +19,7 @@ export async function POST(
   const [project] = await db
     .select({
       createdBy: projects.createdBy,
-      cycleHours: projects.cycleHours,
+      cycleMinutes: projects.cycleMinutes,
       lastCycleAt: projects.lastCycleAt,
       nextCycleAt: projects.nextCycleAt,
       momentum: projects.momentum,
@@ -31,11 +31,11 @@ export async function POST(
   if (!await canAccess(userId, "project", id, project.createdBy, "edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!project.cycleHours) {
+  if (!project.cycleMinutes) {
     return NextResponse.json({ error: "Este proyecto no tiene ciclo configurado" }, { status: 400 });
   }
 
-  const info = getCycleInfo(project.cycleHours, project.lastCycleAt, project.nextCycleAt);
+  const info = getCycleInfo(project.cycleMinutes, project.lastCycleAt, project.nextCycleAt);
   const wasOverdue = info.phase === "overdue";
   const newMomentum = calcMomentumOnReview(project.momentum, wasOverdue);
 
@@ -44,7 +44,7 @@ export async function POST(
     .update(projects)
     .set({
       lastCycleAt: now,
-      nextCycleAt: new Date(now.getTime() + project.cycleHours * 3_600_000),
+      nextCycleAt: new Date(now.getTime() + project.cycleMinutes * 60_000),
       momentum: newMomentum,
       updatedAt: now,
     })

@@ -25,7 +25,7 @@ type ProjectWithClient = {
   createdAt: Date;
   createdBy: string | null;
   clientName: string | null;
-  cycleHours:  number | null;
+  cycleMinutes:  number | null;
   lastCycleAt: Date | null;
   nextCycleAt: Date | null;
   momentum:    number;
@@ -151,7 +151,7 @@ export function ProjectDetail({
       {/* Ciclo de revisión */}
       <CyclePanel
         projectId={project.id}
-        cycleHours={project.cycleHours}
+        cycleMinutes={project.cycleMinutes}
         lastCycleAt={project.lastCycleAt}
         nextCycleAt={project.nextCycleAt}
         momentum={project.momentum}

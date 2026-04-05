@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCcw, Zap } from "lucide-react";
-import { getCycleInfo } from "@/lib/cycles";
+import { RotateCcw, Zap, Plus, X } from "lucide-react";
+import { getCycleInfo, formatDuration } from "@/lib/cycles";
 import { cn } from "@/lib/utils";
 
-const CYCLE_PRESETS = [
-  { label: "24h",  value: 24 },
-  { label: "48h",  value: 48 },
-  { label: "60h",  value: 60 },
-  { label: "96h",  value: 96 },
-  { label: "100h", value: 100 },
-  { label: "168h", value: 168 },
-];
+type CyclePreset = {
+  id: string;
+  label: string;
+  minutes: number;
+  isSystem: boolean;
+  isHidden: boolean;
+};
 
 const PHASE_CONFIG = {
   none:        { emoji: "○", text: "Sin ciclo",    ring: "ring-slate-200" },
@@ -25,7 +24,7 @@ const PHASE_CONFIG = {
 
 interface CyclePanelProps {
   projectId: string;
-  cycleHours: number | null;
+  cycleMinutes: number | null;
   lastCycleAt: Date | null;
   nextCycleAt: Date | null;
   momentum: number;
@@ -33,30 +32,51 @@ interface CyclePanelProps {
 
 export function CyclePanel({
   projectId,
-  cycleHours,
+  cycleMinutes,
   lastCycleAt,
   nextCycleAt,
   momentum,
 }: CyclePanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [localCycle, setLocalCycle] = useState(cycleHours);
+  const [localCycle, setLocalCycle] = useState(cycleMinutes);
   const [localMomentum, setLocalMomentum] = useState(momentum);
   const [localNext, setLocalNext] = useState(nextCycleAt);
   const [localLast, setLocalLast] = useState(lastCycleAt);
   const [reviewed, setReviewed] = useState(false);
 
+  const [presets, setPresets] = useState<CyclePreset[]>([]);
+  const [customInput, setCustomInput] = useState("");
+  const [customUnit, setCustomUnit] = useState<"min" | "h" | "d">("h");
+  const [showCustom, setShowCustom] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/cycle-presets")
+      .then((r) => r.json())
+      .then((data: CyclePreset[]) => setPresets(data.filter((p) => !p.isHidden)));
+  }, []);
+
   const info = getCycleInfo(localCycle, localLast, localNext);
   const phase = PHASE_CONFIG[info.phase];
 
-  async function handleSetCycle(hours: number | null) {
-    setLocalCycle(hours);
+  async function handleSetCycle(minutes: number | null) {
+    setLocalCycle(minutes);
     await fetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cycleHours: hours }),
+      body: JSON.stringify({ cycleMinutes: minutes }),
     });
     startTransition(() => router.refresh());
+  }
+
+  async function handleCustomSubmit() {
+    const val = parseInt(customInput, 10);
+    if (!val || val <= 0) return;
+    const multiplier = customUnit === "min" ? 1 : customUnit === "h" ? 60 : 1440;
+    const minutes = val * multiplier;
+    setShowCustom(false);
+    setCustomInput("");
+    await handleSetCycle(minutes);
   }
 
   async function handleReview() {
@@ -86,17 +106,17 @@ export function CyclePanel({
         )}
       </div>
 
-      {/* Selector de horas */}
+      {/* Presets */}
       <div>
         <p className="text-xs text-slate-400 mb-2">¿Con qué frecuencia revisas este proyecto?</p>
         <div className="flex flex-wrap gap-2">
-          {CYCLE_PRESETS.map((p) => (
+          {presets.map((p) => (
             <button
-              key={p.value}
-              onClick={() => handleSetCycle(localCycle === p.value ? null : p.value)}
+              key={p.id}
+              onClick={() => handleSetCycle(localCycle === p.minutes ? null : p.minutes)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                localCycle === p.value
+                localCycle === p.minutes
                   ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
                   : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
               )}
@@ -104,7 +124,62 @@ export function CyclePanel({
               {p.label}
             </button>
           ))}
+
+          {/* Botón personalizado */}
+          {!showCustom ? (
+            <button
+              onClick={() => setShowCustom(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-50 transition-all"
+            >
+              <Plus className="w-3 h-3" />
+              Personalizado
+            </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                type="number"
+                min={1}
+                value={customInput}
+                onChange={(e) => setCustomInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCustomSubmit(); if (e.key === "Escape") setShowCustom(false); }}
+                placeholder="ej. 5"
+                className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+              />
+              <select
+                value={customUnit}
+                onChange={(e) => setCustomUnit(e.target.value as "min" | "h" | "d")}
+                className="text-xs border border-slate-200 rounded-lg px-1.5 py-1 focus:outline-none"
+              >
+                <option value="min">min</option>
+                <option value="h">h</option>
+                <option value="d">días</option>
+              </select>
+              <button
+                onClick={handleCustomSubmit}
+                className="px-2 py-1 bg-[#1e3a5f] text-white rounded-lg text-xs font-medium hover:bg-[#16305a] transition-colors"
+              >
+                ✓
+              </button>
+              <button onClick={() => setShowCustom(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Ciclo actual personalizado (si no está en presets) */}
+        {localCycle && !presets.some((p) => p.minutes === localCycle) && (
+          <p className="text-xs text-slate-400 mt-1.5">
+            Ciclo activo: {formatDuration(localCycle)}
+            <button
+              onClick={() => handleSetCycle(null)}
+              className="ml-2 text-red-400 hover:text-red-600 transition-colors"
+            >
+              Quitar
+            </button>
+          </p>
+        )}
       </div>
 
       {localCycle && (

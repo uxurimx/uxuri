@@ -90,7 +90,7 @@ export function ProjectsList({
           {filtered.map((project) => {
             const status = statusConfig[project.status];
             const priority = priorityConfig[project.priority];
-            const cycle = getCycleInfo(project.cycleHours, project.lastCycleAt, project.nextCycleAt);
+            const cycle = getCycleInfo(project.cycleMinutes, project.lastCycleAt, project.nextCycleAt);
             return (
               <div
                 key={project.id}

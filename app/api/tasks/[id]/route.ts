@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, users, taskActivity } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { tasks, users, taskActivity, taskCategoryLinks, taskCategories } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
@@ -22,7 +22,7 @@ const updateTaskSchema = z.object({
   agentStatus: z.string().nullable().optional(),
   energyLevel: z.enum(["low", "medium", "high"]).nullable().optional(),
   estMinutes: z.number().int().positive().nullable().optional(),
-  taskType: z.enum(["revenue", "creative", "admin", "strategic", "ops"]).nullable().optional(),
+  categoryIds: z.array(z.string().uuid()).max(4).nullable().optional(),
 });
 
 const STATUS_LABELS: Record<string, string> = {
@@ -83,14 +83,25 @@ export async function PATCH(
   }
 
   // Usuario asignado solo puede cambiar status, sortOrder y agentStatus
+  const { categoryIds, ...restData } = parsed.data;
   const updateData = isCreator
-    ? parsed.data
-    : { status: parsed.data.status, sortOrder: parsed.data.sortOrder, agentStatus: parsed.data.agentStatus };
+    ? restData
+    : { status: restData.status, sortOrder: restData.sortOrder, agentStatus: restData.agentStatus };
 
   const [updated] = await db.update(tasks)
     .set({ ...updateData, updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning();
+
+  // Actualizar categorías si el creador las envía
+  if (isCreator && categoryIds !== undefined) {
+    await db.delete(taskCategoryLinks).where(eq(taskCategoryLinks.taskId, id));
+    if (categoryIds && categoryIds.length > 0) {
+      await db.insert(taskCategoryLinks).values(
+        categoryIds.map((cid) => ({ taskId: id, categoryId: cid }))
+      ).onConflictDoNothing();
+    }
+  }
 
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

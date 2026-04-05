@@ -37,10 +37,10 @@ export const projects = pgTable("projects", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   // Ciclos
-  cycleHours:  integer("cycle_hours"),
-  lastCycleAt: timestamp("last_cycle_at"),
-  nextCycleAt: timestamp("next_cycle_at"),
-  momentum:    integer("momentum").default(100).notNull(),
+  cycleMinutes: integer("cycle_minutes"),
+  lastCycleAt:  timestamp("last_cycle_at"),
+  nextCycleAt:  timestamp("next_cycle_at"),
+  momentum:     integer("momentum").default(100).notNull(),
 });
 
 export type Project = typeof projects.$inferSelect;

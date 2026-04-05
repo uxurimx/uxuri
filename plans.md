@@ -238,4 +238,4 @@
 
   fase 2 -----
   
-    
+    Justo acabo de detectar un problema grande, se cayo mi  internet y no puedo acceder a mis dbs, no tengo una db local para continuarcon mistareas y cuando regrese la conexion se sincrhonicen. es prioritario y fundamental tener esto funcional, es el mismo problema con clerk, no puedo ni logearme cuando estoy offline.

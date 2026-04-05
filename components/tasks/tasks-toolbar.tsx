@@ -6,6 +6,7 @@ import {
   Filter, X, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { CategoryOption } from "./category-picker";
 
 // ── Filter + Sort types (shared with kanban-board) ────────────────────────────
 
@@ -25,6 +26,7 @@ export type TaskFilters = {
   assignee: "all" | "me" | "unassigned";
   createdBy: "all" | "me";
   projectId: string;
+  categoryId: string;
   dueDateFilter: "all" | "overdue" | "this-week" | "no-date";
   sortBy: SortBy;
   sortDir: "asc" | "desc";
@@ -37,6 +39,7 @@ export const DEFAULT_TASK_FILTERS: TaskFilters = {
   assignee: "all",
   createdBy: "all",
   projectId: "",
+  categoryId: "",
   dueDateFilter: "all",
   sortBy: "default",
   sortDir: "desc",
@@ -80,6 +83,7 @@ interface TasksToolbarProps {
   onNewTask?: () => void;
   projects?: { id: string; name: string }[];
   currentUserId?: string;
+  categories?: CategoryOption[];
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -93,11 +97,23 @@ export function TasksToolbar({
   onNewTask,
   projects = [],
   currentUserId,
+  categories: externalCategories,
 }: TasksToolbarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSort, setShowSort] = useState(false);
+  const [loadedCats, setLoadedCats] = useState<CategoryOption[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
   const sortRef = useRef<HTMLDivElement>(null);
+
+  const categories = externalCategories ?? loadedCats;
+
+  useEffect(() => {
+    if (externalCategories) return;
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((data: CategoryOption[]) => setLoadedCats(data.filter((c) => !c.isHidden)))
+      .catch(() => {});
+  }, [externalCategories]);
 
   // Close advanced panel on outside click
   useEffect(() => {
@@ -163,17 +179,46 @@ export function TasksToolbar({
     });
   }
 
+  if (filters.categoryId) {
+    const catName = categories.find((c) => c.id === filters.categoryId)?.name ?? "Categoría";
+    chips.push({ label: catName, onRemove: () => onFiltersChange({ categoryId: "" }) });
+  }
+
   const hasAnyActive =
     filters.priority !== "all" ||
     filters.assignee !== "all" ||
     filters.createdBy !== "all" ||
     filters.projectId !== "" ||
+    filters.categoryId !== "" ||
     filters.dueDateFilter !== "all" ||
     !filters.hideDone ||
     sortActive;
 
   return (
     <div className="space-y-2 mb-4">
+      {/* ── Row 0: Categorías ── */}
+      {categories.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap items-center">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-0.5">Categoría</span>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => onFiltersChange({ categoryId: filters.categoryId === cat.id ? "" : cat.id })}
+              className={cn(
+                "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-all",
+                filters.categoryId === cat.id
+                  ? "text-white border-transparent"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+              )}
+              style={filters.categoryId === cat.id ? { backgroundColor: cat.color, borderColor: cat.color } : undefined}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Row 1 ── */}
       <div className="flex flex-wrap gap-2 items-center">
 

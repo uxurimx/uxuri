@@ -7,6 +7,7 @@ import { Flag, Pencil, Trash2, UserCircle, User, Folder, Plus, X } from "lucide-
 import { AgentBadge } from "@/components/agents/agent-badge";
 import { TaskModal, type TaskForModal } from "./task-modal";
 import { TasksToolbar, type TaskFilters, DEFAULT_TASK_FILTERS } from "./tasks-toolbar";
+import { CategoryDots } from "./category-picker";
 import { TaskListView } from "./task-list-view";
 import { getPusherClient } from "@/lib/pusher";
 
@@ -31,6 +32,7 @@ export type TaskWithProject = {
   personalDone: boolean;
   subtaskTotal?: number;
   subtaskDone?: number;
+  categories?: { id: string; name: string; color: string; icon: string }[];
 };
 
 type User = { id: string; name: string | null };
@@ -169,6 +171,13 @@ function TaskCardList({
 
             {task.description && (
               <p className="text-xs text-slate-500 mb-2 line-clamp-2">{task.description}</p>
+            )}
+
+            {/* Category dots */}
+            {task.categories && task.categories.length > 0 && (
+              <div className="mb-2">
+                <CategoryDots categories={task.categories} />
+              </div>
             )}
 
             {/* Priority + staleness + date + assigned */}
@@ -409,6 +418,7 @@ export function KanbanBoard({
       if (filters.assignee === "unassigned" && t.assignedTo !== null) return false;
       if (filters.createdBy === "me" && t.createdBy !== currentUserId) return false;
       if (filters.projectId && t.projectId !== filters.projectId) return false;
+      if (filters.categoryId && !t.categories?.some((c) => c.id === filters.categoryId)) return false;
 
       if (filters.dueDateFilter !== "all") {
         const due = t.dueDate ? new Date(t.dueDate) : null;
