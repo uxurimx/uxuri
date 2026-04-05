@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, X, Zap, ArrowRight, Play, Pause, CheckCircle2, Clock, AlertCircle, Loader2, Search } from "lucide-react";
+import { Plus, X, Zap, ArrowRight, Play, Pause, CheckCircle2, Clock, AlertCircle, Loader2, Search, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CampaignProgress } from "./campaign-progress";
 
@@ -52,6 +52,7 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [showModal, setShowModal] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
   const [saving, setSaving] = useState(false);
 
@@ -69,39 +70,75 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
     setScheduledAt(""); setStatus("draft"); setNotes("");
   }
 
+  function openEdit(c: Campaign) {
+    setEditingCampaign(c);
+    setTitle(c.title);
+    setStrategyId(c.strategy?.id ?? "");
+    setCopyId(c.copy?.id ?? "");
+    setAssignedTo(c.worker?.id ?? "");
+    setScheduledAt(c.scheduledAt ? new Date(c.scheduledAt).toISOString().slice(0, 16) : "");
+    setStatus(c.status);
+    setNotes(c.notes ?? "");
+    setShowModal(true);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("¿Eliminar esta campaña? Esta acción no se puede deshacer.")) return;
+    const res = await fetch(`/api/mkt/campaigns/${id}`, { method: "DELETE" });
+    if (res.ok) setCampaigns((prev) => prev.filter((c) => c.id !== id));
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     setSaving(true);
+    const payload = {
+      title: title.trim(),
+      strategyId: strategyId || null,
+      copyId: copyId || null,
+      assignedTo: assignedTo || null,
+      scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      status,
+      notes: notes.trim() || null,
+    };
     try {
-      const res = await fetch("/api/mkt/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          strategyId: strategyId || null,
-          copyId: copyId || null,
-          assignedTo: assignedTo || null,
-          // Convertir a ISO UTC en el browser (que conoce el timezone local)
-          // Sin esto, Vercel (UTC) parsea "2024-04-04T12:00" como UTC noon,
-          // y al mostrar en Mexico (UTC-6) aparece 6:00 en lugar de 12:00.
-          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-          status,
-          notes: notes.trim() || null,
-        }),
-      });
-      if (res.ok) {
-        const c = await res.json();
-        const strategy = strategies.find((s) => s.id === strategyId) ?? null;
-        const copy = copies.find((cp) => cp.id === copyId) ?? null;
-        const worker = workers.find((w) => w.id === assignedTo) ?? null;
-        setCampaigns((prev) => [
-          { ...c, strategy, copy, worker, totalLeads: 0, contacted: 0, responded: 0, interested: 0, converted: 0 },
-          ...prev,
-        ]);
-        setShowModal(false);
-        resetForm();
-        router.push(`/marketing/campaigns/${c.id}`);
+      if (editingCampaign) {
+        const res = await fetch(`/api/mkt/campaigns/${editingCampaign.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          const strategy = strategies.find((s) => s.id === strategyId) ?? null;
+          const copy = copies.find((cp) => cp.id === copyId) ?? null;
+          const worker = workers.find((w) => w.id === assignedTo) ?? null;
+          setCampaigns((prev) => prev.map((c) =>
+            c.id === editingCampaign.id ? { ...c, ...updated, strategy, copy, worker } : c
+          ));
+          setShowModal(false);
+          setEditingCampaign(null);
+          resetForm();
+        }
+      } else {
+        const res = await fetch("/api/mkt/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const c = await res.json();
+          const strategy = strategies.find((s) => s.id === strategyId) ?? null;
+          const copy = copies.find((cp) => cp.id === copyId) ?? null;
+          const worker = workers.find((w) => w.id === assignedTo) ?? null;
+          setCampaigns((prev) => [
+            { ...c, strategy, copy, worker, totalLeads: 0, contacted: 0, responded: 0, interested: 0, converted: 0 },
+            ...prev,
+          ]);
+          setShowModal(false);
+          resetForm();
+          router.push(`/marketing/campaigns/${c.id}`);
+        }
       }
     } finally {
       setSaving(false);
@@ -232,11 +269,7 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
                   {/* Acciones rápidas */}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                     {(c.status === "draft" || c.status === "paused" || c.status === "failed") ? (
-                      <button
-                        onClick={() => handleLaunch(c.id)}
-                        title="Lanzar al worker"
-                        className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
-                      >
+                      <button onClick={() => handleLaunch(c.id)} title="Lanzar al worker" className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
                         <Play className="w-4 h-4" />
                       </button>
                     ) : (c.status === "running" || c.status === "scraping") ? (
@@ -244,6 +277,12 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
                         <Pause className="w-4 h-4" />
                       </button>
                     ) : null}
+                    <button onClick={() => openEdit(c)} title="Editar" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-[#1e3a5f] transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(c.id)} title="Eliminar" className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <Link href={`/marketing/campaigns/${c.id}`} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
                       <ArrowRight className="w-4 h-4" />
                     </Link>
@@ -275,8 +314,8 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
-              <h2 className="font-semibold text-slate-900">Nueva campaña</h2>
-              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <h2 className="font-semibold text-slate-900">{editingCampaign ? "Editar campaña" : "Nueva campaña"}</h2>
+              <button onClick={() => { setShowModal(false); setEditingCampaign(null); resetForm(); }} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleCreate} className="px-6 py-4 space-y-4">
               <div>
@@ -341,7 +380,7 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setShowModal(false); resetForm(); }} className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors">Cancelar</button>
                 <button type="submit" disabled={saving || !title.trim()} className="flex-1 px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] disabled:opacity-50 transition-colors">
-                  {saving ? "Guardando..." : "Crear campaña"}
+                  {saving ? "Guardando..." : editingCampaign ? "Guardar cambios" : "Crear campaña"}
                 </button>
               </div>
             </form>

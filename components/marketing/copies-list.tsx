@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Eye, Copy, CheckCircle2, Archive, Clock, FileText } from "lucide-react";
+import { Plus, X, Eye, CheckCircle2, Archive, Clock, FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Variables de ejemplo para preview en vivo
@@ -148,6 +148,12 @@ export function CopiesList({ initialCopies }: { initialCopies: MktCopy[] }) {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm("¿Eliminar este copy? Esta acción no se puede deshacer.")) return;
+    const res = await fetch(`/api/mkt/copies/${id}`, { method: "DELETE" });
+    if (res.ok) setCopies((prev) => prev.filter((c) => c.id !== id));
+  }
+
   async function handleArchive(id: string) {
     const res = await fetch(`/api/mkt/copies/${id}`, {
       method: "PATCH",
@@ -284,15 +290,17 @@ export function CopiesList({ initialCopies }: { initialCopies: MktCopy[] }) {
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-1 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => openEdit(c)} className="text-xs text-slate-500 hover:text-[#1e3a5f] transition-colors">Editar</button>
-                  {c.status === "draft" && (
+                  {(c.status === "draft" || c.status === "review") && (
                     <button onClick={() => quickStatus(c.id, "approved")} className="text-xs text-emerald-600 hover:text-emerald-700 transition-colors">Aprobar</button>
                   )}
-                  {c.status === "review" && (
-                    <button onClick={() => quickStatus(c.id, "approved")} className="text-xs text-emerald-600 hover:text-emerald-700 transition-colors">Aprobar</button>
-                  )}
-                  {c.status !== "archived" && (
-                    <button onClick={() => handleArchive(c.id)} className="text-xs text-slate-400 hover:text-slate-600 ml-auto transition-colors">Archivar</button>
-                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    {c.status !== "archived" && (
+                      <button onClick={() => handleArchive(c.id)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Archivar</button>
+                    )}
+                    <button onClick={() => handleDelete(c.id)} className="text-xs text-red-400 hover:text-red-600 transition-colors flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" />Eliminar
+                    </button>
+                  </div>
                 </div>
               </div>
             );

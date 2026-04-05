@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Target, ArrowRight, X, Globe, MessageSquare, Mail, Instagram } from "lucide-react";
+import { Plus, Target, ArrowRight, X, Globe, MessageSquare, Mail, Instagram, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NICHES = [
@@ -51,6 +51,7 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
   const router = useRouter();
   const [strategies, setStrategies] = useState<Strategy[]>(initialStrategies);
   const [showModal, setShowModal] = useState(false);
+  const [editingStrategy, setEditingStrategy] = useState<Strategy | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
   const [saving, setSaving] = useState(false);
 
@@ -72,32 +73,72 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
     setTargetCountry("México"); setChannel("whatsapp"); setStatus("active"); setNotes("");
   }
 
+  function openEdit(s: Strategy) {
+    setEditingStrategy(s);
+    setTitle(s.title);
+    setDescription(s.description ?? "");
+    setProductOffered(s.productOffered ?? "");
+    const knownNiche = NICHES.includes(s.targetNiche ?? "");
+    setTargetNiche(knownNiche ? (s.targetNiche ?? "") : s.targetNiche ? "__custom__" : "");
+    setCustomNiche(knownNiche ? "" : (s.targetNiche ?? ""));
+    setTargetCity(s.targetCity ?? "");
+    setTargetCountry(s.targetCountry ?? "México");
+    setChannel(s.channel);
+    setStatus(s.status);
+    setNotes(s.notes ?? "");
+    setShowModal(true);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("¿Eliminar esta estrategia? Esta acción no se puede deshacer.")) return;
+    const res = await fetch(`/api/mkt/strategies/${id}`, { method: "DELETE" });
+    if (res.ok) setStrategies((prev) => prev.filter((s) => s.id !== id));
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     setSaving(true);
+    const payload = {
+      title: title.trim(),
+      description: description.trim() || null,
+      productOffered: productOffered.trim() || null,
+      targetNiche: (targetNiche === "__custom__" ? customNiche : targetNiche) || null,
+      targetCity: targetCity.trim() || null,
+      targetCountry: targetCountry.trim() || null,
+      channel,
+      status,
+      notes: notes.trim() || null,
+    };
     try {
-      const res = await fetch("/api/mkt/strategies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          productOffered: productOffered.trim() || null,
-          targetNiche: (targetNiche === "__custom__" ? customNiche : targetNiche) || null,
-          targetCity: targetCity.trim() || null,
-          targetCountry: targetCountry.trim() || null,
-          channel,
-          status,
-          notes: notes.trim() || null,
-        }),
-      });
-      if (res.ok) {
-        const s = await res.json();
-        setStrategies((prev) => [{ ...s, campaignCount: 0 }, ...prev]);
-        setShowModal(false);
-        resetForm();
-        router.push(`/marketing/strategies/${s.id}`);
+      if (editingStrategy) {
+        const res = await fetch(`/api/mkt/strategies/${editingStrategy.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setStrategies((prev) => prev.map((s) =>
+            s.id === editingStrategy.id ? { ...s, ...updated } : s
+          ));
+          setShowModal(false);
+          setEditingStrategy(null);
+          resetForm();
+        }
+      } else {
+        const res = await fetch("/api/mkt/strategies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const s = await res.json();
+          setStrategies((prev) => [{ ...s, campaignCount: 0 }, ...prev]);
+          setShowModal(false);
+          resetForm();
+          router.push(`/marketing/strategies/${s.id}`);
+        }
       }
     } finally {
       setSaving(false);
@@ -167,20 +208,26 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
             const ch = CHANNELS.find((c) => c.value === s.channel);
             const sc = STATUS_CONFIG[s.status] ?? STATUS_CONFIG.draft;
             return (
-              <Link
-                key={s.id}
-                href={`/marketing/strategies/${s.id}`}
-                className="bg-white border border-slate-200 rounded-xl p-5 hover:border-[#1e3a5f]/30 hover:shadow-sm transition-all group space-y-3"
-              >
+              <div key={s.id} className="bg-white border border-slate-200 rounded-xl p-5 hover:border-[#1e3a5f]/30 hover:shadow-sm transition-all group space-y-3">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900 line-clamp-2 group-hover:text-[#1e3a5f] transition-colors">
-                    {s.title}
-                  </h3>
+                  <Link href={`/marketing/strategies/${s.id}`} className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-slate-900 line-clamp-2 group-hover:text-[#1e3a5f] transition-colors">
+                      {s.title}
+                    </h3>
+                  </Link>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", sc.className)}>
                       {sc.label}
                     </span>
-                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                    <button onClick={() => openEdit(s)} title="Editar" className="p-1 rounded hover:bg-slate-100 text-slate-300 hover:text-[#1e3a5f] transition-colors opacity-0 group-hover:opacity-100">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDelete(s.id)} title="Eliminar" className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <Link href={`/marketing/strategies/${s.id}`} className="p-1 rounded opacity-0 group-hover:opacity-100">
+                      <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                    </Link>
                   </div>
                 </div>
 
@@ -211,7 +258,7 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
                 <div className="text-xs text-slate-400 pt-1 border-t border-slate-100">
                   {s.campaignCount} campaña(s)
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
@@ -222,8 +269,8 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
-              <h2 className="font-semibold text-slate-900">Nueva estrategia</h2>
-              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-slate-400 hover:text-slate-600">
+              <h2 className="font-semibold text-slate-900">{editingStrategy ? "Editar estrategia" : "Nueva estrategia"}</h2>
+              <button onClick={() => { setShowModal(false); setEditingStrategy(null); resetForm(); }} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -349,7 +396,7 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
                   disabled={saving || !title.trim()}
                   className="flex-1 px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] disabled:opacity-50 transition-colors"
                 >
-                  {saving ? "Guardando..." : "Crear estrategia"}
+                  {saving ? "Guardando..." : editingStrategy ? "Guardar cambios" : "Crear estrategia"}
                 </button>
               </div>
             </form>
