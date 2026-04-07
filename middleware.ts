@@ -11,7 +11,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
   "/api/setup",
   "/api/uploadthing",
-  "/api/mkt/(.*)", // Bridge Python → Neon: auth propia con X-API-Key
+  "/api/mkt/(.*)",    // Bridge Python → Neon: auth propia con X-API-Key
+  "/api/metro/(.*)", // MiniMetro game bridge: auth propia con X-Metro-Key
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

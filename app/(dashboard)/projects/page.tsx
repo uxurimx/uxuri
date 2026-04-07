@@ -1,10 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, objectives, shares } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { projects, clients, objectives, shares, tasks } from "@/db/schema";
+import { eq, and, inArray, isNotNull, sql } from "drizzle-orm";
 import { getRole } from "@/lib/auth";
 import { ProjectsHeader } from "@/components/projects/projects-header";
 import { ProjectsList } from "@/components/projects/projects-list";
+import { ProjectStats, type UpcomingProject } from "@/components/projects/project-stats";
 
 export default async function ProjectsPage() {
   const { userId } = await auth();
@@ -35,13 +36,13 @@ export default async function ProjectsPage() {
     createdAt: projects.createdAt,
     createdBy: projects.createdBy,
     clientName: clients.name,
-    cycleMinutes:  projects.cycleMinutes,
+    cycleMinutes: projects.cycleMinutes,
     lastCycleAt: projects.lastCycleAt,
     nextCycleAt: projects.nextCycleAt,
-    momentum:    projects.momentum,
+    momentum: projects.momentum,
   } as const;
 
-  const [ownedProjects, sharedProjects, allClients, allObjectives] = await Promise.all([
+  const [ownedProjects, sharedProjects, allClients, allObjectives, taskCountRows] = await Promise.all([
     db
       .select(projectFields)
       .from(projects)
@@ -66,20 +67,89 @@ export default async function ProjectsPage() {
       .from(objectives)
       .where(isAdmin ? undefined : eq(objectives.createdBy, userId))
       .orderBy(objectives.createdAt),
+    db
+      .select({
+        projectId: tasks.projectId,
+        total: sql<number>`cast(count(*) as int)`,
+        done: sql<number>`cast(count(*) filter (where ${tasks.status} = 'done') as int)`,
+      })
+      .from(tasks)
+      .where(isNotNull(tasks.projectId))
+      .groupBy(tasks.projectId),
   ]);
 
+  // Build task count lookup
+  const taskMap: Record<string, { total: number; done: number }> = {};
+  for (const row of taskCountRows) {
+    if (row.projectId) taskMap[row.projectId] = { total: row.total, done: row.done };
+  }
+
   const allProjects = [
-    ...ownedProjects.map((p) => ({ ...p, isShared: false })),
+    ...ownedProjects.map((p) => ({
+      ...p,
+      isShared: false,
+      taskCount: taskMap[p.id]?.total ?? 0,
+      doneCount: taskMap[p.id]?.done ?? 0,
+    })),
     ...sharedProjects.map((p) => ({
       ...p,
       isShared: true,
       sharedPermission: sharedLinks.find((s) => s.resourceId === p.id)?.permission ?? "view",
+      taskCount: taskMap[p.id]?.total ?? 0,
+      doneCount: taskMap[p.id]?.done ?? 0,
     })),
-  ];
+  ] as Parameters<typeof ProjectsList>[0]["projects"];
+
+  // Compute dashboard stats
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const in14 = new Date(today);
+  in14.setDate(in14.getDate() + 14);
+
+  const total = allProjects.length;
+  const active = allProjects.filter((p) => p.status === "active").length;
+  const planning = allProjects.filter((p) => p.status === "planning").length;
+  const completed = allProjects.filter((p) => p.status === "completed").length;
+  const overdue = allProjects.filter(
+    (p) =>
+      p.endDate &&
+      new Date(p.endDate) < today &&
+      p.status !== "completed" &&
+      p.status !== "cancelled"
+  ).length;
+
+  const upcoming: UpcomingProject[] = allProjects
+    .filter(
+      (p) =>
+        p.endDate &&
+        new Date(p.endDate) >= today &&
+        new Date(p.endDate) <= in14 &&
+        p.status !== "completed" &&
+        p.status !== "cancelled"
+    )
+    .sort((a, b) => new Date(a.endDate!).getTime() - new Date(b.endDate!).getTime())
+    .slice(0, 6)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      endDate: p.endDate!,
+      status: p.status,
+      priority: p.priority,
+      taskCount: p.taskCount,
+      doneCount: p.doneCount,
+    }));
 
   return (
     <div className="space-y-6">
       <ProjectsHeader />
+      <ProjectStats
+        total={total}
+        active={active}
+        planning={planning}
+        completed={completed}
+        overdue={overdue}
+        upcoming={upcoming}
+      />
       <ProjectsList
         projects={allProjects}
         clients={allClients}
