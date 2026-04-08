@@ -20,6 +20,7 @@ export type ProjectWithCounts = ProjectForModal & {
 
 type Client = { id: string; name: string };
 type ObjectiveOption = { id: string; title: string };
+type BusinessOption = { id: string; name: string };
 type SortKey = "name" | "endDate" | "priority" | "tasks" | "createdAt";
 type SortDir = "asc" | "desc";
 
@@ -53,11 +54,13 @@ export function ProjectsList({
   projects,
   clients,
   objectives,
+  businesses,
   currentUserId,
 }: {
   projects: ProjectWithCounts[];
   clients: Client[];
   objectives?: ObjectiveOption[];
+  businesses?: BusinessOption[];
   currentUserId?: string;
 }) {
   const router = useRouter();
@@ -569,6 +572,7 @@ export function ProjectsList({
           project={selectedProject}
           clients={clients}
           objectives={objectives}
+          businesses={businesses}
         />
       )}
 

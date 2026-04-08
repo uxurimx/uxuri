@@ -15,6 +15,7 @@ const updateClientSchema = z.object({
   notes: z.string().optional(),
   website: z.string().optional().nullable(),
   registrationDate: z.string().optional().nullable(),
+  businessId: z.string().uuid().optional().nullable(),
 });
 
 async function getClientWithAccess(id: string, userId: string) {

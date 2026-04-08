@@ -18,6 +18,7 @@ const createProjectSchema = z.object({
   category: z.string().max(100).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  businessId: z.string().uuid().optional().nullable(),
 });
 
 export async function GET() {

@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import type { Client } from "@/db/schema";
 
+type BusinessOption = { id: string; name: string };
+
 interface ClientEditModalProps {
   client: Client;
   onClose: () => void;
+  businesses?: BusinessOption[];
 }
 
-export function ClientEditModal({ client, onClose }: ClientEditModalProps) {
+export function ClientEditModal({ client, onClose, businesses }: ClientEditModalProps) {
   const router = useRouter();
   const [name, setName] = useState(client.name);
   const [email, setEmail] = useState(client.email ?? "");
@@ -21,6 +24,9 @@ export function ClientEditModal({ client, onClose }: ClientEditModalProps) {
   const [website, setWebsite] = useState((client as Client & { website?: string | null }).website ?? "");
   const [registrationDate, setRegistrationDate] = useState(
     (client as Client & { registrationDate?: string | null }).registrationDate ?? ""
+  );
+  const [businessId, setBusinessId] = useState(
+    (client as Client & { businessId?: string | null }).businessId ?? ""
   );
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +47,7 @@ export function ClientEditModal({ client, onClose }: ClientEditModalProps) {
           notes: notes.trim() || null,
           website: website.trim() || null,
           registrationDate: registrationDate || null,
+          businessId: businessId || null,
         }),
       });
       if (res.ok) {
@@ -124,6 +131,22 @@ export function ClientEditModal({ client, onClose }: ClientEditModalProps) {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
               />
             </div>
+
+            {businesses && businesses.length > 0 && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Negocio</label>
+                <select
+                  value={businessId}
+                  onChange={(e) => setBusinessId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                >
+                  <option value="">Sin negocio</option>
+                  {businesses.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div>

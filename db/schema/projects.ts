@@ -36,6 +36,7 @@ export const projects = pgTable("projects", {
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  businessId: uuid("business_id"),
   // Ciclos
   cycleMinutes: integer("cycle_minutes"),
   lastCycleAt:  timestamp("last_cycle_at"),

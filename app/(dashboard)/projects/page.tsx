@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, objectives, shares, tasks } from "@/db/schema";
-import { eq, and, inArray, isNotNull, sql } from "drizzle-orm";
+import { projects, clients, objectives, shares, tasks, businesses, businessMembers } from "@/db/schema";
+import { eq, and, inArray, isNotNull, sql, or, count } from "drizzle-orm";
 import { getRole } from "@/lib/auth";
 import { ProjectsHeader } from "@/components/projects/projects-header";
 import { ProjectsList } from "@/components/projects/projects-list";
@@ -41,6 +41,21 @@ export default async function ProjectsPage() {
     nextCycleAt: projects.nextCycleAt,
     momentum: projects.momentum,
   } as const;
+
+  // Businesses for project selector
+  const memberOf = await db
+    .select({ businessId: businessMembers.businessId })
+    .from(businessMembers)
+    .where(eq(businessMembers.userId, userId));
+  const memberIds = memberOf.map((r) => r.businessId);
+  const bizWhere = memberIds.length > 0
+    ? or(eq(businesses.ownerId, userId), inArray(businesses.id, memberIds))
+    : eq(businesses.ownerId, userId);
+  const allBusinesses = await db
+    .select({ id: businesses.id, name: businesses.name })
+    .from(businesses)
+    .where(bizWhere!)
+    .orderBy(businesses.name);
 
   const [ownedProjects, sharedProjects, allClients, allObjectives, taskCountRows] = await Promise.all([
     db
@@ -154,6 +169,7 @@ export default async function ProjectsPage() {
         projects={allProjects}
         clients={allClients}
         objectives={allObjectives}
+        businesses={allBusinesses}
         currentUserId={userId}
       />
     </div>

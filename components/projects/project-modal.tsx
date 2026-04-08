@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap, Users, Clock, Tag } from "lucide-react";
+import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap, Users, Clock, Tag, Building2 } from "lucide-react";
 import { ShareModal } from "@/components/sharing/share-modal";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -46,10 +46,13 @@ export type ProjectForModal = {
   lastCycleAt?: Date | null;
   nextCycleAt?: Date | null;
   momentum?:    number;
+  businessId?: string | null;
+  businessName?: string | null;
 };
 
 type Client = { id: string; name: string };
 type ObjectiveOption = { id: string; title: string };
+type BusinessOption = { id: string; name: string };
 
 interface ProjectModalProps {
   open: boolean;
@@ -57,6 +60,7 @@ interface ProjectModalProps {
   project: ProjectForModal;
   clients: Client[];
   objectives?: ObjectiveOption[];
+  businesses?: BusinessOption[];
   initialMode?: "view" | "edit";
 }
 
@@ -74,12 +78,13 @@ const priorityConfig = {
   high:   { label: "Alta",  className: "text-orange-500" },
 };
 
-export function ProjectModal({ open, onClose, project, clients, objectives, initialMode = "view" }: ProjectModalProps) {
+export function ProjectModal({ open, onClose, project, clients, objectives, businesses, initialMode = "view" }: ProjectModalProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
   const [showShare, setShowShare] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [businessId, setBusinessId] = useState<string>(project.businessId ?? "");
 
   // Objective linking
   const [linkedObjective, setLinkedObjective] = useState<{ linkId: string; objectiveId: string; title: string } | null>(null);
@@ -104,6 +109,7 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
   useEffect(() => {
     if (!open) return;
     setMode(initialMode);
+    setBusinessId(project.businessId ?? "");
     reset({
       name: project.name,
       description: project.description ?? "",
@@ -131,6 +137,7 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
           category: data.category || null,
           startDate: data.startDate || null,
           endDate: data.endDate || null,
+          businessId: businessId || null,
         }),
       });
       if (res.ok) { onClose(); router.refresh(); }
@@ -245,6 +252,12 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
             )}
 
             <div className="space-y-2 text-sm text-slate-600">
+              {project.businessName && (
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <span>{project.businessName}</span>
+                </div>
+              )}
               {project.clientName && (
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
@@ -419,14 +432,31 @@ export function ProjectModal({ open, onClose, project, clients, objectives, init
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
-              <select {...register("clientId")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
-                <option value="">Sin cliente</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
+                <select {...register("clientId")} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                  <option value="">Sin cliente</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              {businesses && businesses.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Negocio</label>
+                  <select
+                    value={businessId}
+                    onChange={(e) => setBusinessId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                  >
+                    <option value="">Sin negocio</option>
+                    {businesses.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

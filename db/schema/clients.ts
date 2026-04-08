@@ -26,6 +26,7 @@ export const clients = pgTable("clients", {
   website: varchar("website", { length: 500 }),
   registrationDate: date("registration_date"),
   userId: varchar("user_id", { length: 255 }).references(() => users.id),
+  businessId: uuid("business_id"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
