@@ -466,7 +466,7 @@ function AccountModal({
 const SUBNAV = [
   { href: "/finanzas",               label: "Cuentas",       available: true },
   { href: "/finanzas/transacciones", label: "Transacciones", available: true },
-  { href: "/finanzas/pagos",         label: "Pagos",         available: false },
+  { href: "/finanzas/pagos",         label: "Pagos",         available: true },
   { href: "/finanzas/presupuesto",   label: "Presupuesto",   available: false },
 ];
 

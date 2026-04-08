@@ -350,7 +350,7 @@ export function TransactionsList({
         {[
           { href: "/finanzas",               label: "Cuentas" },
           { href: "/finanzas/transacciones", label: "Transacciones" },
-          { href: "/finanzas/pagos",         label: "Pagos",       soon: true },
+          { href: "/finanzas/pagos",         label: "Pagos" },
           { href: "/finanzas/presupuesto",   label: "Presupuesto", soon: true },
         ].map((item) => (
           <button
