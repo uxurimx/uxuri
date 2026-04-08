@@ -7,14 +7,22 @@ import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   Building2, Mail, Phone, FileText, ArrowLeft, Pencil,
-  Globe, Calendar, Users,
+  Globe, Calendar, Users, DollarSign,
 } from "lucide-react";
 import { ShareModal } from "@/components/sharing/share-modal";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ClientEditModal } from "./client-edit-modal";
 import { ContextFeed } from "@/components/context/context-feed";
+import { TransactionModal, AccountOption } from "@/components/finances/transaction-modal";
 
 type ClientWithExtra = Client & { website?: string | null; registrationDate?: string | null };
+
+interface ClientDetailProps {
+  client: ClientWithExtra;
+  projects: Project[];
+  currentUserId?: string;
+  accounts?: AccountOption[];
+}
 
 const statusConfig = {
   active: { label: "Activo", className: "bg-emerald-50 text-emerald-700" },
@@ -30,15 +38,10 @@ const projectStatusConfig = {
   cancelled: { label: "Cancelado", className: "bg-red-50 text-red-700" },
 };
 
-interface ClientDetailProps {
-  client: ClientWithExtra;
-  projects: Project[];
-  currentUserId?: string;
-}
-
-export function ClientDetail({ client, projects, currentUserId }: ClientDetailProps) {
-  const [showEdit, setShowEdit] = useState(false);
-  const [showShare, setShowShare] = useState(false);
+export function ClientDetail({ client, projects, currentUserId, accounts = [] }: ClientDetailProps) {
+  const [showEdit, setShowEdit]       = useState(false);
+  const [showShare, setShowShare]     = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const status = statusConfig[client.status];
 
   return (
@@ -61,6 +64,15 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
             {status.label}
           </span>
         </div>
+        {accounts.length > 0 && (
+          <button
+            onClick={() => setShowPayment(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+          >
+            <DollarSign className="w-3.5 h-3.5" />
+            Registrar pago
+          </button>
+        )}
         <button
           onClick={() => setShowShare(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
@@ -217,6 +229,20 @@ export function ClientDetail({ client, projects, currentUserId }: ClientDetailPr
           resourceId={client.id}
           resourceTitle={client.name}
           onClose={() => setShowShare(false)}
+        />
+      )}
+
+      {/* Register payment modal */}
+      {showPayment && (
+        <TransactionModal
+          accounts={accounts}
+          clients={[]}
+          projects={[]}
+          businesses={[]}
+          defaultType="income"
+          defaultClientId={client.id}
+          onClose={() => setShowPayment(false)}
+          onSaved={() => setShowPayment(false)}
         />
       )}
     </div>

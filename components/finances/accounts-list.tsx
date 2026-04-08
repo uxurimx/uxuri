@@ -77,12 +77,13 @@ function formatBalance(amount: string | number, currency: AccountRow["currency"]
   return `${sym}${num.toLocaleString("es-MX", { minimumFractionDigits: 2 })} ${currency}`;
 }
 
-function groupByCurrency(accs: AccountRow[]) {
+function groupByCurrency(accs: AccountRow[], computedBalances: Record<string, number>) {
   const totals: Record<string, number> = {};
   for (const a of accs) {
     if (!a.isActive) continue;
     const key = a.currency;
-    totals[key] = (totals[key] ?? 0) + parseFloat(a.initialBalance ?? "0");
+    const balance = computedBalances[a.id] ?? parseFloat(a.initialBalance ?? "0");
+    totals[key] = (totals[key] ?? 0) + balance;
   }
   return totals;
 }
@@ -92,12 +93,14 @@ function groupByCurrency(accs: AccountRow[]) {
 function AccountCard({
   account,
   business,
+  computedBalance,
   isOwner,
   onEdit,
   onDelete,
 }: {
   account: AccountRow;
   business?: BusinessOption;
+  computedBalance?: number;
   isOwner: boolean;
   onEdit: (a: AccountRow) => void;
   onDelete: (id: string) => void;
@@ -105,7 +108,7 @@ function AccountCard({
   const typeCfg = typeConfig[account.type];
   const icon = account.icon || typeCfg.defaultIcon;
   const color = account.color || "#1e3a5f";
-  const balance = parseFloat(account.initialBalance ?? "0");
+  const balance = computedBalance ?? parseFloat(account.initialBalance ?? "0");
   const isNegative = balance < 0;
 
   return (
@@ -158,7 +161,7 @@ function AccountCard({
       <div className="pt-1">
         <p className="text-xs text-slate-400 mb-0.5">Saldo</p>
         <p className={cn("text-2xl font-bold tabular-nums", isNegative ? "text-red-500" : "text-slate-900")}>
-          {formatBalance(account.initialBalance, account.currency)}
+          {formatBalance(balance, account.currency)}
         </p>
       </div>
 
@@ -462,7 +465,7 @@ function AccountModal({
 
 const SUBNAV = [
   { href: "/finanzas",               label: "Cuentas",       available: true },
-  { href: "/finanzas/transacciones", label: "Transacciones", available: false },
+  { href: "/finanzas/transacciones", label: "Transacciones", available: true },
   { href: "/finanzas/pagos",         label: "Pagos",         available: false },
   { href: "/finanzas/presupuesto",   label: "Presupuesto",   available: false },
 ];
@@ -473,10 +476,12 @@ export function AccountsList({
   initialAccounts,
   businesses,
   currentUserId,
+  computedBalances = {},
 }: {
   initialAccounts: AccountRow[];
   businesses: BusinessOption[];
   currentUserId: string;
+  computedBalances?: Record<string, number>;
 }) {
   const router = useRouter();
   const [accountList, setAccountList] = useState(initialAccounts);
@@ -499,7 +504,7 @@ export function AccountsList({
   }
 
   // Summary: totals per currency (active accounts only)
-  const totals = groupByCurrency(accountList);
+  const totals = groupByCurrency(accountList, computedBalances);
   const totalEntries = Object.entries(totals);
 
   const activeCount = accountList.filter((a) => a.isActive).length;
@@ -601,6 +606,7 @@ export function AccountsList({
                   <AccountCard
                     key={a.id}
                     account={a}
+                    computedBalance={computedBalances[a.id]}
                     isOwner={a.userId === currentUserId}
                     onEdit={openEdit}
                     onDelete={handleDelete}
@@ -626,6 +632,7 @@ export function AccountsList({
                       key={a.id}
                       account={a}
                       business={biz}
+                      computedBalance={computedBalances[a.id]}
                       isOwner={a.userId === currentUserId}
                       onEdit={openEdit}
                       onDelete={handleDelete}
