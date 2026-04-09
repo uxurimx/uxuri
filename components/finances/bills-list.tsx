@@ -7,6 +7,7 @@ import {
   AlertCircle, Clock, CalendarDays, RefreshCw, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FinanceSubnav } from "./finance-dashboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -686,31 +687,7 @@ export function BillsList({
       </div>
 
       {/* Sub-nav */}
-      <div className="flex gap-1 bg-slate-50 rounded-xl p-1 w-fit">
-        {[
-          { href: "/finanzas",               label: "Cuentas" },
-          { href: "/finanzas/transacciones", label: "Transacciones" },
-          { href: "/finanzas/pagos",         label: "Pagos" },
-          { href: "/finanzas/presupuesto",   label: "Presupuesto", soon: true },
-        ].map((item) => (
-          <button
-            key={item.href}
-            disabled={!!item.soon}
-            onClick={() => !item.soon && router.push(item.href)}
-            className={cn(
-              "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
-              item.href === "/finanzas/pagos"
-                ? "bg-white text-slate-900 shadow-sm"
-                : item.soon
-                ? "text-slate-300 cursor-not-allowed"
-                : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {item.label}
-            {item.soon && <span className="ml-1.5 text-[10px] text-slate-300">pronto</span>}
-          </button>
-        ))}
-      </div>
+      <FinanceSubnav active="/finanzas/pagos" />
 
       {/* Summary */}
       {active.length > 0 && <SummaryBar bills={billList} />}

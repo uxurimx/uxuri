@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Plus, Pencil, Trash2, X, Wallet, TrendingUp,
   CreditCard, Building2, ChevronRight,
@@ -464,7 +464,8 @@ function AccountModal({
 // ── Sub-nav ───────────────────────────────────────────────────────────────────
 
 const SUBNAV = [
-  { href: "/finanzas",               label: "Cuentas",       available: true },
+  { href: "/finanzas",               label: "Resumen",       available: true },
+  { href: "/finanzas/cuentas",       label: "Cuentas",       available: true },
   { href: "/finanzas/transacciones", label: "Transacciones", available: true },
   { href: "/finanzas/pagos",         label: "Pagos",         available: true },
   { href: "/finanzas/presupuesto",   label: "Presupuesto",   available: false },
@@ -484,6 +485,7 @@ export function AccountsList({
   computedBalances?: Record<string, number>;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [accountList, setAccountList] = useState(initialAccounts);
   const [modal, setModal] = useState<AccountRow | null | undefined>(undefined);
   // undefined=closed, null=create, AccountRow=edit
@@ -544,7 +546,7 @@ export function AccountsList({
             onClick={() => item.available && router.push(item.href)}
             className={cn(
               "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
-              item.href === "/finanzas" && item.available
+              pathname === item.href && item.available
                 ? "bg-white text-slate-900 shadow-sm"
                 : item.available
                 ? "text-slate-500 hover:text-slate-700"
