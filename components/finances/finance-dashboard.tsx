@@ -83,7 +83,7 @@ export const FINANCE_SUBNAV = [
   { href: "/finanzas/cuentas",       label: "Cuentas" },
   { href: "/finanzas/transacciones", label: "Transacciones" },
   { href: "/finanzas/pagos",         label: "Pagos" },
-  { href: "/finanzas/presupuesto",   label: "Presupuesto", soon: true },
+  { href: "/finanzas/presupuesto",   label: "Presupuesto" },
 ];
 
 export function FinanceSubnav({ active }: { active: string }) {
@@ -93,19 +93,15 @@ export function FinanceSubnav({ active }: { active: string }) {
       {FINANCE_SUBNAV.map((item) => (
         <button
           key={item.href}
-          disabled={!!item.soon}
-          onClick={() => !item.soon && router.push(item.href)}
+          onClick={() => router.push(item.href)}
           className={cn(
             "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
             item.href === active
               ? "bg-white text-slate-900 shadow-sm"
-              : item.soon
-              ? "text-slate-300 cursor-not-allowed"
               : "text-slate-500 hover:text-slate-700"
           )}
         >
           {item.label}
-          {item.soon && <span className="ml-1.5 text-[10px] text-slate-300">pronto</span>}
         </button>
       ))}
     </div>
