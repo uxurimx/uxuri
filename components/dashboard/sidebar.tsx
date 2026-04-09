@@ -4,87 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard, Users, Briefcase, CheckSquare, UserCog,
-  MessageSquare, Settings, Bot, Target, Zap, Sun, Repeat2,
-  BookOpen, StickyNote, CalendarDays, RefreshCw, Megaphone,
-  Building2, Wallet, UtensilsCrossed, ChevronDown,
-} from "lucide-react";
+import { Settings, ChevronDown } from "lucide-react";
+import { NAV_GROUPS, NavItem } from "@/lib/nav-groups";
+import { NavPrefs, DEFAULT_PREFS, loadNavPrefs, applyOrder } from "@/lib/nav-prefs";
 import { useChatUnread } from "@/hooks/use-chat-unread";
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
-type NavGroup = { id: string; label: string | null; collapsable: boolean; items: NavItem[] };
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    id: "pinned",
-    label: null,
-    collapsable: false,
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    id: "personal",
-    label: "Personal",
-    collapsable: true,
-    items: [
-      { href: "/today",    label: "Hoy",      icon: Sun },
-      { href: "/habits",   label: "Hábitos",  icon: Repeat2 },
-      { href: "/journal",  label: "Diario",   icon: BookOpen },
-      { href: "/notes",    label: "Notas",    icon: StickyNote },
-      { href: "/schedule", label: "Agenda",   icon: CalendarDays },
-      { href: "/review",   label: "Revisión", icon: RefreshCw },
-    ],
-  },
-  {
-    id: "trabajo",
-    label: "Trabajo",
-    collapsable: true,
-    items: [
-      { href: "/projects",   label: "Proyectos",     icon: Briefcase },
-      { href: "/tasks",      label: "Tareas",        icon: CheckSquare },
-      { href: "/objectives", label: "Objetivos",     icon: Target },
-      { href: "/planning",   label: "Planificación", icon: Zap },
-      { href: "/agents",     label: "Agentes",       icon: Bot },
-    ],
-  },
-  {
-    id: "negocio",
-    label: "Negocio",
-    collapsable: true,
-    items: [
-      { href: "/negocios",  label: "Negocios",  icon: Building2 },
-      { href: "/clients",   label: "Clientes",  icon: Users },
-      { href: "/finanzas",  label: "Finanzas",  icon: Wallet },
-      { href: "/comidas",   label: "Comidas",   icon: UtensilsCrossed },
-      { href: "/marketing", label: "Marketing", icon: Megaphone },
-    ],
-  },
-  {
-    id: "sistema",
-    label: null,
-    collapsable: false,
-    items: [
-      { href: "/chat",  label: "Chat",     icon: MessageSquare },
-      { href: "/users", label: "Usuarios", icon: UserCog },
-    ],
-  },
-];
-
-const STORAGE_KEY = "uxuri-sidebar-collapsed";
+const COLLAPSED_KEY = "uxuri-sidebar-collapsed";
 
 export function Sidebar({ permissions, currentUserId }: { permissions: string[]; currentUserId: string }) {
   const pathname = usePathname();
   const hasUnread = useChatUnread(currentUserId);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [prefs, setPrefs] = useState<NavPrefs>(DEFAULT_PREFS);
   const isSettingsActive = pathname === "/settings" || pathname.startsWith("/settings/");
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(COLLAPSED_KEY);
       if (stored) setCollapsed(new Set(JSON.parse(stored)));
     } catch {}
+    setPrefs(loadNavPrefs());
+  }, []);
+
+  // Re-read prefs when the settings page changes them
+  useEffect(() => {
+    function onPrefsChanged() { setPrefs(loadNavPrefs()); }
+    window.addEventListener("nav-prefs-changed", onPrefsChanged);
+    return () => window.removeEventListener("nav-prefs-changed", onPrefsChanged);
   }, []);
 
   // Auto-expand the group that contains the active route
@@ -99,7 +45,7 @@ export function Sidebar({ permissions, currentUserId }: { permissions: string[];
           if (!prev.has(group.id)) return prev;
           const next = new Set(prev);
           next.delete(group.id);
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])); } catch {}
+          try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])); } catch {}
           return next;
         });
       }
@@ -111,9 +57,44 @@ export function Sidebar({ permissions, currentUserId }: { permissions: string[];
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])); } catch {}
       return next;
     });
+  }
+
+  function getOrderedItems(groupId: string, items: NavItem[]): NavItem[] {
+    const custom = prefs.groupItemOrder[groupId] ?? [];
+    const hrefs = applyOrder(items.map((i) => i.href), custom);
+    const map = new Map(items.map((i) => [i.href, i]));
+    return hrefs.map((h) => map.get(h)!).filter(Boolean);
+  }
+
+  function renderItem(item: NavItem) {
+    if (!permissions.includes(item.href)) return null;
+    if (prefs.hiddenDesktop.includes(item.href)) return null;
+    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+    const showDot = item.href === "/chat" && hasUnread && !isActive;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        data-active={isActive ? "true" : undefined}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+          isActive
+            ? "bg-[var(--skin-active-bg)] text-[var(--skin-active-text)]"
+            : "hover:bg-[var(--skin-sidebar-hover)] hover:text-[var(--skin-active-text)]"
+        )}
+      >
+        <div className="relative">
+          <item.icon className="w-4 h-4 flex-shrink-0" />
+          {showDot && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
+          )}
+        </div>
+        {item.label}
+      </Link>
+    );
   }
 
   return (
@@ -127,7 +108,10 @@ export function Sidebar({ permissions, currentUserId }: { permissions: string[];
 
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
         {NAV_GROUPS.map((group, gi) => {
-          const visibleItems = group.items.filter((item) => permissions.includes(item.href));
+          const orderedItems = getOrderedItems(group.id, group.items);
+          const visibleItems = orderedItems.filter(
+            (item) => permissions.includes(item.href) && !prefs.hiddenDesktop.includes(item.href)
+          );
           if (visibleItems.length === 0) return null;
           const isCollapsed = collapsed.has(group.id);
 
@@ -156,31 +140,7 @@ export function Sidebar({ permissions, currentUserId }: { permissions: string[];
 
               {!isCollapsed && (
                 <div className="space-y-0.5">
-                  {visibleItems.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-                    const showDot = item.href === "/chat" && hasUnread && !isActive;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        data-active={isActive ? "true" : undefined}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                          isActive
-                            ? "bg-[var(--skin-active-bg)] text-[var(--skin-active-text)]"
-                            : "hover:bg-[var(--skin-sidebar-hover)] hover:text-[var(--skin-active-text)]"
-                        )}
-                      >
-                        <div className="relative">
-                          <item.icon className="w-4 h-4 flex-shrink-0" />
-                          {showDot && (
-                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
-                          )}
-                        </div>
-                        {item.label}
-                      </Link>
-                    );
-                  })}
+                  {visibleItems.map((item) => renderItem(item))}
                 </div>
               )}
             </div>

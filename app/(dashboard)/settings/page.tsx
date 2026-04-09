@@ -2,6 +2,7 @@ import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { CategoriesSettings } from "@/components/settings/categories-settings";
 import { CyclePresetsSettings } from "@/components/settings/cycle-presets-settings";
 import { BackupSettings } from "@/components/settings/backup-settings";
+import { NavSettings } from "@/components/settings/nav-settings";
 
 export default function SettingsPage() {
   return (
@@ -11,6 +12,7 @@ export default function SettingsPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Personaliza tu experiencia en Uxuri.</p>
       </div>
       <AppearanceSettings />
+      <NavSettings />
       <CategoriesSettings />
       <CyclePresetsSettings />
       <BackupSettings />
