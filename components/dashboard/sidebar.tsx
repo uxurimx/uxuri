@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Settings, Bot, Target, Zap, Sun, Repeat2, BookOpen, StickyNote, CalendarDays, RefreshCw, Megaphone, Building2, Wallet } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, CheckSquare, UserCog, MessageSquare, Settings, Bot, Target, Zap, Sun, Repeat2, BookOpen, StickyNote, CalendarDays, RefreshCw, Megaphone, Building2, Wallet, UtensilsCrossed } from "lucide-react";
 import { useChatUnread } from "@/hooks/use-chat-unread";
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/review",     label: "Revisión",      icon: RefreshCw },
   { href: "/negocios",   label: "Negocios",      icon: Building2 },
   { href: "/finanzas",   label: "Finanzas",      icon: Wallet },
+  { href: "/comidas",    label: "Comidas",       icon: UtensilsCrossed },
   { href: "/clients",    label: "Clientes",      icon: Users },
   { href: "/projects",   label: "Proyectos",     icon: Briefcase },
   { href: "/objectives", label: "Objetivos",     icon: Target },

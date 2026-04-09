@@ -48,3 +48,4 @@ export * from "./transactions";
 export * from "./bills";
 export * from "./bill-payments";
 export * from "./budgets";
+export * from "./meal-plans";
