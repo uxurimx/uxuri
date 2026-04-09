@@ -13,6 +13,7 @@ import { ObjectiveAreasManager } from "./objective-areas-manager";
 import { ObjectiveLinksPanel } from "./objective-links-panel";
 import { ObjectiveTimeline } from "./objective-timeline";
 import { ContextFeed } from "@/components/context/context-feed";
+import { SavingsGoalWidget } from "./savings-goal-widget";
 
 interface Milestone {
   id: string;
@@ -345,6 +346,9 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
                   <span className="text-slate-700 font-medium">{objective.milestones.length}</span>
                 </div>
               </div>
+              {/* Savings goals linked to this objective */}
+              <SavingsGoalWidget objectiveId={objective.id} />
+
               {/* Delete */}
               <button
                 onClick={deleteObjective}

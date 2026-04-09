@@ -84,6 +84,7 @@ export const FINANCE_SUBNAV = [
   { href: "/finanzas/transacciones", label: "Transacciones" },
   { href: "/finanzas/pagos",         label: "Pagos" },
   { href: "/finanzas/presupuesto",   label: "Presupuesto" },
+  { href: "/finanzas/metas",         label: "Metas" },
 ];
 
 export function FinanceSubnav({ active }: { active: string }) {
