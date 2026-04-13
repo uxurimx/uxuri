@@ -14,6 +14,17 @@ const createClientSchema = z.object({
   company: z.string().optional(),
   status: z.enum(["active", "inactive", "prospect"]).optional(),
   notes: z.string().optional(),
+  // CRM Pipeline
+  pipelineStage: z.enum([
+    "contacto", "lead", "prospecto", "propuesta", "negociacion",
+    "cliente", "recurrente", "churned",
+  ]).optional(),
+  sourceBusinessId: z.string().uuid().optional(),
+  sourceChannel: z.enum([
+    "whatsapp", "instagram", "facebook", "referral", "web", "directo", "email", "otro",
+  ]).optional(),
+  firstContactDate: z.string().optional(),
+  estimatedValue: z.string().optional(),
 });
 
 export async function GET() {

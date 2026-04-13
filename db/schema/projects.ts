@@ -6,6 +6,7 @@ import {
   timestamp,
   date,
   integer,
+  numeric,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
@@ -20,6 +21,14 @@ export const projectStatusEnum = pgEnum("project_status", [
 ]);
 
 export const priorityEnum = pgEnum("priority", ["low", "medium", "high"]);
+
+export const projectContractTypeEnum = pgEnum("project_contract_type", [
+  "fixed",        // precio fijo total
+  "hourly",       // por hora
+  "retainer",     // mensualidad
+  "per_phase",    // pago por fase completada
+  "milestone",    // pago por hitos
+]);
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -42,6 +51,11 @@ export const projects = pgTable("projects", {
   lastCycleAt:  timestamp("last_cycle_at"),
   nextCycleAt:  timestamp("next_cycle_at"),
   momentum:     integer("momentum").default(100).notNull(),
+  // ── Financiero ──────────────────────────────────────────────────────────
+  totalAmount: numeric("total_amount", { precision: 18, scale: 2 }), // precio acordado total
+  currency: varchar("currency", { length: 10 }).default("MXN"),
+  paymentType: projectContractTypeEnum("payment_type").default("fixed"),
+  // ────────────────────────────────────────────────────────────────────────
 });
 
 export type Project = typeof projects.$inferSelect;

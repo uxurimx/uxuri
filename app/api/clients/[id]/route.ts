@@ -16,6 +16,17 @@ const updateClientSchema = z.object({
   website: z.string().optional().nullable(),
   registrationDate: z.string().optional().nullable(),
   businessId: z.string().uuid().optional().nullable(),
+  // CRM Pipeline
+  pipelineStage: z.enum([
+    "contacto", "lead", "prospecto", "propuesta", "negociacion",
+    "cliente", "recurrente", "churned",
+  ]).optional().nullable(),
+  sourceBusinessId: z.string().uuid().optional().nullable(),
+  sourceChannel: z.enum([
+    "whatsapp", "instagram", "facebook", "referral", "web", "directo", "email", "otro",
+  ]).optional().nullable(),
+  firstContactDate: z.string().optional().nullable(),
+  estimatedValue: z.string().optional().nullable(),
 });
 
 async function getClientWithAccess(id: string, userId: string) {

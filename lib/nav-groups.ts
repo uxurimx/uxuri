@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Briefcase, CheckSquare, UserCog,
   MessageSquare, Bot, Target, Zap, Sun, Repeat2,
   BookOpen, StickyNote, CalendarDays, RefreshCw, Megaphone,
-  Building2, Wallet, UtensilsCrossed,
+  Building2, Wallet, UtensilsCrossed, GitBranch,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -61,6 +61,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
     items: [
       { href: "/negocios",  label: "Negocios",  icon: Building2 },
       { href: "/clients",   label: "Clientes",  icon: Users },
+      { href: "/clients/pipeline", label: "Pipeline CRM", icon: GitBranch },
       { href: "/finanzas",  label: "Finanzas",  icon: Wallet },
       { href: "/comidas",   label: "Comidas",   icon: UtensilsCrossed },
       { href: "/marketing", label: "Marketing", mobileLabel: "Mkt", icon: Megaphone },

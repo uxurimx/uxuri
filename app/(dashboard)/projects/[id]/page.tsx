@@ -46,6 +46,9 @@ export default async function ProjectDetailPage({
         lastCycleAt: projects.lastCycleAt,
         nextCycleAt: projects.nextCycleAt,
         momentum:    projects.momentum,
+        totalAmount: projects.totalAmount,
+        currency:    projects.currency,
+        paymentType: projects.paymentType,
       })
       .from(projects)
       .leftJoin(clients, eq(projects.clientId, clients.id))

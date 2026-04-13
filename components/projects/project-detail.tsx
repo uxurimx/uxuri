@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { cn, formatDate } from "@/lib/utils";
-import { ArrowLeft, Calendar, User, Flag, Pencil, Clock, Tag } from "lucide-react";
+import { ArrowLeft, Calendar, User, Flag, Pencil, Clock, Tag, DollarSign } from "lucide-react";
 import { CyclePanel } from "./cycle-panel";
 import { KanbanBoard, type TaskWithProject, type CustomColumn } from "@/components/tasks/kanban-board";
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ContextFeed } from "@/components/context/context-feed";
 import { ProjectModal, type ProjectForModal } from "./project-modal";
+import { ProjectFinancials } from "./project-financials";
 
 type ProjectWithClient = {
   id: string;
@@ -29,6 +30,10 @@ type ProjectWithClient = {
   lastCycleAt: Date | null;
   nextCycleAt: Date | null;
   momentum:    number;
+  // Finanzas
+  totalAmount?: string | null;
+  currency?: string | null;
+  paymentType?: string | null;
 };
 
 const statusConfig = {
@@ -65,7 +70,15 @@ export function ProjectDetail({
   currentUserId?: string;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"tareas" | "finanzas" | "contexto" | "chat">("tareas");
   const status = statusConfig[project.status];
+
+  const tabs = [
+    { id: "tareas",    label: "Tareas",    count: tasks.length },
+    { id: "finanzas",  label: "Finanzas",  icon: <DollarSign className="w-3.5 h-3.5" /> },
+    { id: "contexto",  label: "Contexto" },
+    { id: "chat",      label: "Chat & Archivos" },
+  ] as const;
 
   const projectForModal: ProjectForModal = {
     id: project.id,
@@ -157,38 +170,74 @@ export function ProjectDetail({
         momentum={project.momentum}
       />
 
-      {/* Kanban de tareas del proyecto */}
+      {/* Tabs */}
       <div>
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="font-semibold text-slate-900">
-            Tareas <span className="text-slate-400 font-normal text-sm">({tasks.length})</span>
-          </h2>
+        <div className="flex gap-1 border-b border-slate-200 mb-4">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px",
+                activeTab === tab.id
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {"icon" in tab && tab.icon}
+              {tab.label}
+              {"count" in tab && tab.count !== undefined && (
+                <span className={cn(
+                  "text-xs px-1.5 py-0.5 rounded-full",
+                  activeTab === tab.id ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
+                )}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-        <KanbanBoard
-          initialTasks={tasks}
-          initialCustomColumns={customColumns}
-          projectId={project.id}
-          showProjectName={false}
-          projects={projects}
-          users={users}
-          agents={agents}
-          clients={clients}
-          objectives={objectives}
-          currentUserId={currentUserId}
-        />
-      </div>
 
-      {/* Context */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <ContextFeed entityType="project" entityId={project.id} />
-      </div>
+        {/* Tab: Tareas */}
+        {activeTab === "tareas" && (
+          <KanbanBoard
+            initialTasks={tasks}
+            initialCustomColumns={customColumns}
+            projectId={project.id}
+            showProjectName={false}
+            projects={projects}
+            users={users}
+            agents={agents}
+            clients={clients}
+            objectives={objectives}
+            currentUserId={currentUserId}
+          />
+        )}
 
-      {/* Chat & Files */}
-      {currentUserId && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <EntityChatFiles entityId={project.id} entityType="project" entityName={project.name} currentUserId={currentUserId} />
-        </div>
-      )}
+        {/* Tab: Finanzas */}
+        {activeTab === "finanzas" && (
+          <ProjectFinancials
+            projectId={project.id}
+            totalAmount={project.totalAmount ?? null}
+            currency={project.currency ?? null}
+            paymentType={project.paymentType ?? null}
+          />
+        )}
+
+        {/* Tab: Contexto */}
+        {activeTab === "contexto" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <ContextFeed entityType="project" entityId={project.id} />
+          </div>
+        )}
+
+        {/* Tab: Chat & Archivos */}
+        {activeTab === "chat" && currentUserId && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <EntityChatFiles entityId={project.id} entityType="project" entityName={project.name} currentUserId={currentUserId} />
+          </div>
+        )}
+      </div>
 
       {/* Edit modal */}
       <ProjectModal
