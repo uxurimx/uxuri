@@ -645,19 +645,19 @@ export function SavingsGoalsList({
   );
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
       {/* Subnav */}
       <FinanceSubnav active="/finanzas/metas" />
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <PiggyBank className="w-5 h-5 text-blue-600" />
-          <h1 className="text-xl font-bold text-slate-900">Metas de ahorro</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Metas de ahorro</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Seguimiento de objetivos de ahorro</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-[#1e3a5f] text-white rounded-xl text-sm font-medium hover:bg-[#162d4a] transition-colors"
         >
           <Plus className="w-4 h-4" />
           Nueva meta
@@ -666,8 +666,8 @@ export function SavingsGoalsList({
 
       {/* New goal form */}
       {showForm && (
-        <div className="bg-white rounded-2xl border border-blue-200 p-5 shadow-sm">
-          <h3 className="font-medium text-slate-900 mb-4">Nueva meta de ahorro</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <h3 className="font-semibold text-slate-900 mb-4">Nueva meta de ahorro</h3>
           <GoalForm
             objectives={objectives}
             onSave={handleCreate}

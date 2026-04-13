@@ -28,7 +28,11 @@ export default async function PresupuestoPage() {
   const bizIds = [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
 
   const [userBudgets, allBusinesses] = await Promise.all([
-    db.select().from(budgets).where(eq(budgets.userId, userId)).orderBy(budgets.category),
+    db.select().from(budgets).where(
+      bizIds.length > 0
+        ? or(eq(budgets.userId, userId), inArray(budgets.businessId, bizIds))!
+        : eq(budgets.userId, userId)
+    ).orderBy(budgets.category),
     bizIds.length > 0
       ? db.select({ id: businesses.id, name: businesses.name, logo: businesses.logo })
           .from(businesses).where(inArray(businesses.id, bizIds))

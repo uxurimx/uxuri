@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Plus, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
   Wallet, TrendingUp, TrendingDown, Minus, AlertCircle, Clock,
-  CalendarDays, ChevronRight,
+  CalendarDays, ChevronRight, Hash,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -243,6 +243,7 @@ export function FinanceDashboard({
   recentTx: RecentTx[];
 }) {
   const router = useRouter();
+  const [compact, setCompact] = useState(true);
 
   // ── KPI computations ─────────────────────────────────────────────────────────
 
@@ -282,13 +283,28 @@ export function FinanceDashboard({
             {new Date().toLocaleDateString("es-MX", { month: "long", year: "numeric" })}
           </p>
         </div>
-        <button
-          onClick={() => router.push("/finanzas/transacciones")}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white rounded-xl text-sm font-medium hover:bg-[#162d4a] transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva transacción
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCompact((c) => !c)}
+            title={compact ? "Ver números completos" : "Ver números abreviados"}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 border rounded-xl text-sm font-medium transition-colors",
+              compact
+                ? "border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+            )}
+          >
+            <Hash className="w-3.5 h-3.5" />
+            {compact ? "8.6k" : "8,600"}
+          </button>
+          <button
+            onClick={() => router.push("/finanzas/transacciones")}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white rounded-xl text-sm font-medium hover:bg-[#162d4a] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva transacción
+          </button>
+        </div>
       </div>
 
       {/* Sub-nav */}
@@ -304,7 +320,7 @@ export function FinanceDashboard({
             <KpiCard
               key={cur}
               label={`Saldo total ${cur}`}
-              value={fmt(total, cur, true)}
+              value={fmt(total, cur, compact)}
               color={total >= 0 ? "slate" : "red"}
             />
           ))}
@@ -312,21 +328,21 @@ export function FinanceDashboard({
         {/* Month income */}
         <KpiCard
           label="Ingresos del mes"
-          value={monthIncome > 0 ? fmt(monthIncome, primaryCurrency, true) : "—"}
+          value={monthIncome > 0 ? fmt(monthIncome, primaryCurrency, compact) : "—"}
           color="emerald"
         />
 
         {/* Month expense */}
         <KpiCard
           label="Egresos del mes"
-          value={monthExpense > 0 ? fmt(monthExpense, primaryCurrency, true) : "—"}
+          value={monthExpense > 0 ? fmt(monthExpense, primaryCurrency, compact) : "—"}
           color="red"
         />
 
         {/* Net */}
         <KpiCard
           label="Neto del mes"
-          value={monthIncome || monthExpense ? fmt(monthNet, primaryCurrency, true) : "—"}
+          value={monthIncome || monthExpense ? fmt(monthNet, primaryCurrency, compact) : "—"}
           color={monthNet >= 0 ? "emerald" : "red"}
           sub={primaryCurrency}
         />
@@ -392,7 +408,7 @@ export function FinanceDashboard({
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-slate-900 tabular-nums flex-shrink-0">
-                      {fmt(bill.amount, bill.currency, true)}
+                      {fmt(bill.amount, bill.currency, compact)}
                     </p>
                   </div>
                 );
@@ -430,7 +446,7 @@ export function FinanceDashboard({
                 <>
                   <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Personal</p>
                   {personal.map((acc) => (
-                    <AccountRow key={acc.id} acc={acc} />
+                    <AccountRow key={acc.id} acc={acc} compact={compact} />
                   ))}
                 </>
               )}
@@ -438,7 +454,7 @@ export function FinanceDashboard({
                 <>
                   <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2 mt-3">Negocios</p>
                   {business.map((acc) => (
-                    <AccountRow key={acc.id} acc={acc} />
+                    <AccountRow key={acc.id} acc={acc} compact={compact} />
                   ))}
                 </>
               )}
@@ -490,7 +506,7 @@ export function FinanceDashboard({
                       </p>
                     </div>
                     <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", amtCls)}>
-                      {prefix}{fmt(tx.amount, tx.currency, true)}
+                      {prefix}{fmt(tx.amount, tx.currency, compact)}
                     </p>
                   </div>
                 );
@@ -505,7 +521,7 @@ export function FinanceDashboard({
 
 // ── AccountRow (compact) ──────────────────────────────────────────────────────
 
-function AccountRow({ acc }: { acc: DashboardAccount }) {
+function AccountRow({ acc, compact }: { acc: DashboardAccount; compact?: boolean }) {
   const color = acc.color || "#1e3a5f";
   const isNeg = acc.computedBalance < 0;
   return (
@@ -518,7 +534,7 @@ function AccountRow({ acc }: { acc: DashboardAccount }) {
       </div>
       <p className="flex-1 text-sm text-slate-700 truncate">{acc.name}</p>
       <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", isNeg ? "text-red-500" : "text-slate-900")}>
-        {fmt(acc.computedBalance, acc.currency, true)}
+        {fmt(acc.computedBalance, acc.currency, compact ?? true)}
       </p>
     </div>
   );

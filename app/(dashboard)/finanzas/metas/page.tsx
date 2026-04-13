@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { savingsGoals, savingsContributions, objectives, businesses, businessMembers } from "@/db/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, or, inArray, sql } from "drizzle-orm";
 import { SavingsGoalsList } from "@/components/finances/savings-goals-list";
 
 export default async function MetasPage() {
@@ -14,11 +14,15 @@ export default async function MetasPage() {
   ]);
   const bizIds = [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
 
-  // Fetch goals
+  // Fetch goals (own + shared business)
   const goals = await db
     .select()
     .from(savingsGoals)
-    .where(eq(savingsGoals.userId, userId))
+    .where(
+      bizIds.length > 0
+        ? or(eq(savingsGoals.userId, userId), inArray(savingsGoals.businessId, bizIds))!
+        : eq(savingsGoals.userId, userId)
+    )
     .orderBy(savingsGoals.isCompleted, savingsGoals.createdAt);
 
   // Compute saved amounts in one query

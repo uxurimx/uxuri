@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { savingsGoals, savingsContributions } from "@/db/schema";
-import { eq, sql, inArray } from "drizzle-orm";
+import { savingsGoals, savingsContributions, businesses, businessMembers } from "@/db/schema";
+import { eq, or, sql, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -16,14 +16,28 @@ const createSchema = z.object({
   notes:        z.string().nullable().optional(),
 });
 
+async function getUserBizIds(userId: string): Promise<string[]> {
+  const [owned, member] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  return [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+}
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const bizIds = await getUserBizIds(userId);
+
   const goals = await db
     .select()
     .from(savingsGoals)
-    .where(eq(savingsGoals.userId, userId))
+    .where(
+      bizIds.length > 0
+        ? or(eq(savingsGoals.userId, userId), inArray(savingsGoals.businessId, bizIds))!
+        : eq(savingsGoals.userId, userId)
+    )
     .orderBy(savingsGoals.isCompleted, savingsGoals.createdAt);
 
   if (goals.length === 0) return NextResponse.json([]);
