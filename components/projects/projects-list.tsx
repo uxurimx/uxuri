@@ -318,7 +318,7 @@ export function ProjectsList({
             return (
               <div
                 key={project.id}
-                onClick={() => setSelectedProject(project)}
+                onClick={() => router.push(`/projects/${project.id}`)}
                 className="group relative bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
               >
                 <div className="p-5">
@@ -468,7 +468,7 @@ export function ProjectsList({
                     <tr
                       key={project.id}
                       className="hover:bg-slate-50 transition-colors cursor-pointer"
-                      onClick={() => setSelectedProject(project)}
+                      onClick={() => router.push(`/projects/${project.id}`)}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">

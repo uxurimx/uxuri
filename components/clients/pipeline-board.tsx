@@ -5,8 +5,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   MessageCircle, UserCheck, Sparkles, FileText, Handshake,
-  Users, RefreshCw, XCircle, Plus, Phone, Mail, Globe,
-  Building2, ChevronDown, ExternalLink
+  Users, RefreshCw, XCircle, Plus, Phone, Mail,
+  Building2, ChevronDown, ExternalLink, Megaphone, Star, ArrowRight
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@ type PipelineStage =
 
 type PipelineClient = {
   id: string;
-  name: string;
+  name: string | null;
   email: string | null;
   phone: string | null;
   company: string | null;
@@ -31,6 +31,20 @@ type PipelineClient = {
   createdAt: Date | string;
   sourceBizName: string | null;
   sourceBizLogo: string | null;
+};
+
+type MktLeadRow = {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  category: string | null;
+  status: string | null;
+  score: number | null;
+  sourceId: string | null;
+  campaignId: string | null;
+  createdAt: Date | string;
 };
 
 type Business = { id: string; name: string; logo: string | null };
@@ -361,16 +375,164 @@ function ClientCard({ client, onMove }: {
   );
 }
 
+// ─── Mkt Lead Card ───────────────────────────────────────────────────────────
+
+const MKT_STATUS_STAGE: Record<string, PipelineStage> = {
+  nuevo:        "lead",
+  pendiente:    "lead",
+  contactado:   "lead",
+  interesado:   "prospecto",
+  no_responde:  "lead",
+  sin_whatsapp: "lead",
+};
+
+function MktLeadCard({ lead, businesses, onConverted }: {
+  lead: MktLeadRow;
+  businesses: Business[];
+  onConverted: () => void;
+}) {
+  const [converting, setConverting] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [bizId, setBizId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function convert() {
+    setSaving(true);
+    // 1. Crear cliente
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: lead.name ?? "Sin nombre",
+        phone: lead.phone ?? undefined,
+        email: lead.email ?? undefined,
+        company: lead.category ?? undefined,
+        pipelineStage: MKT_STATUS_STAGE[lead.status ?? "nuevo"] ?? "lead",
+        sourceChannel: "otro",
+        sourceBusinessId: bizId || undefined,
+        status: "prospect",
+        firstContactDate: new Date().toISOString().split("T")[0],
+      }),
+    });
+    if (res.ok) {
+      const newClient = await res.json();
+      // 2. Marcar lead como convertido
+      await fetch(`/api/mkt/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ convertedToClientId: newClient.id, status: "cerrado" }),
+      });
+      setSaving(false);
+      setShowForm(false);
+      onConverted();
+    } else {
+      setSaving(false);
+    }
+  }
+
+  const statusColors: Record<string, string> = {
+    interesado: "text-emerald-600 bg-emerald-50",
+    contactado: "text-blue-600 bg-blue-50",
+    no_responde: "text-red-500 bg-red-50",
+    default: "text-slate-500 bg-slate-100",
+  };
+  const statusColor = statusColors[lead.status ?? ""] ?? statusColors.default;
+
+  return (
+    <div className="group bg-amber-50 border border-amber-200 rounded-xl p-3 hover:border-amber-300 transition-colors">
+      {/* Header */}
+      <div className="flex items-start gap-2 mb-2">
+        <Megaphone className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-800 truncate">{lead.name ?? "Sin nombre"}</p>
+          {lead.city && <p className="text-xs text-slate-400">{lead.city}</p>}
+        </div>
+        {lead.score && (
+          <div className="flex items-center gap-0.5 text-amber-500 shrink-0">
+            <Star className="w-3 h-3 fill-amber-400" />
+            <span className="text-xs font-bold">{lead.score}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Contact */}
+      <div className="space-y-0.5 mb-2">
+        {lead.phone && (
+          <p className="text-xs text-slate-500 flex items-center gap-1">
+            <Phone className="w-3 h-3" /> {lead.phone}
+          </p>
+        )}
+        {lead.email && (
+          <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
+            <Mail className="w-3 h-3" /> {lead.email}
+          </p>
+        )}
+      </div>
+
+      {/* Status */}
+      <div className="flex items-center justify-between">
+        <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium capitalize", statusColor)}>
+          {lead.status}
+        </span>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 px-2 py-1 rounded-lg hover:bg-amber-100 transition-colors font-medium"
+          >
+            <ArrowRight className="w-3 h-3" /> Convertir
+          </button>
+        )}
+      </div>
+
+      {/* Convert form */}
+      {showForm && (
+        <div className="mt-2 pt-2 border-t border-amber-200 space-y-2">
+          <p className="text-xs text-amber-700 font-medium">¿Desde qué negocio entra?</p>
+          <select
+            className="w-full border border-amber-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+            value={bizId}
+            onChange={e => setBizId(e.target.value)}
+          >
+            <option value="">— Sin negocio —</option>
+            {businesses.map(b => (
+              <option key={b.id} value={b.id}>{b.logo} {b.name}</option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowForm(false)}
+              className="flex-1 py-1 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={convert}
+              disabled={saving}
+              className="flex-1 py-1 text-xs bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 font-medium"
+            >
+              {saving ? "..." : "Crear cliente"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Stage Column ─────────────────────────────────────────────────────────────
 
-function StageColumn({ stage, clients, onMove }: {
+function StageColumn({ stage, clients, mktLeads, businesses, onMove, onLeadConverted }: {
   stage: PipelineStage;
   clients: PipelineClient[];
+  mktLeads: MktLeadRow[];
+  businesses: Business[];
   onMove: (id: string, stage: PipelineStage) => void;
+  onLeadConverted: () => void;
 }) {
   const cfg = STAGE_CONFIG[stage];
   const Icon = cfg.icon;
   const totalValue = clients.reduce((s, c) => s + (c.estimatedValue ? parseFloat(c.estimatedValue) : 0), 0);
+  const total = clients.length + mktLeads.length;
 
   return (
     <div className="flex flex-col min-w-[220px] max-w-[260px] flex-shrink-0">
@@ -380,7 +542,7 @@ function StageColumn({ stage, clients, onMove }: {
           <Icon className={cn("w-4 h-4", cfg.color)} />
           <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
           <span className={cn("ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full", cfg.bg, cfg.color)}>
-            {clients.length}
+            {total}
           </span>
         </div>
         <p className="text-xs text-slate-400">{cfg.description}</p>
@@ -396,7 +558,15 @@ function StageColumn({ stage, clients, onMove }: {
         {clients.map(c => (
           <ClientCard key={c.id} client={c} onMove={onMove} />
         ))}
-        {clients.length === 0 && (
+        {mktLeads.map(lead => (
+          <MktLeadCard
+            key={`mkt-${lead.id}`}
+            lead={lead}
+            businesses={businesses}
+            onConverted={onLeadConverted}
+          />
+        ))}
+        {total === 0 && (
           <div className="text-center text-xs text-slate-300 py-6 border-2 border-dashed border-slate-100 rounded-xl">
             Sin contactos
           </div>
@@ -408,13 +578,16 @@ function StageColumn({ stage, clients, onMove }: {
 
 // ─── Pipeline Stats Bar ───────────────────────────────────────────────────────
 
-function PipelineStats({ clients }: { clients: PipelineClient[] }) {
+function PipelineStats({ clients, mktLeadsCount }: {
+  clients: PipelineClient[];
+  mktLeadsCount: number;
+}) {
   const totalValue = clients.reduce((s, c) => s + (c.estimatedValue ? parseFloat(c.estimatedValue) : 0), 0);
   const clientCount = clients.filter(c => c.pipelineStage === "cliente" || c.pipelineStage === "recurrente").length;
   const activeLeads = clients.filter(c => c.pipelineStage && !["cliente", "recurrente", "churned"].includes(c.pipelineStage)).length;
 
   return (
-    <div className="grid grid-cols-3 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       <div className="bg-white border border-slate-100 rounded-xl p-4">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Valor pipeline</p>
         <p className="text-xl font-bold text-slate-800">
@@ -429,17 +602,24 @@ function PipelineStats({ clients }: { clients: PipelineClient[] }) {
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Clientes cerrados</p>
         <p className="text-xl font-bold text-emerald-600">{clientCount}</p>
       </div>
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+        <p className="text-xs text-amber-600 font-medium uppercase tracking-wide mb-1">Leads marketing</p>
+        <p className="text-xl font-bold text-amber-600">{mktLeadsCount}</p>
+        <p className="text-xs text-amber-400 mt-0.5">por convertir</p>
+      </div>
     </div>
   );
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function PipelineBoard({ clients: initialClients, businesses }: {
+export function PipelineBoard({ clients: initialClients, businesses, marketingLeads: initialMktLeads = [] }: {
   clients: PipelineClient[];
   businesses: Business[];
+  marketingLeads?: MktLeadRow[];
 }) {
   const [clients, setClients] = useState(initialClients);
+  const [mktLeads, setMktLeads] = useState(initialMktLeads);
   const [showAdd, setShowAdd] = useState(false);
 
   const reload = useCallback(async () => {
@@ -447,8 +627,12 @@ export function PipelineBoard({ clients: initialClients, businesses }: {
     if (res.ok) setClients(await res.json());
   }, []);
 
+  const reloadLeads = useCallback(async () => {
+    // After converting, reload full page to refresh both
+    window.location.reload();
+  }, []);
+
   const moveClient = useCallback(async (id: string, stage: PipelineStage) => {
-    // Optimistic update
     setClients(prev => prev.map(c => c.id === id ? { ...c, pipelineStage: stage } : c));
     await fetch("/api/clients/pipeline", {
       method: "PATCH",
@@ -457,7 +641,7 @@ export function PipelineBoard({ clients: initialClients, businesses }: {
     });
   }, []);
 
-  // Clasificar clientes: los que no tienen stage van a "contacto"
+  // Clasificar clientes
   const byStage = VISIBLE_STAGES.reduce<Record<PipelineStage, PipelineClient[]>>((acc, s) => {
     acc[s] = [];
     return acc;
@@ -470,19 +654,37 @@ export function PipelineBoard({ clients: initialClients, businesses }: {
     }
   }
 
-  // Clientes churned separados
+  // Clasificar leads de marketing por stage equivalente
+  const mktByStage = VISIBLE_STAGES.reduce<Record<PipelineStage, MktLeadRow[]>>((acc, s) => {
+    acc[s] = [];
+    return acc;
+  }, {} as Record<PipelineStage, MktLeadRow[]>);
+
+  for (const lead of mktLeads) {
+    const stage = MKT_STATUS_STAGE[lead.status ?? "nuevo"] ?? "lead";
+    if (mktByStage[stage]) mktByStage[stage].push(lead);
+  }
+
   const churned = clients.filter(c => c.pipelineStage === "churned");
 
   return (
     <div>
-      <PipelineStats clients={clients} />
+      <PipelineStats clients={clients} mktLeadsCount={mktLeads.length} />
 
       {/* Header actions */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
-          {clients.length} contactos totales
-          {churned.length > 0 && ` · ${churned.length} inactivos`}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500">
+            {clients.length} contactos
+            {churned.length > 0 && ` · ${churned.length} inactivos`}
+          </p>
+          {mktLeads.length > 0 && (
+            <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
+              <Megaphone className="w-3 h-3" />
+              {mktLeads.length} leads de marketing sin convertir
+            </span>
+          )}
+        </div>
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
@@ -499,7 +701,10 @@ export function PipelineBoard({ clients: initialClients, businesses }: {
               key={stage}
               stage={stage}
               clients={byStage[stage]}
+              mktLeads={mktByStage[stage]}
+              businesses={businesses}
               onMove={moveClient}
+              onLeadConverted={reloadLeads}
             />
           ))}
         </div>

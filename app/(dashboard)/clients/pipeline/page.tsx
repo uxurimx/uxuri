@@ -1,13 +1,13 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { clients, businesses, businessMembers } from "@/db/schema";
-import { eq, or, inArray } from "drizzle-orm";
+import { clients, businesses, businessMembers, mktLeads } from "@/db/schema";
+import { eq, or, inArray, isNull } from "drizzle-orm";
 import { PipelineBoard } from "@/components/clients/pipeline-board";
 
 export default async function ClientPipelinePage() {
   const { userId } = await auth();
 
-  // Todos los clientes + join a negocio origen
+  // Clientes del pipeline
   const rows = await db
     .select({
       id: clients.id,
@@ -27,7 +27,26 @@ export default async function ClientPipelinePage() {
     .from(clients)
     .orderBy(clients.createdAt);
 
-  // Negocios del usuario para el selector de origen
+  // Leads de marketing aún no convertidos a cliente
+  const marketingLeads = await db
+    .select({
+      id: mktLeads.id,
+      name: mktLeads.name,
+      phone: mktLeads.phone,
+      email: mktLeads.email,
+      city: mktLeads.city,
+      category: mktLeads.category,
+      status: mktLeads.status,
+      score: mktLeads.score,
+      sourceId: mktLeads.sourceId,
+      campaignId: mktLeads.campaignId,
+      createdAt: mktLeads.createdAt,
+    })
+    .from(mktLeads)
+    .where(isNull(mktLeads.convertedToClientId))
+    .orderBy(mktLeads.createdAt);
+
+  // Negocios del usuario
   const userBusinesses = userId
     ? await (async () => {
         const [owned, member] = await Promise.all([
@@ -48,7 +67,6 @@ export default async function ClientPipelinePage() {
       })()
     : [];
 
-  // Resolver nombre del negocio origen para cada cliente
   const bizMap = new Map(userBusinesses.map(b => [b.id, b]));
   const clientsWithBiz = rows.map(c => ({
     ...c,
@@ -64,7 +82,11 @@ export default async function ClientPipelinePage() {
           <p className="text-sm text-slate-500 mt-0.5">De primer contacto a cliente activo</p>
         </div>
       </div>
-      <PipelineBoard clients={clientsWithBiz} businesses={userBusinesses} />
+      <PipelineBoard
+        clients={clientsWithBiz}
+        businesses={userBusinesses}
+        marketingLeads={marketingLeads}
+      />
     </div>
   );
 }

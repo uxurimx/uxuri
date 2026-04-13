@@ -10,6 +10,14 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type AccountOption = {
+  id: string;
+  name: string;
+  icon: string | null;
+  currency: string;
+  businessId: string | null;
+};
+
 type Phase = {
   id: string;
   projectId: string;
@@ -296,30 +304,107 @@ function PhaseRow({ phase, phases, projectId, onUpdated }: {
   );
 }
 
-// ─── Payment Row ──────────────────────────────────────────────────────────────
+// ─── Mark Paid Modal ──────────────────────────────────────────────────────────
 
-function PaymentRow({ payment, projectId, onUpdated }: {
+function MarkPaidModal({ payment, projectId, accounts, onDone, onClose }: {
   payment: Payment;
   projectId: string;
-  onUpdated: () => void;
+  accounts: AccountOption[];
+  onDone: () => void;
+  onClose: () => void;
 }) {
-  const [marking, setMarking] = useState(false);
-  const cfg = paymentStatusConfig[payment.status];
-  const isPaid = payment.status === "paid";
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [saving, setSaving] = useState(false);
 
-  async function markPaid() {
-    setMarking(true);
+  async function confirm() {
+    setSaving(true);
     await fetch(`/api/projects/${projectId}/payments/${payment.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         status: "paid",
         paidAt: new Date().toISOString(),
+        accountId: accountId || null,
       }),
     });
-    setMarking(false);
-    onUpdated();
+    setSaving(false);
+    onDone();
+    onClose();
   }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="font-semibold text-slate-900">Confirmar pago recibido</h3>
+          <p className="text-sm text-slate-500 mt-0.5">{payment.concept}</p>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Amount display */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-700">{fmt(payment.amount, payment.currency)}</p>
+            <p className="text-xs text-emerald-500 mt-0.5">{paymentTypeLabel[payment.type]}</p>
+          </div>
+
+          {/* Account selector */}
+          {accounts.length > 0 ? (
+            <div>
+              <label className="text-xs font-medium text-slate-600 mb-1.5 block">
+                ¿En qué cuenta / negocio entra este dinero?
+              </label>
+              <select
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                value={accountId}
+                onChange={e => setAccountId(e.target.value)}
+              >
+                <option value="">— Sin registrar en finanzas —</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.icon} {acc.name} ({acc.currency})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">
+                Esto creará una transacción de ingreso en tus finanzas automáticamente.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 text-center">
+              No tienes cuentas configuradas. El pago se registrará sin vinculación contable.
+            </p>
+          )}
+        </div>
+        <div className="p-5 flex gap-3 border-t border-slate-100">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirm}
+            disabled={saving}
+            className="flex-1 py-2.5 text-sm bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 font-medium"
+          >
+            {saving ? "Registrando..." : "Confirmar pago"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Payment Row ──────────────────────────────────────────────────────────────
+
+function PaymentRow({ payment, projectId, accounts, onUpdated }: {
+  payment: Payment;
+  projectId: string;
+  accounts: AccountOption[];
+  onUpdated: () => void;
+}) {
+  const [showMarkPaid, setShowMarkPaid] = useState(false);
+  const cfg = paymentStatusConfig[payment.status];
+  const isPaid = payment.status === "paid";
 
   async function del() {
     if (!confirm("¿Eliminar este pago?")) return;
@@ -328,74 +413,81 @@ function PaymentRow({ payment, projectId, onUpdated }: {
   }
 
   return (
-    <div className={cn(
-      "group flex items-center gap-3 rounded-xl px-4 py-3 border transition-colors",
-      isPaid ? "bg-emerald-50/50 border-emerald-100" : "bg-white border-slate-100 hover:border-slate-200"
-    )}>
-      {/* Status dot */}
-      <div className={cn("w-2 h-2 rounded-full shrink-0", cfg.dot)} />
-
-      {/* Concept */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn("text-sm font-medium truncate", isPaid ? "text-slate-500 line-through" : "text-slate-800")}>
-            {payment.concept}
-          </span>
-          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
-            {paymentTypeLabel[payment.type]}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 mt-0.5">
-          {payment.dueDate && !isPaid && (
-            <span className="text-xs text-slate-400">
-              Vence {fmtDate(payment.dueDate)}
-            </span>
-          )}
-          {payment.paidAt && (
-            <span className="text-xs text-emerald-600">
-              Pagado {fmtDate(payment.paidAt)}
-            </span>
-          )}
-          {payment.method && (
-            <span className="flex items-center gap-1 text-xs text-slate-400">
-              {methodIcon[payment.method]}
-              <span className="capitalize">{payment.method}</span>
-            </span>
-          )}
-          {payment.reference && (
-            <span className="text-xs text-slate-400">Ref: {payment.reference}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Amount */}
-      <span className={cn(
-        "text-base font-bold shrink-0",
-        isPaid ? "text-emerald-600" : payment.status === "overdue" ? "text-red-600" : "text-slate-800"
+    <>
+      <div className={cn(
+        "group flex items-center gap-3 rounded-xl px-4 py-3 border transition-colors",
+        isPaid ? "bg-emerald-50/50 border-emerald-100" : "bg-white border-slate-100 hover:border-slate-200"
       )}>
-        {fmt(payment.amount, payment.currency)}
-      </span>
+        {/* Status dot */}
+        <div className={cn("w-2 h-2 rounded-full shrink-0", cfg.dot)} />
 
-      {/* Actions */}
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {!isPaid && (
+        {/* Concept */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn("text-sm font-medium truncate", isPaid ? "text-slate-500 line-through" : "text-slate-800")}>
+              {payment.concept}
+            </span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
+              {paymentTypeLabel[payment.type]}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-0.5">
+            {payment.dueDate && !isPaid && (
+              <span className="text-xs text-slate-400">Vence {fmtDate(payment.dueDate)}</span>
+            )}
+            {payment.paidAt && (
+              <span className="text-xs text-emerald-600">Pagado {fmtDate(payment.paidAt)}</span>
+            )}
+            {payment.method && (
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                {methodIcon[payment.method]}
+                <span className="capitalize">{payment.method}</span>
+              </span>
+            )}
+            {payment.reference && (
+              <span className="text-xs text-slate-400">Ref: {payment.reference}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Amount */}
+        <span className={cn(
+          "text-base font-bold shrink-0",
+          isPaid ? "text-emerald-600" : payment.status === "overdue" ? "text-red-600" : "text-slate-800"
+        )}>
+          {fmt(payment.amount, payment.currency)}
+        </span>
+
+        {/* Actions */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {!isPaid && (
+            <button
+              onClick={() => setShowMarkPaid(true)}
+              title="Marcar como pagado"
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+            >
+              <Check className="w-3 h-3" /> Pagado
+            </button>
+          )}
           <button
-            onClick={markPaid}
-            disabled={marking}
-            title="Marcar como pagado"
-            className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50"
+            onClick={del}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
           >
-            <Check className="w-3 h-3" /> Pagado
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
-        )}
-        <button
-          onClick={del}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        </div>
       </div>
-    </div>
+
+      {showMarkPaid && (
+        <MarkPaidModal
+          payment={payment}
+          projectId={projectId}
+          accounts={accounts}
+          onDone={onUpdated}
+          onClose={() => setShowMarkPaid(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -622,11 +714,13 @@ export function ProjectFinancials({
   totalAmount,
   currency,
   paymentType,
+  accounts = [],
 }: {
   projectId: string;
   totalAmount: string | null;
   currency: string | null;
   paymentType: string | null;
+  accounts?: AccountOption[];
 }) {
   const [phases, setPhases] = useState<Phase[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -774,6 +868,7 @@ export function ProjectFinancials({
                 key={payment.id}
                 payment={payment}
                 projectId={projectId}
+                accounts={accounts}
                 onUpdated={load}
               />
             ))}

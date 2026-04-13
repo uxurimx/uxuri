@@ -9,7 +9,7 @@ import { KanbanBoard, type TaskWithProject, type CustomColumn } from "@/componen
 import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ContextFeed } from "@/components/context/context-feed";
 import { ProjectModal, type ProjectForModal } from "./project-modal";
-import { ProjectFinancials } from "./project-financials";
+import { ProjectFinancials, type AccountOption } from "./project-financials";
 
 type ProjectWithClient = {
   id: string;
@@ -57,6 +57,7 @@ export function ProjectDetail({
   clients,
   objectives,
   customColumns,
+  accounts,
   currentUserId,
 }: {
   project: ProjectWithClient;
@@ -67,6 +68,7 @@ export function ProjectDetail({
   clients?: ClientOption[];
   objectives?: ObjectiveOption[];
   customColumns?: CustomColumn[];
+  accounts?: AccountOption[];
   currentUserId?: string;
 }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -221,6 +223,7 @@ export function ProjectDetail({
             totalAmount={project.totalAmount ?? null}
             currency={project.currency ?? null}
             paymentType={project.paymentType ?? null}
+            accounts={accounts ?? []}
           />
         )}
 

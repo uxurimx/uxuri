@@ -78,7 +78,8 @@ export function augmentPermissions(raw: string[]): string[] {
   if (p.includes("/projects") && !p.includes("/negocios"))  p = [...p, "/negocios"];
   if (p.includes("/projects") && !p.includes("/finanzas"))  p = [...p, "/finanzas"];
   if (p.includes("/projects") && !p.includes("/comidas"))   p = [...p, "/comidas"];
-  if (p.includes("/clients") && !p.includes("/marketing")) p = [...p, "/marketing"];
+  if (p.includes("/clients") && !p.includes("/marketing"))        p = [...p, "/marketing"];
+  if (p.includes("/clients") && !p.includes("/clients/pipeline")) p = [...p, "/clients/pipeline"];
   return p;
 }
 

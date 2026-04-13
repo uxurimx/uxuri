@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns, objectives } from "@/db/schema";
-import { eq, or, and, sql } from "drizzle-orm";
+import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns, objectives, accounts, businesses, businessMembers } from "@/db/schema";
+import { eq, or, and, sql, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { canAccess } from "@/lib/access";
 import { ProjectDetail } from "@/components/projects/project-detail";
@@ -106,6 +106,22 @@ export default async function ProjectDetailPage({
   if (!project) notFound();
   if (project.privacy === "private" && project.createdBy !== userId) notFound();
 
+  // Cuentas del usuario para el selector de "marcar pagado"
+  const [ownedBiz, memberBiz] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  const bizIds = [...new Set([...ownedBiz.map(b => b.id), ...memberBiz.map(m => m.businessId)])];
+  const userAccounts = await db
+    .select({ id: accounts.id, name: accounts.name, icon: accounts.icon, currency: accounts.currency, businessId: accounts.businessId })
+    .from(accounts)
+    .where(
+      bizIds.length > 0
+        ? or(eq(accounts.userId, userId), inArray(accounts.businessId, bizIds))!
+        : eq(accounts.userId, userId)
+    )
+    .orderBy(accounts.name);
+
   const projectTasks = rawTasks.map((t) => ({ ...t, projectName: project.name }));
 
   return (
@@ -118,6 +134,7 @@ export default async function ProjectDetailPage({
       clients={allClients}
       objectives={allObjectives}
       customColumns={allCustomColumns}
+      accounts={userAccounts}
       currentUserId={userId}
     />
   );
