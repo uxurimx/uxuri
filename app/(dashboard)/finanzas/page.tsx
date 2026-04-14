@@ -138,6 +138,10 @@ export default async function FinanzasPage() {
   const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
   const in30Str  = `${in30.getFullYear()}-${pad(in30.getMonth() + 1)}-${pad(in30.getDate())}`;
 
+  const billsWhere = bizIds.length > 0
+    ? or(eq(bills.userId, userId), inArray(bills.businessId, bizIds))!
+    : eq(bills.userId, userId);
+
   const upcomingBills = await db
     .select({
       id: bills.id,
@@ -149,7 +153,7 @@ export default async function FinanzasPage() {
     })
     .from(bills)
     .where(and(
-      eq(bills.userId, userId),
+      billsWhere,
       eq(bills.isActive, true),
       lte(bills.nextDueDate, in30Str),
     ))
@@ -168,7 +172,7 @@ export default async function FinanzasPage() {
     })
     .from(bills)
     .where(and(
-      eq(bills.userId, userId),
+      billsWhere,
       eq(bills.isActive, true),
       lte(bills.nextDueDate, todayStr),
     ))

@@ -15,7 +15,11 @@ export default async function PagosPage() {
   const bizIds = [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
 
   const [userBills, userAccounts, allBusinesses] = await Promise.all([
-    db.select().from(bills).where(eq(bills.userId, userId)).orderBy(bills.nextDueDate),
+    db.select().from(bills).where(
+      bizIds.length > 0
+        ? or(eq(bills.userId, userId), inArray(bills.businessId, bizIds))!
+        : eq(bills.userId, userId)
+    ).orderBy(bills.nextDueDate),
 
     db
       .select({ id: accounts.id, name: accounts.name, icon: accounts.icon, currency: accounts.currency })
