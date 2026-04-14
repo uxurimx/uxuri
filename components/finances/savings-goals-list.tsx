@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PiggyBank, Plus, Target, Pencil, Trash2, Check, X, CalendarDays, ChevronDown, ChevronUp, Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -652,6 +652,7 @@ export function SavingsGoalsList({
   businesses?: BusinessOption[];
 }) {
   const [goals, setGoals] = useState<SavingsGoalWithSaved[]>(initialGoals);
+  useEffect(() => { setGoals(initialGoals); }, [initialGoals]);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "completed">("active");
   const router = useRouter();

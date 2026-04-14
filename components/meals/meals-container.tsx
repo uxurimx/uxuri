@@ -49,22 +49,22 @@ export function MealsContainer({
         ))}
       </div>
 
-      {/* Content */}
-      {tab === "planeacion" && (
+      {/* Content — both panels stay mounted to preserve state across tab switches */}
+      <div className={tab !== "planeacion" ? "hidden" : ""}>
         <MealPlanner
           initialEntries={initialEntries}
           initialWeekStart={initialWeekStart}
         />
-      )}
+      </div>
 
-      {tab === "compras" && (
+      <div className={tab !== "compras" ? "hidden" : ""}>
         <ShoppingList
           initialLists={initialLists}
           businesses={businesses}
           weekStart={initialWeekStart}
           weekEntries={initialEntries}
         />
-      )}
+      </div>
     </div>
   );
 }

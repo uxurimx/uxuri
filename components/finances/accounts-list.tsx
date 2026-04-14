@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Plus, Pencil, Trash2, X, Wallet, TrendingUp,
@@ -487,6 +487,8 @@ export function AccountsList({
   const router = useRouter();
   const pathname = usePathname();
   const [accountList, setAccountList] = useState(initialAccounts);
+  // Sync when router.refresh() delivers new server data
+  useEffect(() => { setAccountList(initialAccounts); }, [initialAccounts]);
   const [modal, setModal] = useState<AccountRow | null | undefined>(undefined);
   // undefined=closed, null=create, AccountRow=edit
 

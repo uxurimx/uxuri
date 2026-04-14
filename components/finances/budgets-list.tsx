@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Pencil, Trash2, TrendingUp, AlertTriangle, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -475,6 +475,7 @@ export function BudgetsList({
 }) {
   const router = useRouter();
   const [budgetList, setBudgetList] = useState(initialBudgets);
+  useEffect(() => { setBudgetList(initialBudgets); }, [initialBudgets]);
   const [modal,      setModal]      = useState<BudgetRow | null | undefined>(undefined);
   const [showInactive, setShowInactive] = useState(false);
 

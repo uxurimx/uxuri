@@ -660,12 +660,21 @@ function ActiveListView({
   const [editingItem, setEditingItem] = useState<ShoppingItemRow | null>(null);
   const [, startTransition] = useTransition();
 
-  // Fetch items when list changes
+  // Fetch items when list changes and sync counts from actual DB data
   useEffect(() => {
     setLoading(true);
     fetch(`/api/shopping-lists/${list.id}/items`)
       .then((r) => r.json())
-      .then((data) => { setItems(data); setLoading(false); });
+      .then((data: ShoppingItemRow[]) => {
+        setItems(data);
+        setLoading(false);
+        // Always sync counts from DB — SSR data or prior optimistic updates may be stale
+        const itemCount = data.length;
+        const doneCount = data.filter((i) => i.isDone).length;
+        onListUpdate({ ...list, itemCount, doneCount });
+      });
+  // list.id is the only dep that should trigger a re-fetch
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.id]);
 
   async function handleToggle(itemId: string, isDone: boolean) {

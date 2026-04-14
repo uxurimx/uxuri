@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, X, Pencil, Trash2, CheckCircle2, SkipForward,
@@ -646,6 +646,7 @@ export function BillsList({
 }) {
   const router = useRouter();
   const [billList, setBillList]   = useState(initialBills);
+  useEffect(() => { setBillList(initialBills); }, [initialBills]);
   const [modal, setModal]         = useState<BillRow | null | undefined>(undefined);
   const [payModal, setPayModal]   = useState<BillRow | null>(null);
   const [showInactive, setShowInactive] = useState(false);
