@@ -61,6 +61,8 @@ export function MealsContainer({
         <ShoppingList
           initialLists={initialLists}
           businesses={businesses}
+          weekStart={initialWeekStart}
+          weekEntries={initialEntries}
         />
       )}
     </div>

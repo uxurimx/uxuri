@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition, useCallback } from "react";
 import {
   Plus, X, Trash2, Check, ShoppingCart, ChevronDown, Pencil,
-  Building2, Archive, RotateCcw,
+  Building2, Archive, RotateCcw, Sparkles, Copy, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +45,15 @@ export type ShoppingItemRow = {
 };
 
 export type BusinessOption = { id: string; name: string; logo: string | null };
+
+// Simplified meal entry (for generate feature)
+export type MealEntryRef = {
+  dayOfWeek: number;
+  mealTime: string;
+  name: string;
+};
+
+type Suggestion = { name: string; category: ShoppingItemCategory; quantity: string | null };
 
 // ── Category config ───────────────────────────────────────────────────────────
 
@@ -171,7 +180,145 @@ function NewListModal({
   );
 }
 
-// ── Quick Add Form ────────────────────────────────────────────────────────────
+// ── Generate Modal (AI) ───────────────────────────────────────────────────────
+
+const GEN_DAY_LABELS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const GEN_MEAL_LABELS: Record<string, string> = {
+  desayuno: "Desayuno", comida: "Comida", cena: "Cena", snack: "Snack",
+};
+
+function GenerateModal({
+  businesses,
+  weekStart,
+  weekEntries,
+  onClose,
+  onGenerated,
+}: {
+  businesses: BusinessOption[];
+  weekStart: string;
+  weekEntries: MealEntryRef[];
+  onClose: () => void;
+  onGenerated: (list: ShoppingListRow) => void;
+}) {
+  const weekDate = new Date(weekStart + "T00:00:00");
+  const weekLabel = weekDate.toLocaleDateString("es-MX", { day: "numeric", month: "long" });
+
+  const [listName, setListName] = useState(`Despensa semana del ${weekLabel}`);
+  const [businessId, setBusinessId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/shopping-lists/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        weekStart,
+        listName: listName.trim() || `Despensa semana del ${weekLabel}`,
+        businessId: businessId || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Error al generar");
+      setLoading(false);
+      return;
+    }
+    onGenerated(data.list);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-violet-500" />
+            <h2 className="font-semibold text-slate-900">Generar lista con IA</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-2">
+              Comidas planeadas esta semana ({weekEntries.length})
+            </p>
+            <div className="bg-slate-50 rounded-xl p-3 max-h-44 overflow-y-auto space-y-1">
+              {weekEntries.map((e, i) => (
+                <div key={i} className="flex gap-2 text-xs text-slate-600">
+                  <span className="text-slate-400 w-28 flex-shrink-0">
+                    {GEN_DAY_LABELS[e.dayOfWeek]} · {GEN_MEAL_LABELS[e.mealTime] ?? e.mealTime}
+                  </span>
+                  <span className="font-medium">{e.name}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-violet-600 mt-2">
+              La IA extraerá los ingredientes y los organizará por categoría.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nombre de la lista</label>
+            <input
+              value={listName}
+              onChange={(e) => setListName(e.target.value)}
+              autoFocus
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+            />
+          </div>
+
+          {businesses.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Compartir con negocio (opcional)
+              </label>
+              <select
+                value={businessId}
+                onChange={(e) => setBusinessId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              >
+                <option value="">— Solo yo —</option>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !listName.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? "Generando…" : "Generar lista"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Quick Add Form (with autocomplete) ───────────────────────────────────────
 
 function QuickAddForm({
   listId,
@@ -184,71 +331,120 @@ function QuickAddForm({
   const [category, setCategory] = useState<ShoppingItemCategory>("otro");
   const [quantity, setQuantity] = useState("");
   const [saving, setSaving] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSugg, setShowSugg] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleNameChange(v: string) {
     setName(v);
     if (v.length >= 3) setCategory(guessCategory(v));
+
+    // Debounced suggestions fetch
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (v.length >= 2) {
+      timerRef.current = setTimeout(async () => {
+        const res = await fetch(`/api/shopping-lists/suggestions?q=${encodeURIComponent(v)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data);
+          setShowSugg(data.length > 0);
+        }
+      }, 250);
+    } else {
+      setSuggestions([]);
+      setShowSugg(false);
+    }
+  }
+
+  function applySuggestion(s: Suggestion) {
+    setName(s.name);
+    setCategory(s.category);
+    if (s.quantity) setQuantity(s.quantity);
+    setShowSugg(false);
+    inputRef.current?.focus();
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
+    setShowSugg(false);
     const res = await fetch(`/api/shopping-lists/${listId}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        category,
-        quantity: quantity.trim() || null,
-      }),
+      body: JSON.stringify({ name: name.trim(), category, quantity: quantity.trim() || null }),
     });
     if (res.ok) {
       onAdded(await res.json());
       setName("");
       setQuantity("");
       setCategory("otro");
+      setSuggestions([]);
       inputRef.current?.focus();
     }
     setSaving(false);
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 items-center bg-white border border-slate-200 rounded-xl p-2 shadow-sm">
-      <input
-        ref={inputRef}
-        value={name}
-        onChange={(e) => handleNameChange(e.target.value)}
-        placeholder="Agregar producto…"
-        className="flex-1 px-2 py-1.5 text-sm focus:outline-none"
-      />
-      <input
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        placeholder="Cantidad"
-        className="w-24 px-2 py-1.5 text-sm border-l border-slate-100 focus:outline-none"
-      />
-      <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value as ShoppingItemCategory)}
-        className="text-sm border-l border-slate-100 px-2 py-1.5 focus:outline-none bg-transparent"
-        title="Categoría"
-      >
-        {CATEGORIES.map((c) => (
-          <option key={c} value={c}>
-            {CATEGORY_CONFIG[c].emoji} {CATEGORY_CONFIG[c].label}
-          </option>
-        ))}
-      </select>
-      <button
-        type="submit"
-        disabled={saving || !name.trim()}
-        className="flex items-center gap-1 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] disabled:opacity-50 transition-colors"
-      >
-        <Plus className="w-4 h-4" />
-      </button>
-    </form>
+    <div className="relative">
+      <form onSubmit={handleSubmit} className="flex gap-2 items-center bg-white border border-slate-200 rounded-xl p-2 shadow-sm">
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+          onFocus={() => suggestions.length > 0 && setShowSugg(true)}
+          placeholder="Agregar producto…"
+          className="flex-1 px-2 py-1.5 text-sm focus:outline-none"
+          autoComplete="off"
+        />
+        <input
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          placeholder="Cantidad"
+          className="w-24 px-2 py-1.5 text-sm border-l border-slate-100 focus:outline-none"
+        />
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as ShoppingItemCategory)}
+          className="text-sm border-l border-slate-100 px-2 py-1.5 focus:outline-none bg-transparent"
+          title="Categoría"
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_CONFIG[c].emoji} {CATEGORY_CONFIG[c].label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={saving || !name.trim()}
+          className="flex items-center gap-1 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] disabled:opacity-50 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </form>
+
+      {/* Suggestions dropdown */}
+      {showSugg && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden">
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onMouseDown={() => applySuggestion(s)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 text-left transition-colors"
+            >
+              <span className="text-base">{CATEGORY_CONFIG[s.category]?.emoji ?? "📦"}</span>
+              <span className="flex-1 text-slate-800">{s.name}</span>
+              {s.quantity && <span className="text-xs text-slate-400">{s.quantity}</span>}
+              <span className="text-xs text-slate-300">historial</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -452,10 +648,12 @@ function ActiveListView({
   list,
   businesses,
   onListUpdate,
+  onListCloned,
 }: {
   list: ShoppingListRow;
   businesses: BusinessOption[];
   onListUpdate: (updated: ShoppingListRow) => void;
+  onListCloned: (cloned: ShoppingListRow) => void;
 }) {
   const [items, setItems] = useState<ShoppingItemRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -497,6 +695,14 @@ function ActiveListView({
   function handleItemSaved(updated: ShoppingItemRow) {
     setItems((prev) => prev.map((i) => i.id === updated.id ? updated : i));
     setEditingItem(null);
+  }
+
+  async function handleClone() {
+    const res = await fetch(`/api/shopping-lists/${list.id}/clone`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      onListCloned(data.list);
+    }
   }
 
   async function handleArchive() {
@@ -567,6 +773,13 @@ function ActiveListView({
                 Listo
               </button>
             )}
+            <button
+              onClick={handleClone}
+              title="Clonar como plantilla"
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
             <button
               onClick={handleArchive}
               title={list.status === "archived" ? "Restaurar" : "Archivar"}
@@ -710,16 +923,23 @@ function DoneSection({
 export function ShoppingList({
   initialLists,
   businesses,
+  weekStart,
+  weekEntries,
 }: {
   initialLists: ShoppingListRow[];
   businesses: BusinessOption[];
+  weekStart?: string;
+  weekEntries?: MealEntryRef[];
 }) {
   const [lists, setLists] = useState<ShoppingListRow[]>(initialLists);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialLists.find((l) => l.status === "active")?.id ?? initialLists[0]?.id ?? null
   );
   const [showNewList, setShowNewList] = useState(false);
+  const [showGenerate, setShowGenerate] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"active" | "all">("active");
+
+  const hasWeekMeals = weekStart && weekEntries && weekEntries.length > 0;
 
   const activeList = lists.find((l) => l.id === selectedId) ?? null;
 
@@ -734,6 +954,11 @@ export function ShoppingList({
 
   function handleListUpdate(updated: ShoppingListRow) {
     setLists((prev) => prev.map((l) => l.id === updated.id ? updated : l));
+  }
+
+  function handleListCloned(cloned: ShoppingListRow) {
+    setLists((prev) => [cloned, ...prev]);
+    setSelectedId(cloned.id);
   }
 
   async function handleDeleteList(id: string) {
@@ -756,13 +981,24 @@ export function ShoppingList({
             {lists.filter((l) => l.status === "active").length} lista{lists.filter((l) => l.status === "active").length !== 1 ? "s" : ""} activa{lists.filter((l) => l.status === "active").length !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={() => setShowNewList(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white rounded-xl text-sm font-medium hover:bg-[#162d4a] transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva lista
-        </button>
+        <div className="flex items-center gap-2">
+          {hasWeekMeals && (
+            <button
+              onClick={() => setShowGenerate(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-medium hover:bg-violet-700 transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              Generar con IA
+            </button>
+          )}
+          <button
+            onClick={() => setShowNewList(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1e3a5f] text-white rounded-xl text-sm font-medium hover:bg-[#162d4a] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva lista
+          </button>
+        </div>
       </div>
 
       {/* List selector chips */}
@@ -828,6 +1064,7 @@ export function ShoppingList({
           list={activeList}
           businesses={businesses}
           onListUpdate={handleListUpdate}
+          onListCloned={handleListCloned}
         />
       )}
 
@@ -849,6 +1086,19 @@ export function ShoppingList({
           businesses={businesses}
           onClose={() => setShowNewList(false)}
           onCreate={handleListCreated}
+        />
+      )}
+
+      {showGenerate && weekStart && weekEntries && (
+        <GenerateModal
+          businesses={businesses}
+          weekStart={weekStart}
+          weekEntries={weekEntries}
+          onClose={() => setShowGenerate(false)}
+          onGenerated={(list) => {
+            handleListCreated(list);
+            setShowGenerate(false);
+          }}
         />
       )}
     </div>
