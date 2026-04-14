@@ -1,9 +1,17 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { bills, billPayments, transactions } from "@/db/schema";
+import { bills, billPayments, transactions, businesses, businessMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+async function getUserBizIds(userId: string): Promise<string[]> {
+  const [owned, member] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  return [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+}
 
 const paySchema = z.object({
   accountId:  z.string().uuid().optional().nullable(), // override default account
@@ -40,7 +48,12 @@ export async function POST(
 
   const [bill] = await db.select().from(bills).where(eq(bills.id, id));
   if (!bill) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (bill.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (bill.userId !== userId) {
+    // Allow if user is a member of the bill's business
+    if (!bill.businessId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const bizIds = await getUserBizIds(userId);
+    if (!bizIds.includes(bill.businessId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await req.json();
   const parsed = paySchema.safeParse(body);

@@ -1,9 +1,28 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { savingsGoals } from "@/db/schema";
+import { savingsGoals, businesses, businessMembers } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+
+async function getUserBizIds(userId: string): Promise<string[]> {
+  const [owned, member] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  return [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+}
+
+async function canAccess(id: string, userId: string) {
+  const [goal] = await db.select().from(savingsGoals).where(eq(savingsGoals.id, id));
+  if (!goal) return null;
+  if (goal.userId === userId) return goal;
+  if (goal.businessId) {
+    const bizIds = await getUserBizIds(userId);
+    if (bizIds.includes(goal.businessId)) return goal;
+  }
+  return false;
+}
 
 const patchSchema = z.object({
   name:         z.string().min(1).max(200).optional(),
@@ -23,6 +42,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const access = await canAccess(id, userId);
+  if (access === null)  return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (access === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -36,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(targetAmount !== undefined ? { targetAmount: targetAmount.toString() } : {}),
       updatedAt: new Date(),
     })
-    .where(and(eq(savingsGoals.id, id), eq(savingsGoals.userId, userId)))
+    .where(eq(savingsGoals.id, id))
     .returning();
 
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -48,9 +71,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  await db
-    .delete(savingsGoals)
-    .where(and(eq(savingsGoals.id, id), eq(savingsGoals.userId, userId)));
+  const access = await canAccess(id, userId);
+  if (access === null)  return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (access === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  await db.delete(savingsGoals).where(eq(savingsGoals.id, id));
   return NextResponse.json({ ok: true });
 }

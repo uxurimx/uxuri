@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { bills } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { bills, businesses, businessMembers } from "@/db/schema";
+import { eq, or, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -18,11 +18,23 @@ const updateSchema = z.object({
   notes:       z.string().optional().nullable(),
 });
 
-async function getOwned(id: string, userId: string) {
+async function getUserBizIds(userId: string): Promise<string[]> {
+  const [owned, member] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  return [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+}
+
+async function canAccess(id: string, userId: string) {
   const [bill] = await db.select().from(bills).where(eq(bills.id, id));
   if (!bill) return null;
-  if (bill.userId !== userId) return false;
-  return bill;
+  if (bill.userId === userId) return bill;
+  if (bill.businessId) {
+    const bizIds = await getUserBizIds(userId);
+    if (bizIds.includes(bill.businessId)) return bill;
+  }
+  return false;
 }
 
 export async function GET(
@@ -32,7 +44,7 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const bill = await getOwned(id, userId);
+  const bill = await canAccess(id, userId);
   if (bill === null) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (bill === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return NextResponse.json(bill);
@@ -45,7 +57,7 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const bill = await getOwned(id, userId);
+  const bill = await canAccess(id, userId);
   if (bill === null) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (bill === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -73,7 +85,7 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const bill = await getOwned(id, userId);
+  const bill = await canAccess(id, userId);
   if (bill === null) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (bill === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   await db.delete(bills).where(eq(bills.id, id));

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { budgets } from "@/db/schema";
+import { budgets, businesses, businessMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,11 +15,23 @@ const updateSchema = z.object({
   notes:       z.string().optional().nullable(),
 });
 
-async function getOwned(id: string, userId: string) {
+async function getUserBizIds(userId: string): Promise<string[]> {
+  const [owned, member] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  return [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+}
+
+async function canAccess(id: string, userId: string) {
   const [b] = await db.select().from(budgets).where(eq(budgets.id, id));
   if (!b) return null;
-  if (b.userId !== userId) return false;
-  return b;
+  if (b.userId === userId) return b;
+  if (b.businessId) {
+    const bizIds = await getUserBizIds(userId);
+    if (bizIds.includes(b.businessId)) return b;
+  }
+  return false;
 }
 
 export async function PATCH(
@@ -29,7 +41,7 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const b = await getOwned(id, userId);
+  const b = await canAccess(id, userId);
   if (b === null)  return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (b === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -52,7 +64,7 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const b = await getOwned(id, userId);
+  const b = await canAccess(id, userId);
   if (b === null)  return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (b === false) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   await db.delete(budgets).where(eq(budgets.id, id));
