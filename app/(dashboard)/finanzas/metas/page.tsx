@@ -9,10 +9,16 @@ export default async function MetasPage() {
   if (!userId) return null;
 
   const [owned, member] = await Promise.all([
-    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ id: businesses.id, name: businesses.name, logo: businesses.logo }).from(businesses).where(eq(businesses.ownerId, userId)),
     db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
   ]);
-  const bizIds = [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+  const memberIds = member.map((m) => m.businessId);
+  const memberBizs = memberIds.length > 0
+    ? await db.select({ id: businesses.id, name: businesses.name, logo: businesses.logo })
+        .from(businesses).where(inArray(businesses.id, memberIds))
+    : [];
+  const allBusinesses = [...owned, ...memberBizs.filter((b) => !owned.find((o) => o.id === b.id))];
+  const bizIds = allBusinesses.map((b) => b.id);
 
   // Fetch goals (own + shared business)
   const goals = await db
@@ -58,6 +64,7 @@ export default async function MetasPage() {
     <SavingsGoalsList
       initialGoals={goalsWithSaved}
       objectives={userObjectives}
+      businesses={allBusinesses}
     />
   );
 }

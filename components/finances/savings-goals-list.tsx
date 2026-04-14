@@ -38,6 +38,7 @@ type Contribution = {
 };
 
 type ObjectiveOption = { id: string; title: string };
+type BusinessOption = { id: string; name: string; logo: string | null };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -79,11 +80,13 @@ function daysLeft(deadline: string): number {
 function GoalForm({
   initial,
   objectives,
+  businesses,
   onSave,
   onCancel,
 }: {
   initial?: Partial<SavingsGoalWithSaved>;
   objectives: ObjectiveOption[];
+  businesses: BusinessOption[];
   onSave: (data: Partial<SavingsGoalWithSaved>) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -96,6 +99,7 @@ function GoalForm({
   const [category, setCategory] = useState<GoalCategory>(initial?.category ?? "otro");
   const [deadline, setDeadline] = useState(initial?.deadline ?? "");
   const [objectiveId, setObjectiveId] = useState(initial?.objectiveId ?? "");
+  const [businessId, setBusinessId] = useState(initial?.businessId ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
@@ -111,6 +115,7 @@ function GoalForm({
       category,
       deadline: deadline || null,
       objectiveId: objectiveId || null,
+      businessId: businessId || null,
       notes: notes.trim() || null,
     });
     setSaving(false);
@@ -179,6 +184,27 @@ function GoalForm({
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {businesses.length > 0 && (
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Negocio compartido (opcional)</label>
+            <select
+              value={businessId}
+              onChange={(e) => setBusinessId(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— Personal (solo yo) —</option>
+              {businesses.map((b) => (
+                <option key={b.id} value={b.id}>{b.logo ? `${b.logo} ` : ""}{b.name}</option>
+              ))}
+            </select>
+            {businessId && (
+              <p className="text-xs text-amber-600 mt-1">
+                Todos los miembros de este negocio podrán ver esta meta.
+              </p>
+            )}
+          </div>
+        )}
 
         {objectives.length > 0 && (
           <div className="sm:col-span-2">
@@ -324,11 +350,13 @@ function ContributeModal({
 function GoalCard({
   goal,
   objectives,
+  businesses,
   onUpdate,
   onDelete,
 }: {
   goal: SavingsGoalWithSaved;
   objectives: ObjectiveOption[];
+  businesses: BusinessOption[];
   onUpdate: (updated: SavingsGoalWithSaved) => void;
   onDelete: (id: string) => void;
 }) {
@@ -425,6 +453,7 @@ function GoalCard({
         <GoalForm
           initial={goal}
           objectives={objectives}
+          businesses={businesses}
           onSave={handleEdit}
           onCancel={() => setEditing(false)}
         />
@@ -438,7 +467,17 @@ function GoalCard({
                 <h3 className={cn("font-semibold text-slate-900 truncate", goal.isCompleted && "line-through text-slate-500")}>
                   {goal.name}
                 </h3>
-                <span className="text-xs text-slate-400">{catConfig.label}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs text-slate-400">{catConfig.label}</span>
+                  {goal.businessId && (() => {
+                    const biz = businesses.find((b) => b.id === goal.businessId);
+                    return biz ? (
+                      <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                        {biz.name}
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
@@ -606,9 +645,11 @@ function SummaryBar({ goals }: { goals: SavingsGoalWithSaved[] }) {
 export function SavingsGoalsList({
   initialGoals,
   objectives,
+  businesses = [],
 }: {
   initialGoals: SavingsGoalWithSaved[];
   objectives: ObjectiveOption[];
+  businesses?: BusinessOption[];
 }) {
   const [goals, setGoals] = useState<SavingsGoalWithSaved[]>(initialGoals);
   const [showForm, setShowForm] = useState(false);
@@ -646,8 +687,7 @@ export function SavingsGoalsList({
 
   return (
     <div className="space-y-6">
-      {/* Subnav */}
-      <FinanceSubnav active="/finanzas/metas" />
+      
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -664,12 +704,16 @@ export function SavingsGoalsList({
         </button>
       </div>
 
+      {/* Subnav */}
+      <FinanceSubnav active="/finanzas/metas" />
+
       {/* New goal form */}
       {showForm && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4">Nueva meta de ahorro</h3>
           <GoalForm
             objectives={objectives}
+            businesses={businesses}
             onSave={handleCreate}
             onCancel={() => setShowForm(false)}
           />
@@ -714,6 +758,7 @@ export function SavingsGoalsList({
               key={goal.id}
               goal={goal}
               objectives={objectives}
+              businesses={businesses}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
             />

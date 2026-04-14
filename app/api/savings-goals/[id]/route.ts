@@ -13,6 +13,7 @@ const patchSchema = z.object({
   category:     z.enum(["viaje","compra","emergencia","inversion","educacion","salud","hogar","otro"]).optional(),
   deadline:     z.string().nullable().optional(),
   objectiveId:  z.string().uuid().nullable().optional(),
+  businessId:   z.string().uuid().nullable().optional(),
   notes:        z.string().nullable().optional(),
   isCompleted:  z.boolean().optional(),
 });

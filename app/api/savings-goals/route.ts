@@ -13,6 +13,7 @@ const createSchema = z.object({
   category:     z.enum(["viaje","compra","emergencia","inversion","educacion","salud","hogar","otro"]).default("otro"),
   deadline:     z.string().nullable().optional(),
   objectiveId:  z.string().uuid().nullable().optional(),
+  businessId:   z.string().uuid().nullable().optional(),
   notes:        z.string().nullable().optional(),
 });
 
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { name, description, targetAmount, currency, category, deadline, objectiveId, notes } = parsed.data;
+  const { name, description, targetAmount, currency, category, deadline, objectiveId, businessId, notes } = parsed.data;
 
   const [goal] = await db
     .insert(savingsGoals)
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest) {
       category: category as never,
       deadline: deadline ?? null,
       objectiveId: objectiveId ?? null,
+      businessId: businessId ?? null,
       notes,
     })
     .returning();
