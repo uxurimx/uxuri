@@ -642,6 +642,112 @@ function EditItemModal({
   );
 }
 
+// ── Edit List Modal ───────────────────────────────────────────────────────────
+
+function EditListModal({
+  list,
+  businesses,
+  onClose,
+  onSaved,
+}: {
+  list: ShoppingListRow;
+  businesses: BusinessOption[];
+  onClose: () => void;
+  onSaved: (updated: Partial<ShoppingListRow>) => void;
+}) {
+  const [name, setName] = useState(list.name);
+  const [notes, setNotes] = useState(list.notes ?? "");
+  const [businessId, setBusinessId] = useState(list.businessId ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    const res = await fetch(`/api/shopping-lists/${list.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: name.trim(),
+        notes: notes.trim() || null,
+        businessId: businessId || null,
+      }),
+    });
+    if (res.ok) {
+      onSaved({ name: name.trim(), notes: notes.trim() || null, businessId: businessId || null });
+      onClose();
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="font-semibold text-slate-900">Editar lista</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nombre *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Instrucciones o comentarios para la lista…"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+          {businesses.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Compartir con negocio</label>
+              <select
+                value={businessId}
+                onChange={(e) => setBusinessId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— Solo yo —</option>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              {businessId && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Todos los miembros del negocio podrán ver y editar esta lista.
+                </p>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name.trim()}
+              className="px-4 py-2 text-sm bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Active List View ──────────────────────────────────────────────────────────
 
 function ActiveListView({
@@ -658,6 +764,8 @@ function ActiveListView({
   const [items, setItems] = useState<ShoppingItemRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<ShoppingItemRow | null>(null);
+  const [editingList, setEditingList] = useState(false);
+  const [estimating, setEstimating] = useState(false);
   const [, startTransition] = useTransition();
 
   // Fetch items when list changes and sync counts from actual DB data
@@ -714,6 +822,25 @@ function ActiveListView({
     }
   }
 
+  async function handleEstimatePrices(all = false) {
+    setEstimating(true);
+    const res = await fetch(`/api/shopping-lists/${list.id}/estimate-prices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.updated) && data.updated.length > 0) {
+        setItems((prev) => prev.map((item) => {
+          const fresh = (data.updated as ShoppingItemRow[]).find((u) => u.id === item.id);
+          return fresh ?? item;
+        }));
+      }
+    }
+    setEstimating(false);
+  }
+
   async function handleArchive() {
     const newStatus: ListStatus = list.status === "archived" ? "active" : "archived";
     const res = await fetch(`/api/shopping-lists/${list.id}`, {
@@ -746,6 +873,10 @@ function ActiveListView({
 
   const biz = businesses.find((b) => b.id === list.businessId);
   const pct = list.itemCount > 0 ? Math.round((list.doneCount / list.itemCount) * 100) : 0;
+
+  // Price aggregates (from local items state, always fresh)
+  const estimatedTotal = items.reduce((sum, i) => sum + (i.estimatedPrice ? parseFloat(i.estimatedPrice) : 0), 0);
+  const unpricedPending = items.filter((i) => !i.isDone && !i.estimatedPrice).length;
 
   return (
     <div className="space-y-4">
@@ -783,6 +914,13 @@ function ActiveListView({
               </button>
             )}
             <button
+              onClick={() => setEditingList(true)}
+              title="Editar lista"
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
               onClick={handleClone}
               title="Clonar como plantilla"
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
@@ -810,6 +948,50 @@ function ActiveListView({
                 )}
                 style={{ width: `${pct}%` }}
               />
+            </div>
+          </div>
+        )}
+
+        {/* Estimated total + price estimation */}
+        {items.length > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              {estimatedTotal > 0 ? (
+                <>
+                  <span className="text-xs text-slate-500">Total estimado:</span>
+                  <span className="text-sm font-semibold text-[#1e3a5f]">
+                    {estimatedTotal.toLocaleString("es-MX", { style: "currency", currency: "MXN" })}
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-slate-400">Sin precios estimados</span>
+              )}
+              {estimatedTotal > 0 && unpricedPending > 0 && (
+                <span className="text-xs text-slate-400">({unpricedPending} sin precio)</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {unpricedPending > 0 && (
+                <button
+                  onClick={() => handleEstimatePrices(false)}
+                  disabled={estimating}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {estimating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {estimating ? "Estimando…" : `Estimar precios (${unpricedPending})`}
+                </button>
+              )}
+              {unpricedPending === 0 && items.length > 0 && (
+                <button
+                  onClick={() => handleEstimatePrices(true)}
+                  disabled={estimating}
+                  title="Re-estimar todos los precios con IA"
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {estimating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  Re-estimar
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -875,6 +1057,18 @@ function ActiveListView({
           item={editingItem}
           onClose={() => setEditingItem(null)}
           onSaved={handleItemSaved}
+        />
+      )}
+
+      {editingList && (
+        <EditListModal
+          list={list}
+          businesses={businesses}
+          onClose={() => setEditingList(false)}
+          onSaved={(patch) => {
+            onListUpdate({ ...list, ...patch });
+            setEditingList(false);
+          }}
         />
       )}
     </div>
