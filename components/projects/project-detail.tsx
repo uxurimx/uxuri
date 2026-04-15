@@ -59,6 +59,7 @@ export function ProjectDetail({
   customColumns,
   accounts,
   currentUserId,
+  canEditTasks,
 }: {
   project: ProjectWithClient;
   tasks: TaskWithProject[];
@@ -70,6 +71,7 @@ export function ProjectDetail({
   customColumns?: CustomColumn[];
   accounts?: AccountOption[];
   currentUserId?: string;
+  canEditTasks?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"tareas" | "finanzas" | "contexto" | "chat">("tareas");
@@ -213,6 +215,7 @@ export function ProjectDetail({
             clients={clients}
             objectives={objectives}
             currentUserId={currentUserId}
+            canEditTasks={canEditTasks}
           />
         )}
 

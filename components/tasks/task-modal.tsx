@@ -104,6 +104,8 @@ interface TaskModalProps {
   objectives?: ObjectiveOption[];
   currentUserId?: string;
   initialMode?: "view" | "edit" | "create";
+  /** Cualquier colaborador del proyecto puede editar tareas */
+  canEditTasks?: boolean;
 }
 
 const statusConfig = {
@@ -285,6 +287,24 @@ function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loadin
                 </p>
               )}
 
+              {/* Historial de cambios de descripción: muestra versión anterior y nueva */}
+              {event.type === "description_changed" && (event.oldValue || event.newValue) && (
+                <div className="mt-1.5 space-y-1">
+                  {event.oldValue && (
+                    <div className="text-xs bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5 text-red-700 line-clamp-3">
+                      <span className="font-medium text-red-500 mr-1">−</span>
+                      {event.oldValue.length > 200 ? `${event.oldValue.slice(0, 200)}…` : event.oldValue}
+                    </div>
+                  )}
+                  {event.newValue && (
+                    <div className="text-xs bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5 text-emerald-700 line-clamp-3">
+                      <span className="font-medium text-emerald-500 mr-1">+</span>
+                      {event.newValue.length > 200 ? `${event.newValue.slice(0, 200)}…` : event.newValue}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Timestamp */}
               <p className="mt-0.5 text-[10px] text-slate-400">{formatDateTime(event.createdAt)}</p>
             </div>
@@ -313,12 +333,15 @@ export function TaskModal({
   objectives,
   currentUserId,
   initialMode,
+  canEditTasks = false,
 }: TaskModalProps) {
   const router = useRouter();
   const isExisting = !!task;
   const isOwner = !task?.createdBy || task.createdBy === currentUserId;
   const isAssigned = !!currentUserId && task?.assignedTo === currentUserId;
-  const isThirdParty = isExisting && !isOwner && !isAssigned;
+  // canAct: puede cambiar estado, descripción y marcar como hecha
+  const canAct = isOwner || isAssigned || canEditTasks;
+  const isThirdParty = isExisting && !canAct;
 
   const defaultMode = initialMode ?? (isExisting ? "view" : "create");
   const [mode, setMode] = useState<"view" | "edit" | "create">(defaultMode);
@@ -914,8 +937,8 @@ export function TaskModal({
                   </button>
                 )}
 
-                {/* Mark as done — owner or assigned, only when not already done */}
-                {(isOwner || isAssigned) && task.status !== "done" && (
+                {/* Mark as done — owner, assigned, or project collaborator */}
+                {canAct && task.status !== "done" && (
                   <button
                     onClick={handleMarkDone}
                     disabled={markingDone}
@@ -926,16 +949,16 @@ export function TaskModal({
                   </button>
                 )}
 
-                {/* Already done indicator — owner or assigned */}
-                {(isOwner || isAssigned) && task.status === "done" && (
+                {/* Already done indicator */}
+                {canAct && task.status === "done" && (
                   <span className="flex-1 flex items-center gap-1.5 text-sm text-emerald-600 font-medium py-2">
                     <CheckCircle2 className="w-4 h-4" />
                     Tarea completada
                   </span>
                 )}
 
-                {/* Edit — owner only */}
-                {isOwner && (
+                {/* Edit — owner or collaborator */}
+                {canAct && (
                   <button
                     onClick={() => setMode("edit")}
                     className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"

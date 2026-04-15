@@ -105,11 +105,16 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Creador: acceso total. Asignado o colaborador del proyecto (cualquier share): solo status, sortOrder y agentStatus
+  // Creador: acceso total. Asignado/Colaborador: status + description (con historial) + sortOrder + agentStatus
   const { categoryIds, ...restData } = parsed.data;
   const updateData = isCreator
     ? restData
-    : { status: restData.status, sortOrder: restData.sortOrder, agentStatus: restData.agentStatus };
+    : {
+        status: restData.status,
+        description: restData.description,
+        sortOrder: restData.sortOrder,
+        agentStatus: restData.agentStatus,
+      };
 
   const [updated] = await db.update(tasks)
     .set({ ...updateData, updatedAt: new Date() })

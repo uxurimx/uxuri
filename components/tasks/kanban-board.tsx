@@ -102,6 +102,7 @@ interface TaskCardListProps {
   users?: User[];
   agents?: AgentOption[];
   showProjectName: boolean;
+  canEditTasks?: boolean;
   onView: (task: TaskWithProject) => void;
   onEdit: (task: TaskWithProject) => void;
   onDelete: (id: string) => void;
@@ -114,6 +115,7 @@ interface TaskCardListProps {
 
 function TaskCardList({
   tasks, draggingId, dragOverTaskId, currentUserId, users, agents, showProjectName,
+  canEditTasks,
   onView, onEdit, onDelete, deletingId, onDragStart, onDragEnd, onDragOver, onDrop,
 }: TaskCardListProps) {
   return (
@@ -146,7 +148,7 @@ function TaskCardList({
             {/* Title + action buttons */}
             <div className="flex items-start justify-between gap-2 mb-2">
               <p className="text-sm font-medium text-slate-900 leading-snug flex-1">{task.title}</p>
-              {isOwner && (
+              {(isOwner || canEditTasks) && (
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button
                     onPointerDown={(e) => e.stopPropagation()}
@@ -273,6 +275,8 @@ interface KanbanBoardProps {
   clients?: ClientOption[];
   objectives?: ObjectiveOption[];
   currentUserId?: string;
+  /** true = cualquier persona con acceso al proyecto puede editar tareas */
+  canEditTasks?: boolean;
 }
 
 export function KanbanBoard({
@@ -286,6 +290,7 @@ export function KanbanBoard({
   clients,
   objectives,
   currentUserId,
+  canEditTasks = false,
 }: KanbanBoardProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
@@ -569,17 +574,18 @@ export function KanbanBoard({
       const isOwner = !task.createdBy || task.createdBy === uid;
       const isAssigned = task.assignedTo === uid;
 
-      // Only creator or assignee can change global status via drag
-      if (!isOwner && !isAssigned) return;
+      // Colaboradores del proyecto también pueden mover tareas entre columnas
+      if (!isOwner && !isAssigned && !canEditTasks) return;
 
       // Moving to system column also clears customColumnId
       setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: targetStatus, customColumnId: null } : t));
       try {
-        await fetch(`/api/tasks/${taskId}`, {
+        const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: targetStatus, customColumnId: null }),
         });
+        if (!res.ok) throw new Error("forbidden");
         router.refresh();
       } catch {
         setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: task.status, customColumnId: task.customColumnId } : t));
@@ -732,6 +738,7 @@ export function KanbanBoard({
                   users={users}
                   agents={agents}
                   showProjectName={showProjectName}
+                  canEditTasks={canEditTasks}
                   onView={openView}
                   onEdit={openEdit}
                   onDelete={handleDelete}
@@ -780,6 +787,7 @@ export function KanbanBoard({
                   users={users}
                   agents={agents}
                   showProjectName={showProjectName}
+                  canEditTasks={canEditTasks}
                   onView={openView}
                   onEdit={openEdit}
                   onDelete={handleDelete}
@@ -861,6 +869,7 @@ export function KanbanBoard({
         objectives={objectives}
         currentUserId={currentUserId}
         initialMode={modalInitialMode}
+        canEditTasks={canEditTasks}
       />
     </>
   );

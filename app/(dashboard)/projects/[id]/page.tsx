@@ -24,6 +24,8 @@ export default async function ProjectDetailPage({
   if (!projectCheck) notFound();
   const hasAccess = await canAccess(userId, "project", id, projectCheck.createdBy, "view");
   if (!hasAccess) notFound();
+  // Cualquier persona con acceso al proyecto puede editar tareas (cambiar estado, descripción)
+  const canEditTasks = true; // hasAccess ya garantiza que el usuario tiene al menos "view" share
 
   const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients, allObjectives] = await Promise.all([
     db
@@ -136,6 +138,7 @@ export default async function ProjectDetailPage({
       customColumns={allCustomColumns}
       accounts={userAccounts}
       currentUserId={userId}
+      canEditTasks={canEditTasks}
     />
   );
 }
