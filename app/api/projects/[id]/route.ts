@@ -50,15 +50,22 @@ export async function PATCH(
   const { id } = await params;
   const [project] = await db.select({ createdBy: projects.createdBy }).from(projects).where(eq(projects.id, id));
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!await canAccess(userId, "project", id, project.createdBy, "edit")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const body = await req.json();
   const parsed = updateProjectSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const { cycleMinutes, ...rest } = parsed.data;
+
+  // Ciclos: cualquier colaborador (view o edit) puede ajustarlos.
+  // Ediciones estructurales (nombre, estado, etc.) requieren permiso "edit".
+  const isCycleOnlyUpdate = Object.keys(parsed.data).every((k) => k === "cycleMinutes");
+  const requiredPermission = isCycleOnlyUpdate ? "view" : "edit";
+
+  if (!await canAccess(userId, "project", id, project.createdBy, requiredPermission)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const update: Record<string, unknown> = { ...rest, updatedAt: new Date() };
 
   if (cycleMinutes !== undefined) {
