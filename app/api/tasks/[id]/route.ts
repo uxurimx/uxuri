@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { tasks, users, taskActivity, taskCategoryLinks, taskCategories } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { tasks, users, taskActivity, taskCategoryLinks, taskCategories, shares } from "@/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
@@ -32,6 +32,24 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: "Baja", medium: "Media", high: "Alta", urgent: "Urgente",
 };
 
+/** Verifica si el usuario tiene permiso "edit" sobre el proyecto de la tarea. */
+async function isProjectCollaborator(projectId: string | null, userId: string): Promise<boolean> {
+  if (!projectId) return false;
+  const [share] = await db
+    .select({ id: shares.id })
+    .from(shares)
+    .where(
+      and(
+        eq(shares.resourceType, "project"),
+        eq(shares.resourceId, projectId),
+        eq(shares.sharedWithId, userId),
+        eq(shares.permission, "edit"),
+      )
+    )
+    .limit(1);
+  return !!share;
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -46,9 +64,12 @@ export async function GET(
   const isCreator = !task.createdBy || task.createdBy === userId;
   const isAssigned = task.assignedTo === userId;
   if (!isCreator && !isAssigned) {
-    const { getRole } = await import("@/lib/auth");
-    const role = await getRole();
-    if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const hasProjectAccess = await isProjectCollaborator(task.projectId, userId);
+    if (!hasProjectAccess) {
+      const { getRole } = await import("@/lib/auth");
+      const role = await getRole();
+      if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   return NextResponse.json(task);
@@ -71,9 +92,12 @@ export async function PATCH(
 
   const isCreator = !existing.createdBy || existing.createdBy === userId;
   const isAssigned = existing.assignedTo === userId;
+  const isCollaborator = (!isCreator && !isAssigned)
+    ? await isProjectCollaborator(existing.projectId, userId)
+    : false;
 
-  if (!isCreator && !isAssigned) {
-    return NextResponse.json({ error: "Solo el creador o el usuario asignado puede modificar esta tarea" }, { status: 403 });
+  if (!isCreator && !isAssigned && !isCollaborator) {
+    return NextResponse.json({ error: "Solo el creador, el usuario asignado o un colaborador del proyecto puede modificar esta tarea" }, { status: 403 });
   }
 
   const body = await req.json();
@@ -82,7 +106,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Usuario asignado solo puede cambiar status, sortOrder y agentStatus
+  // Creador: acceso total. Asignado/Colaborador: solo status, sortOrder y agentStatus
   const { categoryIds, ...restData } = parsed.data;
   const updateData = isCreator
     ? restData
@@ -190,10 +214,10 @@ export async function PATCH(
     await db.insert(taskActivity).values(activityEntries as any[]).catch(() => {});
   }
 
-  // Notificar al creador cuando el asignado marca como "done"
+  // Notificar al creador cuando el asignado o colaborador marca como "done"
   if (
     parsed.data.status === "done" &&
-    isAssigned &&
+    (isAssigned || isCollaborator) &&
     !isCreator &&
     existing.createdBy
   ) {
