@@ -28,7 +28,8 @@ export async function POST(
     .where(eq(projects.id, id));
 
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!await canAccess(userId, "project", id, project.createdBy, "edit")) {
+  // Marcar revisión es operacional (igual que ajustar ciclo): cualquier colaborador puede hacerlo.
+  if (!await canAccess(userId, "project", id, project.createdBy, "view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!project.cycleMinutes) {

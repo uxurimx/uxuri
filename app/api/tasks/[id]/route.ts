@@ -32,7 +32,7 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: "Baja", medium: "Media", high: "Alta", urgent: "Urgente",
 };
 
-/** Verifica si el usuario tiene permiso "edit" sobre el proyecto de la tarea. */
+/** Verifica si el usuario tiene algún share (view o edit) sobre el proyecto de la tarea. */
 async function isProjectCollaborator(projectId: string | null, userId: string): Promise<boolean> {
   if (!projectId) return false;
   const [share] = await db
@@ -43,7 +43,6 @@ async function isProjectCollaborator(projectId: string | null, userId: string): 
         eq(shares.resourceType, "project"),
         eq(shares.resourceId, projectId),
         eq(shares.sharedWithId, userId),
-        eq(shares.permission, "edit"),
       )
     )
     .limit(1);
@@ -106,7 +105,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Creador: acceso total. Asignado/Colaborador: solo status, sortOrder y agentStatus
+  // Creador: acceso total. Asignado o colaborador del proyecto (cualquier share): solo status, sortOrder y agentStatus
   const { categoryIds, ...restData } = parsed.data;
   const updateData = isCreator
     ? restData

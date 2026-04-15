@@ -49,14 +49,19 @@ export function CyclePanel({
   const [customInput, setCustomInput] = useState("");
   const [customUnit, setCustomUnit] = useState<"min" | "h" | "d">("h");
   const [showCustom, setShowCustom] = useState(false);
+  // Evita hydration mismatch: getCycleInfo usa Date.now() que difiere en SSR vs cliente
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     fetch("/api/cycle-presets")
       .then((r) => r.json())
       .then((data: CyclePreset[]) => setPresets(data.filter((p) => !p.isHidden)));
   }, []);
 
-  const info = getCycleInfo(localCycle, localLast, localNext);
+  const info = mounted
+    ? getCycleInfo(localCycle, localLast, localNext)
+    : { phase: "none" as const, pct: 0, label: "", barColor: "", badgeClass: "", minutesLeft: null };
   const phase = PHASE_CONFIG[info.phase];
 
   async function handleSetCycle(minutes: number | null) {
