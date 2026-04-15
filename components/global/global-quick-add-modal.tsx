@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   X, CheckSquare, StickyNote, FolderOpen, Target, Search,
-  CheckCircle, Loader2,
+  CheckCircle, Loader2, ArrowDownLeft, ArrowUpRight, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGlobalQuickAdd, type QuickAddTab } from "./global-quick-add-provider";
@@ -17,6 +17,7 @@ const TABS: { id: QuickAddTab; label: string; Icon: typeof CheckSquare }[] = [
   { id: "note",      label: "Nota",     Icon: StickyNote  },
   { id: "project",   label: "Proyecto", Icon: FolderOpen  },
   { id: "objective", label: "Objetivo", Icon: Target      },
+  { id: "payment",   label: "Pago",     Icon: Wallet      },
   { id: "search",    label: "Buscar",   Icon: Search      },
 ];
 
@@ -49,6 +50,13 @@ export function GlobalQuickAddModal() {
   const [projectStatus, setProjectStatus] = useState("planning");
   const [horizon, setHorizon] = useState("");
 
+  // Payment form state
+  const [payAmount, setPayAmount] = useState("");
+  const [payType, setPayType] = useState<"income" | "expense">("expense");
+  const [payDesc, setPayDesc] = useState("");
+  const [payAccountId, setPayAccountId] = useState("");
+  const [accounts, setAccounts] = useState<{ id: string; name: string; icon: string | null }[]>([]);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -73,8 +81,23 @@ export function GlobalQuickAddModal() {
       setSearchQuery("");
       setSearchResults([]);
       setSuccess(null);
+      setPayAmount("");
+      setPayType("expense");
+      setPayDesc("");
     }
   }, [isOpen]);
+
+  // Load accounts when payment tab is active
+  useEffect(() => {
+    if (activeTab !== "payment" || accounts.length > 0) return;
+    fetch("/api/accounts")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { id: string; name: string; icon: string | null }[]) => {
+        setAccounts(data);
+        if (data.length > 0) setPayAccountId(data[0].id);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // Apply prefill when modal opens
   useEffect(() => {
@@ -168,6 +191,25 @@ export function GlobalQuickAddModal() {
           body: JSON.stringify({ title: t, status: "active", horizon: horizon || undefined }),
         });
         if (res.ok) showSuccess(`Objetivo "${t}" creado`);
+
+      } else if (activeTab === "payment") {
+        const amount = parseFloat(payAmount.replace(",", "."));
+        const desc = payDesc.trim();
+        if (!amount || amount <= 0 || !desc || !payAccountId) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const res = await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accountId: payAccountId,
+            type: payType,
+            amount,
+            description: desc,
+            date: today,
+            status: "completed",
+          }),
+        });
+        if (res.ok) showSuccess(payType === "income" ? `Ingreso de $${amount} registrado` : `Gasto de $${amount} registrado`);
       }
     } finally {
       setLoading(false);
@@ -390,6 +432,92 @@ export function GlobalQuickAddModal() {
                   <option value="life">De vida</option>
                 </select>
                 <SubmitButton label="Crear objetivo" loading={loading} disabled={!title.trim()} onClick={handleCreate} />
+              </div>
+            )}
+
+            {/* ── Pago form ── */}
+            {!success && activeTab === "payment" && (
+              <div className="space-y-3">
+                {/* Tipo entrada/salida */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setPayType("income")}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium transition-colors",
+                      payType === "income"
+                        ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                    )}
+                  >
+                    <ArrowDownLeft className="w-4 h-4" />
+                    Entrada
+                  </button>
+                  <button
+                    onClick={() => setPayType("expense")}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium transition-colors",
+                      payType === "expense"
+                        ? "bg-rose-50 border-rose-400 text-rose-700"
+                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                    )}
+                  >
+                    <ArrowUpRight className="w-4 h-4" />
+                    Salida
+                  </button>
+                </div>
+
+                {/* Monto */}
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+                  <input
+                    ref={titleRef}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
+                  />
+                </div>
+
+                {/* Descripción */}
+                <input
+                  value={payDesc}
+                  onChange={(e) => setPayDesc(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  placeholder="Descripción breve"
+                  maxLength={200}
+                  className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
+                />
+
+                {/* Cuenta */}
+                {accounts.length > 0 ? (
+                  <select
+                    value={payAccountId}
+                    onChange={(e) => setPayAccountId(e.target.value)}
+                    className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.icon ? `${a.icon} ` : ""}{a.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-xs text-slate-400 text-center py-1">
+                    Cargando cuentas…
+                  </p>
+                )}
+
+                <SubmitButton
+                  label={payType === "income" ? "Registrar entrada" : "Registrar salida"}
+                  loading={loading}
+                  disabled={!payAmount || parseFloat(payAmount) <= 0 || !payDesc.trim() || !payAccountId}
+                  onClick={handleCreate}
+                />
               </div>
             )}
           </div>

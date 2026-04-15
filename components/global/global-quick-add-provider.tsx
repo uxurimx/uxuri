@@ -12,7 +12,7 @@ import { usePathname } from "next/navigation";
 import { GlobalFAB } from "./global-fab";
 import { GlobalQuickAddModal } from "./global-quick-add-modal";
 
-export type QuickAddTab = "task" | "note" | "project" | "objective" | "search";
+export type QuickAddTab = "task" | "note" | "project" | "objective" | "payment" | "search";
 
 interface QuickAddContextType {
   isOpen: boolean;
