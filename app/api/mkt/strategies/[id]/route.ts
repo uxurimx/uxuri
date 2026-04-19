@@ -15,6 +15,8 @@ const patchSchema = z.object({
   channel: z.enum(["whatsapp", "email", "ig_dm", "whatsapp_email", "sms", "other"]).optional(),
   status: z.enum(["draft", "active", "paused", "completed"]).optional(),
   notes: z.string().nullish(),
+  maxLeadsPerQuery: z.number().int().min(1).max(500).optional(),
+  scraperTimeoutMin: z.number().int().min(5).max(180).optional(),
 });
 
 export async function GET(

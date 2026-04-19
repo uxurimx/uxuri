@@ -16,13 +16,15 @@ export async function POST(
 
   const rows = await db
     .select({
-      id:            mktCampaigns.id,
-      title:         mktCampaigns.title,
-      status:        mktCampaigns.status,
-      strategyId:    mktCampaigns.strategyId,
-      targetNiche:   mktStrategies.targetNiche,
-      targetCity:    mktStrategies.targetCity,
-      targetCountry: mktStrategies.targetCountry,
+      id:                mktCampaigns.id,
+      title:             mktCampaigns.title,
+      status:            mktCampaigns.status,
+      strategyId:        mktCampaigns.strategyId,
+      targetNiche:       mktStrategies.targetNiche,
+      targetCity:        mktStrategies.targetCity,
+      targetCountry:     mktStrategies.targetCountry,
+      maxLeadsPerQuery:  mktStrategies.maxLeadsPerQuery,
+      scraperTimeoutMin: mktStrategies.scraperTimeoutMin,
     })
     .from(mktCampaigns)
     .leftJoin(mktStrategies, eq(mktCampaigns.strategyId, mktStrategies.id))
@@ -55,10 +57,12 @@ export async function POST(
       title:    row.title,
       strategyId: row.strategyId,
       strategy: {
-        id:            row.strategyId,
-        targetNiche:   row.targetNiche,
-        targetCity:    row.targetCity,
-        targetCountry: row.targetCountry ?? "México",
+        id:                row.strategyId,
+        targetNiche:       row.targetNiche,
+        targetCity:        row.targetCity,
+        targetCountry:     row.targetCountry ?? "México",
+        maxLeadsPerQuery:  row.maxLeadsPerQuery ?? 50,
+        scraperTimeoutMin: row.scraperTimeoutMin ?? 30,
       },
     };
 

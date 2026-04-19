@@ -94,41 +94,46 @@ export async function POST(req: Request) {
         lastActivity: lead.lastActivity ? new Date(lead.lastActivity) : null,
         followupStep: lead.followupStep ?? 0,
         nextFollowup: lead.nextFollowup ? new Date(lead.nextFollowup) : null,
-        scrapedBy: scrapedBy ?? null,
+        scrapedBy: null,  // worker IDs are not Clerk user IDs — identity tracked in mkt_workers
         scrapedAt: lead.scrapedAt ? new Date(lead.scrapedAt) : new Date(),
       };
 
-      const result = await db
-        .insert(mktLeads)
-        .values(values)
-        .onConflictDoUpdate({
-          target: mktLeads.sourceId,
-          set: {
-            name: values.name,
-            phone: values.phone,
-            email: values.email,
-            status: values.status,
-            hasWhatsapp: values.hasWhatsapp,
-            score: values.score,
-            notes: values.notes,
-            templateUsed: values.templateUsed,
-            campaignId: values.campaignId ?? undefined,
-            strategyId: values.strategyId ?? undefined,
-            contactedAt: values.contactedAt,
-            lastActivity: values.lastActivity,
-            followupStep: values.followupStep,
-            nextFollowup: values.nextFollowup,
-            socialFb: values.socialFb,
-            socialIg: values.socialIg,
-            socialData: values.socialData,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: mktLeads.id, sourceId: mktLeads.sourceId });
+      try {
+        const result = await db
+          .insert(mktLeads)
+          .values(values)
+          .onConflictDoUpdate({
+            target: mktLeads.sourceId,
+            set: {
+              name:         values.name,
+              phone:        values.phone,
+              email:        values.email,
+              status:       values.status,
+              hasWhatsapp:  values.hasWhatsapp,
+              score:        values.score,
+              notes:        values.notes,
+              templateUsed: values.templateUsed,
+              ...(values.campaignId != null && { campaignId: values.campaignId }),
+              ...(values.strategyId != null && { strategyId: values.strategyId }),
+              contactedAt:  values.contactedAt,
+              lastActivity: values.lastActivity,
+              followupStep: values.followupStep,
+              nextFollowup: values.nextFollowup,
+              socialFb:     values.socialFb,
+              socialIg:     values.socialIg,
+              socialData:   values.socialData,
+              updatedAt:    new Date(),
+            },
+          })
+          .returning({ id: mktLeads.id, sourceId: mktLeads.sourceId });
 
-      if (result.length > 0) {
-        inserted++;
-        mappings.push({ sourceId: result[0].sourceId!, id: result[0].id });
+        if (result.length > 0) {
+          inserted++;
+          mappings.push({ sourceId: result[0].sourceId!, id: result[0].id });
+        }
+      } catch (err) {
+        console.error("[leads/sync] Error insertando lead:", lead.sourceId, err);
+        // Continuar con los demás leads, no abortar el batch completo
       }
     }
   }

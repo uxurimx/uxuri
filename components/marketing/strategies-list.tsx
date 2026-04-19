@@ -66,11 +66,14 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
   const [channel, setChannel] = useState<Channel>("whatsapp");
   const [status, setStatus] = useState<Status>("active");
   const [notes, setNotes] = useState("");
+  const [maxLeadsPerQuery, setMaxLeadsPerQuery] = useState<number>(50);
+  const [scraperTimeoutMin, setScraperTimeoutMin] = useState<number>(30);
 
   function resetForm() {
     setTitle(""); setDescription(""); setProductOffered("");
     setTargetNiche(""); setCustomNiche(""); setTargetCity("");
     setTargetCountry("México"); setChannel("whatsapp"); setStatus("active"); setNotes("");
+    setMaxLeadsPerQuery(50); setScraperTimeoutMin(30);
   }
 
   function openEdit(s: Strategy) {
@@ -86,6 +89,8 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
     setChannel(s.channel);
     setStatus(s.status);
     setNotes(s.notes ?? "");
+    setMaxLeadsPerQuery((s as Strategy & { maxLeadsPerQuery?: number }).maxLeadsPerQuery ?? 50);
+    setScraperTimeoutMin((s as Strategy & { scraperTimeoutMin?: number }).scraperTimeoutMin ?? 30);
     setShowModal(true);
   }
 
@@ -109,6 +114,8 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
       channel,
       status,
       notes: notes.trim() || null,
+      maxLeadsPerQuery,
+      scraperTimeoutMin,
     };
     try {
       if (editingStrategy) {
@@ -326,6 +333,75 @@ export function StrategiesList({ initialStrategies }: { initialStrategies: Strat
                     onChange={(e) => setTargetCity(e.target.value)}
                     placeholder="Ej: CDMX, Monterrey"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
+                  />
+                </div>
+              </div>
+
+              {/* ── Configuración de búsqueda ── */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Búsqueda en Google Maps</p>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Cantidad de leads a buscar
+                    <span className="ml-1 text-slate-400 font-normal">(actual: {maxLeadsPerQuery})</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {[5, 10, 25, 50, 100, 200].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setMaxLeadsPerQuery(n)}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-xs font-medium border transition-colors",
+                          maxLeadsPerQuery === n
+                            ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                        )}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={maxLeadsPerQuery}
+                    onChange={(e) => setMaxLeadsPerQuery(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-24 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Tiempo límite de búsqueda
+                    <span className="ml-1 text-slate-400 font-normal">(minutos)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {[10, 20, 30, 60, 90].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setScraperTimeoutMin(n)}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-xs font-medium border transition-colors",
+                          scraperTimeoutMin === n
+                            ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                        )}
+                      >
+                        {n} min
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    min={5}
+                    max={180}
+                    value={scraperTimeoutMin}
+                    onChange={(e) => setScraperTimeoutMin(Math.max(5, parseInt(e.target.value) || 5))}
+                    className="w-24 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f] bg-white"
                   />
                 </div>
               </div>

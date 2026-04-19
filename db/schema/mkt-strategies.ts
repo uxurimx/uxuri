@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const mktStrategyStatusEnum = pgEnum("mkt_strategy_status", [
@@ -19,6 +19,8 @@ export const mktStrategies = pgTable("mkt_strategies", {
   targetCountry: varchar("target_country", { length: 50 }).default("México"),
   channel: mktChannelEnum("channel").default("whatsapp").notNull(),
   status: mktStrategyStatusEnum("status").default("draft").notNull(),
+  maxLeadsPerQuery: integer("max_leads_per_query").default(50),
+  scraperTimeoutMin: integer("scraper_timeout_min").default(30),
   notes: text("notes"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),

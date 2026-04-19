@@ -11,7 +11,7 @@ const schema = z.object({
   failed:  z.number().int().min(0).optional(),
   total:   z.number().int().min(0).nullish(),
   scraped: z.number().int().min(0).nullish(),
-  status:  z.enum(["scraping", "running"]).nullish(),
+  status:  z.enum(["scraping", "enriching", "ready", "running", "queued", "claimed", "scheduled", "completed", "paused", "failed"]).nullish(),
   // Logs del executor — array de líneas de texto, max 50 por batch
   logs:    z.array(z.string().max(400)).max(50).optional(),
 });
