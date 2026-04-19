@@ -50,6 +50,7 @@ export default async function LeadDetailPage({
   // Serializar fechas para el client component
   const serializedLead = {
     ...lead,
+    socialData: lead.socialData as import("@/components/marketing/lead-detail").SocialData | null,
     contactedAt: lead.contactedAt?.toISOString() ?? null,
     lastActivity: lead.lastActivity?.toISOString() ?? null,
     nextFollowup: lead.nextFollowup?.toISOString() ?? null,

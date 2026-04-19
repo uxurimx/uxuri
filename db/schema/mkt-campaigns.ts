@@ -3,7 +3,8 @@ import { users } from "./users";
 import { mktStrategies } from "./mkt-strategies";
 
 export const mktCampaignStatusEnum = pgEnum("mkt_campaign_status", [
-  "draft", "queued", "claimed", "scraping", "running",
+  "draft", "queued", "claimed", "scraping", "enriching",
+  "ready", "scheduled", "running",
   "paused", "completed", "failed",
 ]);
 

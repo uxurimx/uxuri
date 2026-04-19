@@ -203,6 +203,7 @@ export default async function MarketingPage() {
             { href: "/marketing/copies", label: "Copies", icon: Megaphone, desc: "Biblioteca de mensajes", color: "text-purple-600", count: null },
             { href: "/marketing/leads", label: "Leads", icon: Users, desc: "Pipeline completo", color: "text-green-600", count: totalLeads[0].count },
             { href: "/marketing/analytics", label: "Analytics", icon: BarChart2, desc: "Métricas y rendimiento", color: "text-indigo-600", count: null },
+            { href: "/marketing/workers", label: "Infraestructura", icon: Server, desc: "Server · Workers · Cuentas WA", color: "text-slate-600", count: onlineWorkers.length || null },
           ].map((m) => (
             <Link
               key={m.href}

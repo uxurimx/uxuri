@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { mktCampaigns } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { mktCampaigns, mktStrategies, mktCopies } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAccess } from "@/lib/auth";
 import { pusherServer } from "@/lib/pusher";
 
 // POST /api/mkt/campaigns/[id]/launch
-// Llamado desde la UI de Uxuri — pone la campaña en cola para el worker.
+// Pone la campaña en cola y llama al mkt-server para ejecución inmediata.
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -14,19 +14,32 @@ export async function POST(
   await requireAccess("/marketing");
   const { id } = await params;
 
-  const [campaign] = await db
-    .select()
+  // Obtener campaña con estrategia y copy para enviar al servidor
+  const rows = await db
+    .select({
+      id:              mktCampaigns.id,
+      title:           mktCampaigns.title,
+      status:          mktCampaigns.status,
+      targetNiche:     mktStrategies.targetNiche,
+      targetCity:      mktStrategies.targetCity,
+      targetCountry:   mktStrategies.targetCountry,
+      copyContent:     mktCopies.content,
+    })
     .from(mktCampaigns)
+    .leftJoin(mktStrategies, eq(mktCampaigns.strategyId, mktStrategies.id))
+    .leftJoin(mktCopies, eq(mktCampaigns.copyId, mktCopies.id))
     .where(eq(mktCampaigns.id, id));
 
-  if (!campaign) {
+  const row = rows[0];
+  if (!row) {
     return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
   }
 
-  const launchable = ["draft", "paused", "failed"] as const;
-  if (!launchable.includes(campaign.status as typeof launchable[number])) {
+  // Solo se puede enviar desde "ready" o "scheduled" (envío inmediato cancelando schedule)
+  const launchable = ["ready", "scheduled"] as const;
+  if (!launchable.includes(row.status as typeof launchable[number])) {
     return NextResponse.json(
-      { error: `No se puede lanzar desde estado '${campaign.status}'` },
+      { error: `Solo campañas en estado 'ready' pueden enviarse (actual: '${row.status}'). Primero busca leads.` },
       { status: 409 }
     );
   }
@@ -37,12 +50,31 @@ export async function POST(
     .where(eq(mktCampaigns.id, id))
     .returning();
 
-  // Notificar a workers via Pusher
   pusherServer.trigger("mkt-control", "campaign:queued", {
-    campaignId: id,
-    title: campaign.title,
-    timestamp: new Date().toISOString(),
+    campaignId: id, title: row.title, timestamp: new Date().toISOString(),
   }).catch(() => {});
+
+  const serverUrl = process.env.MKT_SERVER_URL;
+  const serverKey = process.env.MKT_SERVER_KEY;
+
+  if (serverUrl && serverKey) {
+    const campaignPayload = {
+      id:       row.id,
+      title:    row.title,
+      strategy: {
+        targetNiche:   row.targetNiche,
+        targetCity:    row.targetCity,
+        targetCountry: row.targetCountry ?? "México",
+      },
+      copy: row.copyContent ? { body: row.copyContent } : null,
+    };
+
+    fetch(`${serverUrl.replace(/\/$/, "")}/api/campaigns/${id}/run`, {
+      method:  "POST",
+      headers: { "X-API-Key": serverKey, "Content-Type": "application/json" },
+      body:    JSON.stringify({ campaign: campaignPayload, mode: "send" }),
+    }).catch(() => {});
+  }
 
   return NextResponse.json(updated);
 }

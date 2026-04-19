@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Zap, Users, TrendingUp, MessageSquare, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CampaignLeads from "@/components/marketing/campaign-leads";
 
 const STATUS_CONFIG = {
   draft:     { label: "Borrador",   className: "bg-slate-100 text-slate-600" },
@@ -190,20 +191,8 @@ export default async function CampaignDetailPage({
         </div>
       )}
 
-      {/* Leads (Phase 3 placeholder) */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-800">Leads de esta campaña</h3>
-          <Link href={`/marketing/leads?campaignId=${id}`} className="text-xs text-[#1e3a5f] hover:underline">
-            Ver todos →
-          </Link>
-        </div>
-        <p className="text-sm text-slate-400 mt-2">
-          {totalLeadsCount > 0
-            ? `${totalLeadsCount} leads vinculados. La tabla detallada estará disponible en la Fase 3.`
-            : "Sin leads vinculados todavía. Los leads se crean cuando el worker sincroniza desde la app de scraping."}
-        </p>
-      </div>
+      {/* Leads de la campaña */}
+      <CampaignLeads campaignId={id} campaignStatus={campaign.status} />
 
       {/* Notas */}
       {campaign.notes && (

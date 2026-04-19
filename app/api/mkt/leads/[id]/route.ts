@@ -23,6 +23,12 @@ const patchSchema = z.object({
   convertedAt: z.string().nullable().optional(),
   assignedTo: z.string().optional(),
   score: z.number().int().optional(),
+  // Fase 3 — enriquecimiento social
+  socialData: z.record(z.unknown()).nullable().optional(),
+  socialFb:   z.string().max(500).nullable().optional(),
+  socialIg:   z.string().max(500).nullable().optional(),
+  // Fase 2 — aprobación para envío
+  approvedForSend: z.number().int().min(0).max(1).optional(),
 });
 
 export async function PATCH(
@@ -61,7 +67,11 @@ export async function PATCH(
   if (data.convertedToClientId !== undefined) update.convertedToClientId = data.convertedToClientId;
   if (data.convertedAt !== undefined) update.convertedAt = data.convertedAt ? new Date(data.convertedAt) : null;
   if (data.assignedTo !== undefined) update.assignedTo = data.assignedTo;
-  if (data.score !== undefined) update.score = data.score;
+  if (data.score      !== undefined) update.score      = data.score;
+  if (data.socialData     !== undefined) update.socialData     = data.socialData;
+  if (data.socialFb       !== undefined) update.socialFb       = data.socialFb;
+  if (data.socialIg       !== undefined) update.socialIg       = data.socialIg;
+  if (data.approvedForSend !== undefined) update.approvedForSend = data.approvedForSend;
 
   const [updated] = await db
     .update(mktLeads)

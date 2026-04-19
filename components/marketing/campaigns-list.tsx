@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, X, Zap, ArrowRight, Play, Pause, CheckCircle2, Clock, AlertCircle, Loader2, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Zap, ArrowRight, Play, Pause, CheckCircle2, Clock, AlertCircle, Loader2, Search, Pencil, Trash2, Sparkles, Brain, CalendarClock, Send, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CampaignProgress } from "./campaign-progress";
 
 const STATUS_CONFIG = {
-  draft:     { label: "Borrador",    icon: Clock,        color: "bg-slate-100 text-slate-600" },
-  queued:    { label: "En cola",     icon: Clock,        color: "bg-amber-50 text-amber-700" },
-  claimed:   { label: "Tomada",      icon: Loader2,      color: "bg-orange-50 text-orange-700" },
-  scraping:  { label: "Scrapeando",  icon: Search,       color: "bg-cyan-50 text-cyan-700" },
-  running:   { label: "Enviando",    icon: Play,         color: "bg-emerald-50 text-emerald-700" },
-  completed: { label: "Completada",  icon: CheckCircle2, color: "bg-blue-50 text-blue-700" },
-  paused:    { label: "Pausada",     icon: Pause,        color: "bg-slate-100 text-slate-600" },
-  failed:    { label: "Fallida",     icon: AlertCircle,  color: "bg-red-50 text-red-700" },
+  draft:      { label: "Borrador",       icon: Clock,         color: "bg-slate-100 text-slate-600" },
+  scraping:   { label: "Buscando leads", icon: Search,        color: "bg-cyan-50 text-cyan-700" },
+  enriching:  { label: "Enriqueciendo",  icon: Sparkles,      color: "bg-purple-50 text-purple-700" },
+  ready:      { label: "Lista",          icon: CheckCircle2,  color: "bg-emerald-50 text-emerald-700" },
+  scheduled:  { label: "Programada",     icon: CalendarClock, color: "bg-indigo-50 text-indigo-700" },
+  queued:     { label: "En cola",        icon: Clock,         color: "bg-amber-50 text-amber-700" },
+  claimed:    { label: "Tomada",         icon: Loader2,       color: "bg-orange-50 text-orange-700" },
+  running:    { label: "Enviando",       icon: Play,          color: "bg-emerald-50 text-emerald-700" },
+  completed:  { label: "Completada",     icon: CheckCircle2,  color: "bg-blue-50 text-blue-700" },
+  paused:     { label: "Pausada",        icon: Pause,         color: "bg-slate-100 text-slate-600" },
+  failed:     { label: "Fallida",        icon: AlertCircle,   color: "bg-red-50 text-red-700" },
 } as const;
 
 type CampaignStatus = keyof typeof STATUS_CONFIG;
@@ -55,6 +58,8 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
   const [saving, setSaving] = useState(false);
+  const [scheduleModal, setScheduleModal] = useState<string | null>(null); // campaignId
+  const [scheduleDate, setScheduleDate] = useState("");
 
   // Form
   const [title, setTitle] = useState("");
@@ -156,11 +161,58 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
     }
   }
 
+  async function handleScrape(id: string) {
+    const res = await fetch(`/api/mkt/campaigns/${id}/scrape`, { method: "POST" });
+    if (res.ok) {
+      setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: "scraping" } : c));
+    }
+  }
+
   async function handleLaunch(id: string) {
     const res = await fetch(`/api/mkt/campaigns/${id}/launch`, { method: "POST" });
     if (res.ok) {
       setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status: "queued" } : c));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "No se puede enviar en este momento");
     }
+  }
+
+  async function handleSchedule(id: string) {
+    if (!scheduleDate) return;
+    const res = await fetch(`/api/mkt/campaigns/${id}/schedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduledAt: new Date(scheduleDate).toISOString() }),
+    });
+    if (res.ok) {
+      setCampaigns((prev) => prev.map((c) =>
+        c.id === id ? { ...c, status: "scheduled", scheduledAt: new Date(scheduleDate).toISOString() } : c
+      ));
+      setScheduleModal(null);
+      setScheduleDate("");
+    }
+  }
+
+  async function handleCancelSchedule(id: string) {
+    const res = await fetch(`/api/mkt/campaigns/${id}/schedule`, { method: "DELETE" });
+    if (res.ok) {
+      setCampaigns((prev) => prev.map((c) =>
+        c.id === id ? { ...c, status: "ready", scheduledAt: null } : c
+      ));
+    }
+  }
+
+  async function handleEnrich(id: string) {
+    await fetch(`/api/mkt/campaigns/${id}/enrich`, { method: "POST" });
+  }
+
+  async function handleAiCopy(id: string, framework = "AIDA") {
+    await fetch(`/api/mkt/campaigns/${id}/ai-copy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ framework, variants: 2 }),
+    });
   }
 
   const filtered = campaigns.filter(
@@ -193,7 +245,7 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
       {campaigns.length > 0 && (
         <div className="flex gap-2 overflow-x-auto mb-6 pb-1">
           <button onClick={() => setStatusFilter("all")} className={cn("whitespace-nowrap px-3 py-1.5 text-sm font-medium rounded-full", statusFilter === "all" ? "bg-[#1e3a5f] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>Todas</button>
-          {(["running", "queued", "draft", "paused", "completed", "failed"] as const).map((s) => {
+          {(["draft", "scraping", "ready", "scheduled", "running", "queued", "completed", "paused", "failed"] as const).map((s) => {
             const sc = STATUS_CONFIG[s];
             const StatusIcon = sc.icon;
             return (
@@ -268,15 +320,52 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
 
                   {/* Acciones rápidas */}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    {(c.status === "draft" || c.status === "paused" || c.status === "failed") ? (
-                      <button onClick={() => handleLaunch(c.id)} title="Lanzar al worker" className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
-                        <Play className="w-4 h-4" />
+
+                    {/* FASE 1: Buscar leads */}
+                    {(c.status === "draft" || c.status === "failed" || c.status === "paused") && (
+                      <button onClick={() => handleScrape(c.id)} title="Buscar leads en Google Maps" className="p-1.5 rounded-lg hover:bg-cyan-50 text-slate-400 hover:text-cyan-600 transition-colors">
+                        <Search className="w-4 h-4" />
                       </button>
-                    ) : (c.status === "running" || c.status === "scraping") ? (
+                    )}
+
+                    {/* FASE 3+4: Enriquecer y AI copy (cuando hay leads) */}
+                    {(c.status === "ready" || c.status === "completed" || c.status === "paused") && (
+                      <>
+                        <button onClick={() => handleEnrich(c.id)} title="Enriquecer leads (IG/FB/reseñas)" className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors">
+                          <Sparkles className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleAiCopy(c.id)} title="Generar AI copy (AIDA)" className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors">
+                          <Brain className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+
+                    {/* FASE 2: Enviar ahora o programar (solo desde ready) */}
+                    {c.status === "ready" && (
+                      <>
+                        <button onClick={() => handleLaunch(c.id)} title="Enviar ahora" className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
+                          <Send className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => { setScheduleModal(c.id); setScheduleDate(""); }} title="Programar envío" className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors">
+                          <CalendarClock className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+
+                    {/* Cancelar programación */}
+                    {c.status === "scheduled" && (
+                      <button onClick={() => handleCancelSchedule(c.id)} title="Cancelar envío programado" className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    {/* Detener (mientras corre) */}
+                    {(c.status === "running" || c.status === "scraping") && (
                       <button onClick={() => handleStatusChange(c.id, "paused")} title="Pausar" className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors">
                         <Pause className="w-4 h-4" />
                       </button>
-                    ) : null}
+                    )}
+
                     <button onClick={() => openEdit(c)} title="Editar" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-[#1e3a5f] transition-colors">
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -384,6 +473,47 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Programar envío */}
+      {scheduleModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="font-semibold text-slate-900">Programar envío</h2>
+                <p className="text-xs text-slate-400 mt-0.5">El sistema enviará automáticamente a la hora indicada</p>
+              </div>
+              <button onClick={() => setScheduleModal(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha y hora de envío</label>
+                <input
+                  type="datetime-local"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setScheduleModal(null)} className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleSchedule(scheduleModal)}
+                  disabled={!scheduleDate}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                >
+                  Programar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

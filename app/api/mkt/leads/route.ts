@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { mktLeads } from "@/db/schema";
-import { eq, and, desc, ilike, or, isNull, isNotNull, count, sql } from "drizzle-orm";
+import { eq, and, desc, ilike, or, isNull, isNotNull, count } from "drizzle-orm";
 import { validateMktApiKey, unauthorizedResponse } from "@/lib/mkt-auth";
 import { auth } from "@clerk/nextjs/server";
 
@@ -19,10 +19,12 @@ export async function GET(req: Request) {
   const campaignId = url.searchParams.get("campaignId");
   const strategyId = url.searchParams.get("strategyId");
   const q          = url.searchParams.get("q");
-  const hasWa      = url.searchParams.get("hasWhatsapp"); // "yes" | "no" | "unknown"
-  const withCount  = url.searchParams.get("withCount") === "true";
-  const limit      = Math.min(parseInt(url.searchParams.get("limit") ?? "50"), 500);
-  const offset     = parseInt(url.searchParams.get("offset") ?? "0");
+  const hasWa           = url.searchParams.get("hasWhatsapp"); // "yes" | "no" | "unknown"
+  const needsEnrichment = url.searchParams.get("needsEnrichment") === "1";
+  const approvedForSend = url.searchParams.get("approvedForSend"); // "1" | "0"
+  const withCount       = url.searchParams.get("withCount") === "true";
+  const limit           = Math.min(parseInt(url.searchParams.get("limit") ?? "50"), 500);
+  const offset          = parseInt(url.searchParams.get("offset") ?? "0");
 
   const conditions = [];
   if (niche)      conditions.push(eq(mktLeads.niche, niche));
@@ -40,6 +42,16 @@ export async function GET(req: Request) {
   if (hasWa === "yes")     conditions.push(eq(mktLeads.hasWhatsapp, 1));
   if (hasWa === "no")      conditions.push(eq(mktLeads.hasWhatsapp, 0));
   if (hasWa === "unknown") conditions.push(isNull(mktLeads.hasWhatsapp));
+  if (needsEnrichment) {
+    conditions.push(isNull(mktLeads.socialData));
+    conditions.push(or(
+      isNotNull(mktLeads.menuUrl),
+      isNotNull(mktLeads.socialIg),
+      isNotNull(mktLeads.socialFb),
+    ));
+  }
+  if (approvedForSend === "1") conditions.push(eq(mktLeads.approvedForSend, 1));
+  if (approvedForSend === "0") conditions.push(eq(mktLeads.approvedForSend, 0));
 
   const where = conditions.length ? and(...conditions) : undefined;
 

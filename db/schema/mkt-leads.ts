@@ -36,6 +36,7 @@ export const mktLeads = pgTable("mkt_leads", {
   socialFb: varchar("social_fb", { length: 500 }),
   socialIg: varchar("social_ig", { length: 500 }),
   socialData: jsonb("social_data"),
+  approvedForSend: integer("approved_for_send").default(0).notNull(), // 0=no, 1=aprobado para envío
 
   // ── Status y seguimiento ──────────────────────────────────────────────────
   status: mktLeadStatusEnum("status").default("nuevo").notNull(),

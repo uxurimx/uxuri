@@ -11,7 +11,7 @@ const createSchema = z.object({
   copyId: z.string().uuid().nullish(),
   assignedTo: z.string().nullish(),
   scheduledAt: z.string().nullish(),
-  status: z.enum(["draft", "queued", "running", "completed", "paused", "failed"]).optional(),
+  status: z.enum(["draft", "queued", "claimed", "scraping", "enriching", "ready", "scheduled", "running", "completed", "paused", "failed"]).optional(),
   notes: z.string().nullish(),
 });
 

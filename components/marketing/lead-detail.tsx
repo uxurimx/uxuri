@@ -6,6 +6,7 @@ import {
   Phone, Mail, Globe, MapPin, Star, MessageSquare,
   CheckCircle2, XCircle, Clock, TrendingUp, UserPlus,
   Send, FileText, X, ExternalLink, Calendar,
+  Sparkles, Brain, ChevronDown, ChevronUp, Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LeadStatus } from "./leads-table";
@@ -23,6 +24,20 @@ interface Interaction {
   createdAt: string;
 }
 
+export interface SocialData {
+  ig?: { followers?: number; bio?: string; posts_count?: number; is_verified?: boolean; url?: string } | null;
+  fb?: { likes?: number; rating?: number; description?: string } | null;
+  gmaps_reviews?: { total_reviews?: number; avg_rating?: number; negative_count?: number; pain_themes?: string[]; recent_complaints?: string[] } | null;
+  pain_points?: string[];
+  ai_copy?: {
+    research?: { main_problem?: string; opportunity?: string; angle?: string; hook?: string; context?: string };
+    variants?: { variant: string; content: string; tone: string; framework: string }[];
+    framework?: string;
+    generated_at?: string;
+  };
+  enriched_at?: string;
+}
+
 interface Lead {
   id: string;
   name: string | null;
@@ -33,6 +48,7 @@ interface Lead {
   phone: string | null;
   email: string | null;
   website: string | null;
+  menuUrl: string | null;
   address: string | null;
   rating: number | null;
   reviews: number | null;
@@ -41,6 +57,7 @@ interface Lead {
   score: number | null;
   socialFb: string | null;
   socialIg: string | null;
+  socialData: SocialData | null;
   status: LeadStatus;
   notes: string | null;
   templateUsed: string | null;
@@ -113,6 +130,9 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
   const [savingNote, setSavingNote] = useState(false);
   const [showConvert, setShowConvert] = useState(false);
   const [convertedClientId, setConvertedClientId] = useState<string | null>(lead.convertedToClientId);
+  const [socialOpen, setSocialOpen] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [sendingWa, setSendingWa] = useState(false);
 
   // Convert form
   const [cName, setCName] = useState(lead.name ?? "");
@@ -121,6 +141,26 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
   const [cWebsite, setCWebsite] = useState(lead.website ?? "");
   const [cNotes, setCNotes] = useState("");
   const [converting, setConverting] = useState(false);
+
+  async function handleSendWa() {
+    if (!lead.phone) return;
+    if (!confirm(`Enviar WhatsApp a ${lead.name ?? lead.phone}?`)) return;
+    setSendingWa(true);
+    try {
+      const res = await fetch(`/api/mkt/leads/${lead.id}/send-wa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(`Error: ${data.error}`); return; }
+      alert(`Job iniciado: ${data.jobId}`);
+    } catch (e) {
+      alert(String(e));
+    } finally {
+      setSendingWa(false);
+    }
+  }
 
   async function handleStatusChange(newStatus: LeadStatus) {
     setStatus(newStatus);
@@ -184,6 +224,15 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
       setConverting(false);
     }
   }
+
+  function copyToClipboard(text: string, idx: number) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 2000);
+    });
+  }
+
+  const sd = lead.socialData;
 
   const sc = STATUS_CONFIG[status] ?? STATUS_CONFIG.nuevo;
   const scoreColor = !lead.score ? "bg-slate-100 text-slate-500"
@@ -303,6 +352,18 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
           <p className="text-xs text-slate-400">Follow-up #{lead.followupStep}</p>
         </div>
 
+        {/* Enviar WhatsApp */}
+        {lead.phone && (
+          <button
+            onClick={handleSendWa}
+            disabled={sendingWa}
+            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-[#25d366] text-white rounded-xl text-sm font-medium hover:bg-[#1ebe5a] disabled:opacity-40 transition-colors"
+          >
+            <Send className="w-4 h-4" />
+            {sendingWa ? "Enviando…" : "Enviar WhatsApp"}
+          </button>
+        )}
+
         {/* Convertir a cliente */}
         {convertedClientId ? (
           <Link
@@ -389,6 +450,159 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
             <p className="text-xs font-medium text-amber-700 mb-1">Notas del lead</p>
             <p className="text-sm text-amber-900 whitespace-pre-wrap">{lead.notes}</p>
+          </div>
+        )}
+
+        {/* Datos de enriquecimiento */}
+        {sd && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <button
+              onClick={() => setSocialOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                <span className="font-semibold text-slate-800 text-sm">Datos de enriquecimiento</span>
+                {sd.enriched_at && (
+                  <span className="text-xs text-slate-400">{fmt(sd.enriched_at)}</span>
+                )}
+              </div>
+              {socialOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            </button>
+
+            {socialOpen && (
+              <div className="border-t border-slate-100 divide-y divide-slate-50">
+                {/* Pain Points */}
+                {sd.pain_points && sd.pain_points.length > 0 && (
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Pain Points</p>
+                    <ul className="space-y-1.5">
+                      {sd.pain_points.map((p, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                          <span className="text-orange-400 mt-0.5 shrink-0">•</span>
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Instagram */}
+                {sd.ig && (
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Instagram</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {sd.ig.followers != null && (
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-slate-800">{sd.ig.followers.toLocaleString()}</p>
+                          <p className="text-xs text-slate-400">seguidores</p>
+                        </div>
+                      )}
+                      {sd.ig.posts_count != null && (
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-slate-800">{sd.ig.posts_count}</p>
+                          <p className="text-xs text-slate-400">posts</p>
+                        </div>
+                      )}
+                      {sd.ig.is_verified && (
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-blue-500">✓</p>
+                          <p className="text-xs text-slate-400">verificado</p>
+                        </div>
+                      )}
+                    </div>
+                    {sd.ig.bio && <p className="text-xs text-slate-500 mt-2 italic">"{sd.ig.bio.slice(0, 100)}{sd.ig.bio.length > 100 ? "…" : ""}"</p>}
+                  </div>
+                )}
+
+                {/* Facebook */}
+                {sd.fb && (
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Facebook</p>
+                    <div className="flex gap-6">
+                      {sd.fb.likes != null && (
+                        <div>
+                          <p className="text-lg font-bold text-slate-800">{sd.fb.likes.toLocaleString()}</p>
+                          <p className="text-xs text-slate-400">likes</p>
+                        </div>
+                      )}
+                      {sd.fb.rating != null && (
+                        <div>
+                          <p className="text-lg font-bold text-slate-800">★ {sd.fb.rating}</p>
+                          <p className="text-xs text-slate-400">rating</p>
+                        </div>
+                      )}
+                    </div>
+                    {sd.fb.description && <p className="text-xs text-slate-500 mt-2 italic">"{sd.fb.description.slice(0, 100)}{sd.fb.description.length > 100 ? "…" : ""}"</p>}
+                  </div>
+                )}
+
+                {/* Google Maps Reviews */}
+                {sd.gmaps_reviews && (
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Reseñas Google Maps</p>
+                    <div className="flex gap-6 mb-2">
+                      {sd.gmaps_reviews.total_reviews != null && (
+                        <div>
+                          <p className="text-lg font-bold text-slate-800">{sd.gmaps_reviews.total_reviews}</p>
+                          <p className="text-xs text-slate-400">total reseñas</p>
+                        </div>
+                      )}
+                      {sd.gmaps_reviews.negative_count != null && (
+                        <div>
+                          <p className="text-lg font-bold text-red-500">{sd.gmaps_reviews.negative_count}</p>
+                          <p className="text-xs text-slate-400">negativas</p>
+                        </div>
+                      )}
+                    </div>
+                    {sd.gmaps_reviews.pain_themes && sd.gmaps_reviews.pain_themes.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {sd.gmaps_reviews.pain_themes.map((t, i) => (
+                          <span key={i} className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AI Copy */}
+                {sd.ai_copy && (
+                  <div className="px-5 py-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Brain className="w-4 h-4 text-purple-500" />
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">AI Copy — {sd.ai_copy.framework}</p>
+                      {sd.ai_copy.generated_at && (
+                        <span className="text-xs text-slate-400 ml-auto">{fmt(sd.ai_copy.generated_at)}</span>
+                      )}
+                    </div>
+                    {sd.ai_copy.research?.main_problem && (
+                      <p className="text-xs text-slate-500 mb-3 bg-slate-50 rounded-lg p-2">
+                        <span className="font-medium text-slate-600">Problema: </span>
+                        {sd.ai_copy.research.main_problem}
+                      </p>
+                    )}
+                    <div className="space-y-3">
+                      {sd.ai_copy.variants?.map((v, i) => (
+                        <div key={i} className="bg-purple-50 rounded-lg p-3 relative">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-xs font-bold text-purple-700 bg-purple-200 px-1.5 py-0.5 rounded">Variante {v.variant}</span>
+                            {v.tone && <span className="text-xs text-slate-400">{v.tone}</span>}
+                            <button
+                              onClick={() => copyToClipboard(v.content, i)}
+                              className="ml-auto text-slate-400 hover:text-purple-600 transition-colors"
+                              title="Copiar al portapapeles"
+                            >
+                              {copiedIdx === i ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{v.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

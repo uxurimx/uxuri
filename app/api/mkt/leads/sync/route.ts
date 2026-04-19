@@ -112,6 +112,8 @@ export async function POST(req: Request) {
             score: values.score,
             notes: values.notes,
             templateUsed: values.templateUsed,
+            campaignId: values.campaignId ?? undefined,
+            strategyId: values.strategyId ?? undefined,
             contactedAt: values.contactedAt,
             lastActivity: values.lastActivity,
             followupStep: values.followupStep,
