@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { mktLeads } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAccess } from "@/lib/auth";
 
-// POST /api/mkt/campaigns/[id]/enrich
-// Dispara el enriquecimiento de leads de la campaña en el mkt-server.
-// Body opcional: { leadIds: string[] } para enriquecer solo un subconjunto.
+// POST /api/mkt/leads/[id]/enrich
+// Dispara enriquecimiento de un lead individual en el mkt-server.
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   await requireAccess("/marketing");
@@ -23,12 +22,7 @@ export async function POST(
     );
   }
 
-  const body = await req.json().catch(() => ({}));
-  const leadIds: string[] | undefined = Array.isArray(body?.leadIds) && body.leadIds.length > 0
-    ? body.leadIds
-    : undefined;
-
-  const leads = await db
+  const [lead] = await db
     .select({
       id:        mktLeads.id,
       name:      mktLeads.name,
@@ -43,24 +37,19 @@ export async function POST(
       country:   mktLeads.country,
     })
     .from(mktLeads)
-    .where(leadIds ? inArray(mktLeads.id, leadIds) : eq(mktLeads.campaignId, id))
-    .limit(200);
+    .where(eq(mktLeads.id, id));
 
-  if (leads.length === 0) {
-    return NextResponse.json({ error: "No hay leads en esta campaña" }, { status: 404 });
+  if (!lead) {
+    return NextResponse.json({ error: "Lead no encontrado" }, { status: 404 });
   }
 
   try {
     const res = await fetch(`${serverUrl.replace(/\/$/, "")}/api/enrich`, {
       method:  "POST",
       headers: { "X-API-Key": serverKey, "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        campaignId: id,
-        leads:      leads,
-      }),
-      signal: AbortSignal.timeout(10_000),
+      body:    JSON.stringify({ leads: [lead] }),
+      signal:  AbortSignal.timeout(10_000),
     });
-
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {

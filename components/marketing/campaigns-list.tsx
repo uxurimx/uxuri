@@ -60,6 +60,8 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
   const [saving, setSaving] = useState(false);
   const [scheduleModal, setScheduleModal] = useState<string | null>(null); // campaignId
   const [scheduleDate, setScheduleDate] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null); // "${id}-action"
+  const [actionToast, setActionToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   // Form
   const [title, setTitle] = useState("");
@@ -203,16 +205,45 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
     }
   }
 
+  function showToast(msg: string, ok: boolean) {
+    setActionToast({ msg, ok });
+    setTimeout(() => setActionToast(null), 3500);
+  }
+
   async function handleEnrich(id: string) {
-    await fetch(`/api/mkt/campaigns/${id}/enrich`, { method: "POST" });
+    setActionLoading(`${id}-enrich`);
+    try {
+      const res = await fetch(`/api/mkt/campaigns/${id}/enrich`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) showToast(`Error: ${data.error}`, false);
+      else showToast(`Enriquecimiento iniciado — job ${data.jobId}`, true);
+    } catch {
+      showToast("No se pudo contactar al servidor", false);
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   async function handleAiCopy(id: string, framework = "AIDA") {
-    await fetch(`/api/mkt/campaigns/${id}/ai-copy`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ framework, variants: 2 }),
-    });
+    setActionLoading(`${id}-copy`);
+    try {
+      const res = await fetch(`/api/mkt/campaigns/${id}/ai-copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ framework, variants: 2 }),
+      });
+      const data = await res.json();
+      if (!res.ok) showToast(`Error: ${data.error}`, false);
+      else showToast(`Copy AI generado — job ${data.jobId ?? "ok"}`, true);
+    } catch {
+      showToast("No se pudo contactar al servidor", false);
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   const filtered = campaigns.filter(
@@ -221,6 +252,16 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
 
   return (
     <div>
+      {/* Toast global */}
+      {actionToast && (
+        <div className={cn(
+          "fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all",
+          actionToast.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+        )}>
+          {actionToast.msg}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -331,11 +372,11 @@ export function CampaignsList({ initialCampaigns, strategies, copies, workers }:
                     {/* FASE 3+4: Enriquecer y AI copy (cuando hay leads) */}
                     {(c.status === "ready" || c.status === "completed" || c.status === "paused") && (
                       <>
-                        <button onClick={() => handleEnrich(c.id)} title="Enriquecer leads (IG/FB/reseñas)" className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors">
-                          <Sparkles className="w-4 h-4" />
+                        <button onClick={() => handleEnrich(c.id)} disabled={actionLoading === `${c.id}-enrich`} title="Enriquecer leads (IG/FB/reseñas)" className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors disabled:opacity-40">
+                          <Sparkles className={cn("w-4 h-4", actionLoading === `${c.id}-enrich` && "animate-spin")} />
                         </button>
-                        <button onClick={() => handleAiCopy(c.id)} title="Generar AI copy (AIDA)" className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors">
-                          <Brain className="w-4 h-4" />
+                        <button onClick={() => handleAiCopy(c.id)} disabled={actionLoading === `${c.id}-copy`} title="Generar AI copy (AIDA)" className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-40">
+                          <Brain className={cn("w-4 h-4", actionLoading === `${c.id}-copy` && "animate-spin")} />
                         </button>
                       </>
                     )}

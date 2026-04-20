@@ -133,6 +133,8 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
   const [socialOpen, setSocialOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
 
   // Convert form
   const [cName, setCName] = useState(lead.name ?? "");
@@ -141,6 +143,21 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
   const [cWebsite, setCWebsite] = useState(lead.website ?? "");
   const [cNotes, setCNotes] = useState("");
   const [converting, setConverting] = useState(false);
+
+  async function handleEnrich() {
+    setEnriching(true);
+    setEnrichMsg(null);
+    try {
+      const res = await fetch(`/api/mkt/leads/${lead.id}/enrich`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setEnrichMsg(`Error: ${data.error}`); return; }
+      setEnrichMsg(`Job iniciado (${data.jobId}) — puede tardar unos minutos`);
+    } catch (e) {
+      setEnrichMsg(String(e));
+    } finally {
+      setEnriching(false);
+    }
+  }
 
   async function handleSendWa() {
     if (!lead.phone) return;
@@ -350,6 +367,21 @@ export function LeadDetail({ lead, interactions: initialInteractions, campaignTi
           {lead.lastActivity && <p className="text-xs text-slate-600"><span className="text-slate-400">Últ. actividad:</span> {fmt(lead.lastActivity, true)}</p>}
           {lead.nextFollowup && <p className="text-xs text-emerald-700"><span className="text-slate-400">Próx. follow-up:</span> {fmt(lead.nextFollowup, true)}</p>}
           <p className="text-xs text-slate-400">Follow-up #{lead.followupStep}</p>
+        </div>
+
+        {/* Enriquecer */}
+        <div className="space-y-2">
+          <button
+            onClick={handleEnrich}
+            disabled={enriching}
+            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-sm font-medium hover:bg-purple-100 disabled:opacity-40 transition-colors"
+          >
+            <Sparkles className={cn("w-4 h-4", enriching && "animate-spin")} />
+            {enriching ? "Iniciando…" : "Enriquecer (IG / FB / Maps)"}
+          </button>
+          {enrichMsg && (
+            <p className="text-xs text-center text-slate-500 px-2">{enrichMsg}</p>
+          )}
         </div>
 
         {/* Enviar WhatsApp */}

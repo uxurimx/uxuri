@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { CheckSquare, Square, CheckCheck, Send, MessageSquare, Filter, RefreshCw, ExternalLink } from "lucide-react";
+import { CheckSquare, Square, CheckCheck, Send, MessageSquare, Filter, RefreshCw, ExternalLink, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -63,6 +63,9 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
   const [minScore, setMinScore] = useState<number>(0);
   const [approving, setApproving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [enrichingId, setEnrichingId] = useState<string | null>(null);
+  const [enrichingBulk, setEnrichingBulk] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -83,6 +86,12 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
   }, [campaignId, filterApproved, filterWa, minScore]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   // Selection helpers
   const toggleAll = () => {
@@ -123,6 +132,45 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
     }
   };
 
+  // Enrich single lead
+  const handleEnrichLead = async (lead: CampaignLead) => {
+    setEnrichingId(lead.id);
+    try {
+      const res = await fetch(`/api/mkt/leads/${lead.id}/enrich`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setToast({ msg: `Error: ${data.error}`, ok: false }); return; }
+      setToast({ msg: `Job iniciado para ${lead.name ?? lead.phone} (${data.jobId})`, ok: true });
+    } catch (e) {
+      setToast({ msg: String(e), ok: false });
+    } finally {
+      setEnrichingId(null);
+    }
+  };
+
+  // Enrich bulk (todos o seleccionados)
+  const handleEnrichBulk = async () => {
+    setEnrichingBulk(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (selected.size > 0 && selected.size < leads.length) {
+        body.leadIds = Array.from(selected);
+      }
+      const res = await fetch(`/api/mkt/campaigns/${campaignId}/enrich`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setToast({ msg: `Error: ${data.error}`, ok: false }); return; }
+      const count = selected.size > 0 ? selected.size : leads.length;
+      setToast({ msg: `Job iniciado — ${count} leads en cola`, ok: true });
+    } catch (e) {
+      setToast({ msg: String(e), ok: false });
+    } finally {
+      setEnrichingBulk(false);
+    }
+  };
+
   // Send single WA
   const handleSendWa = async (lead: CampaignLead) => {
     if (!confirm(`Enviar WhatsApp a ${lead.name ?? lead.phone}?`)) return;
@@ -148,6 +196,16 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200">
+      {/* Toast */}
+      {toast && (
+        <div className={cn(
+          "mx-4 mt-4 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
+          toast.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"
+        )}>
+          {toast.msg}
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 border-b border-slate-100">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -237,6 +295,14 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
             >
               Desaprobar {selected.size > 0 ? selected.size : "todos"}
             </button>
+            <button
+              onClick={handleEnrichBulk}
+              disabled={enrichingBulk}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 font-medium transition-colors disabled:opacity-50"
+            >
+              <Sparkles className={cn("w-3.5 h-3.5", enrichingBulk && "animate-spin")} />
+              {enrichingBulk ? "Iniciando…" : selected.size > 0 ? `Enriquecer ${selected.size}` : "Enriquecer todos"}
+            </button>
           </div>
         )}
       </div>
@@ -268,7 +334,8 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
                 <th className="px-3 py-2 font-medium">Estado</th>
                 <th className="px-3 py-2 font-medium">Enriq.</th>
                 <th className="px-3 py-2 font-medium">Aprobado</th>
-                {canSend && <th className="px-3 py-2 font-medium">Enviar</th>}
+                <th className="px-3 py-2 font-medium">Enriquecer</th>
+                {canSend && <th className="px-3 py-2 font-medium">Enviar WA</th>}
                 <th className="px-3 py-2 font-medium"></th>
               </tr>
             </thead>
@@ -320,6 +387,16 @@ export default function CampaignLeads({ campaignId, campaignStatus }: Props) {
                     {lead.approvedForSend === 1
                       ? <span className="text-emerald-600 text-xs font-bold">✓</span>
                       : <span className="text-slate-300 text-xs">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      onClick={() => handleEnrichLead(lead)}
+                      disabled={enrichingId === lead.id}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors disabled:opacity-30"
+                      title="Enriquecer con IG/FB/reseñas"
+                    >
+                      <Sparkles className={cn("w-3.5 h-3.5", enrichingId === lead.id && "animate-spin")} />
+                    </button>
                   </td>
                   {canSend && (
                     <td className="px-3 py-2.5">
