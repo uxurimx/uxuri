@@ -20,6 +20,8 @@ const updateTaskSchema = z.object({
   dueDate: z.string().optional().nullable(),
   sortOrder: z.number().int().optional().nullable(),
   agentStatus: z.string().nullable().optional(),
+  commitHash: z.string().max(40).nullable().optional(),
+  commitUrl: z.string().max(500).nullable().optional(),
   energyLevel: z.enum(["low", "medium", "high"]).nullable().optional(),
   estMinutes: z.number().int().positive().nullable().optional(),
   categoryIds: z.array(z.string().uuid()).max(4).nullable().optional(),

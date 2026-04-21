@@ -5,7 +5,7 @@ import { getPusherClient } from "@/lib/pusher";
 import { useToast } from "@/components/ui/toast";
 
 interface AssignedPayload  { taskTitle: string; assignedByName: string;  url?: string }
-interface CompletedPayload { taskTitle: string; completedByName: string; url?: string }
+interface CompletedPayload { taskTitle: string; completedByName: string; url?: string; commitHash?: string; commitUrl?: string }
 interface MentionPayload   { taskTitle: string; commenterName: string;   url?: string }
 
 export function NotificationListener({ userId }: { userId: string }) {
@@ -24,11 +24,10 @@ export function NotificationListener({ userId }: { userId: string }) {
     });
 
     channel.bind("task:completed", (data: CompletedPayload) => {
-      addNotification(
-        `"${data.taskTitle}" marcada como completada por ${data.completedByName}`,
-        "success",
-        data.url ?? "/tasks"
-      );
+      const msg = data.commitHash
+        ? `"${data.taskTitle}" completada por ${data.completedByName} — commit ${data.commitHash.slice(0, 7)}`
+        : `"${data.taskTitle}" marcada como completada por ${data.completedByName}`;
+      addNotification(msg, "success", data.commitUrl ?? data.url ?? "/tasks");
     });
 
     channel.bind("comment:mention", (data: MentionPayload) => {

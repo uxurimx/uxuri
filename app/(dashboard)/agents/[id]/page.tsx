@@ -46,6 +46,8 @@ export default async function AgentDetailPage({
       projectName: projects.name,
       projectId: tasks.projectId,
       agentStatus: tasks.agentStatus,
+      commitHash: tasks.commitHash,
+      commitUrl: tasks.commitUrl,
     })
     .from(tasks)
     .leftJoin(projects, eq(tasks.projectId, projects.id))

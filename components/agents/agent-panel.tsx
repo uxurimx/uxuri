@@ -6,7 +6,7 @@ import {
   Play, Pause, CheckCircle2, Clock, Square, Timer,
   Folder, X, ChevronRight, Bot, Coins, FileText, Settings,
   History, Activity, Zap, SlidersHorizontal, MessageSquare,
-  Pencil, Save, User, BookOpen, Plus, Trash2,
+  Pencil, Save, User, BookOpen, Plus, Trash2, GitCommit, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPusherClient } from "@/lib/pusher";
@@ -26,6 +26,8 @@ export type AgentTaskItem = {
   projectName: string | null;
   projectId: string | null;
   agentStatus: string | null;
+  commitHash: string | null;
+  commitUrl: string | null;
 };
 
 export type SessionState = {
@@ -506,6 +508,31 @@ function TaskDetailPanel({
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Commit badge (si el agente hizo cambios de código) */}
+          {task.commitHash && (
+            <div className="px-5 py-4 border-b border-slate-100">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <GitCommit className="w-3 h-3" />
+                Cambios de código
+              </p>
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                <GitCommit className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <code className="text-xs font-mono text-emerald-700 flex-1">{task.commitHash.slice(0, 7)}</code>
+                {task.commitUrl && (
+                  <a
+                    href={task.commitUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                  >
+                    Ver cambios
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
             </div>
           )}
@@ -1229,7 +1256,7 @@ export function AgentPanel({
     const projectName = projects.find((p) => p.id === task.projectId)?.name ?? null;
     setTasks((prev) => [
       ...prev,
-      { ...task, projectName, agentStatus: null },
+      { ...task, projectName, agentStatus: null, commitHash: null, commitUrl: null },
     ]);
   }
 
@@ -1273,6 +1300,8 @@ export function AgentPanel({
         projectName: selectedHistoryTask.projectName,
         projectId: selectedHistoryTask.projectId,
         agentStatus: "done",
+        commitHash: null,
+        commitUrl: null,
       }
     : null;
 

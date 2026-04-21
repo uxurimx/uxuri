@@ -82,8 +82,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "get_project_config",
+      description:
+        "Obtiene la configuración de un proyecto: ruta de código local, repositorio git, stack técnico y agentes asignados con su alcance. Úsalo antes de hacer cambios de código para saber en qué directorio trabajar.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          projectId: {
+            type: "string",
+            description: "UUID del proyecto en Uxuri",
+          },
+        },
+        required: ["projectId"],
+      },
+    },
+    {
       name: "get_task_details",
-      description: "Obtiene todos los detalles de una tarea específica por su ID.",
+      description: "Obtiene todos los detalles de una tarea específica por su ID. Incluye config del proyecto (ruta de código) si la tarea tiene proyecto asociado.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -152,7 +167,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "mark_task_done",
       description:
-        "Marca una tarea como completada: agentStatus='done' y status='done'. Envía notificación en tiempo real a la web app. Opcionalmente envía un mensaje resumen y los tokens consumidos.",
+        "Marca una tarea como completada: agentStatus='done' y status='done'. Envía notificación en tiempo real a la web app. Opcionalmente envía un mensaje resumen, los tokens consumidos y el commit SHA/URL si se hicieron cambios de código.",
       inputSchema: {
         type: "object" as const,
         properties: {
@@ -162,11 +177,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           summary: {
             type: "string",
-            description: "Mensaje opcional de resumen para enviar al usuario explicando qué se hizo",
+            description: "Mensaje de resumen para enviar al usuario explicando qué se hizo",
           },
           tokenCount: {
             type: "number",
-            description: "Tokens totales consumidos en esta tarea (input + output). Se guarda en la sesión para el control de gasto.",
+            description: "Tokens totales consumidos (input + output). Se guarda en la sesión.",
+          },
+          commitHash: {
+            type: "string",
+            description: "SHA del commit git si se hicieron cambios de código (ej. 'abc1234')",
+          },
+          commitUrl: {
+            type: "string",
+            description: "URL al commit en el repositorio (ej. 'https://github.com/org/repo/commit/abc1234')",
           },
         },
         required: ["taskId"],
@@ -279,6 +302,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      case "get_project_config": {
+        const { projectId } = args as { projectId: string };
+        const [project] = await sql`
+          SELECT
+            p.id, p.name, p.description,
+            p.linked_code_path, p.linked_repo, p.tech_stack,
+            p.status, p.priority
+          FROM projects p
+          WHERE p.id = ${projectId}
+        `;
+        if (!project) {
+          return { content: [{ type: "text" as const, text: `Proyecto ${projectId} no encontrado.` }], isError: true };
+        }
+
+        // Agentes asignados con su alcance
+        const assignments = await sql`
+          SELECT
+            apa.id AS assignment_id, apa.scope,
+            a.id AS agent_id, a.name AS agent_name,
+            a.specialty, a.avatar, a.ai_model, a.is_global
+          FROM agent_project_assignments apa
+          INNER JOIN agents a ON apa.agent_id = a.id
+          WHERE apa.project_id = ${projectId}
+        `;
+
+        const result = {
+          ...project,
+          agents: assignments,
+          instructions: [
+            project.linked_code_path
+              ? `El código real está en: ${project.linked_code_path}`
+              : "No hay ruta de código configurada. Configúrala en el tab Agentes del proyecto.",
+            project.linked_repo
+              ? `Repositorio: ${project.linked_repo}`
+              : null,
+            project.tech_stack
+              ? `Stack técnico: ${project.tech_stack}`
+              : null,
+            assignments.length > 0
+              ? `Agentes asignados: ${assignments.map((a) => `${a.agent_name}${a.scope ? ` (alcance: ${a.scope})` : ""}`).join(", ")}`
+              : "Sin agentes asignados aún.",
+          ].filter(Boolean),
+        };
+
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
       case "get_queued_tasks": {
         const rows = await sql`
           SELECT
@@ -286,6 +358,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             t.due_date, t.agent_status, t.project_id, t.agent_id,
             t.created_at, t.updated_at,
             p.name AS project_name,
+            p.linked_code_path,
+            p.linked_repo,
+            p.tech_stack,
             a.name AS agent_name,
             a.avatar AS agent_avatar,
             a.specialty AS agent_specialty
@@ -311,15 +386,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           SELECT
             t.*,
             p.name AS project_name,
+            p.linked_code_path,
+            p.linked_repo,
+            p.tech_stack,
             c.name AS client_name,
             a.name AS agent_name,
             a.avatar AS agent_avatar,
-            u.name AS assigned_user_name
+            u.name AS assigned_user_name,
+            u_creator.name AS creator_name
           FROM tasks t
           LEFT JOIN projects p ON t.project_id = p.id
           LEFT JOIN clients c ON t.client_id = c.id
           LEFT JOIN agents a ON t.agent_id = a.id
           LEFT JOIN users u ON t.assigned_to = u.id
+          LEFT JOIN users u_creator ON t.created_by = u_creator.id
           WHERE t.id = ${taskId}
         `;
         if (rows.length === 0) {
@@ -328,21 +408,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             isError: true,
           };
         }
-        // Also include comments for full context
-        const comments = await sql`
-          SELECT user_name, content, created_at
-          FROM task_comments
-          WHERE task_id = ${taskId}
-          ORDER BY created_at ASC
-        `;
+        const [comments, agentScope] = await Promise.all([
+          sql`
+            SELECT user_name, content, created_at
+            FROM task_comments
+            WHERE task_id = ${taskId}
+            ORDER BY created_at ASC
+          `,
+          // alcance del agente para este proyecto
+          rows[0].project_id && rows[0].agent_id ? sql`
+            SELECT scope FROM agent_project_assignments
+            WHERE project_id = ${rows[0].project_id} AND agent_id = ${rows[0].agent_id}
+            LIMIT 1
+          ` : Promise.resolve([]),
+        ]);
+
         const result = {
           ...rows[0],
+          agentScope: agentScope[0]?.scope ?? null,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           comments: comments.map((c: any) => ({
             userName: c.user_name,
             content: c.content,
             createdAt: c.created_at,
           })),
+          codeInstructions: rows[0].linked_code_path
+            ? [
+                `Directorio de trabajo: ${rows[0].linked_code_path}`,
+                rows[0].linked_repo ? `Repo: ${rows[0].linked_repo}` : null,
+                rows[0].tech_stack ? `Stack: ${rows[0].tech_stack}` : null,
+                agentScope[0]?.scope ? `Tu alcance en este proyecto: ${agentScope[0].scope}` : null,
+              ].filter(Boolean)
+            : [],
         };
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
@@ -427,15 +524,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "mark_task_done": {
-        const { taskId, summary, tokenCount } = args as { taskId: string; summary?: string; tokenCount?: number };
+        const { taskId, summary, tokenCount, commitHash, commitUrl } = args as {
+          taskId: string;
+          summary?: string;
+          tokenCount?: number;
+          commitHash?: string;
+          commitUrl?: string;
+        };
 
         // Get current task to access agent_id and status
         const [taskBefore] = await sql`SELECT * FROM tasks WHERE id = ${taskId}`;
 
-        // Update task
+        // Update task — include commit info if provided
         const [updated] = await sql`
           UPDATE tasks
-          SET agent_status = 'done', status = 'done', updated_at = NOW()
+          SET
+            agent_status = 'done',
+            status = 'done',
+            commit_hash = COALESCE(${commitHash ?? null}, commit_hash),
+            commit_url  = COALESCE(${commitUrl ?? null}, commit_url),
+            updated_at  = NOW()
           WHERE id = ${taskId}
           RETURNING *
         `;
@@ -479,11 +587,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Signal UI to refresh activity timeline
         await pusher.trigger(`task-${taskId}`, "task:activity-updated", { taskId }).catch(() => {});
 
-        // Send summary message if provided
-        if (summary) {
+        // Send summary message if provided — append commit info if present
+        const fullSummary = summary
+          ? (commitHash
+              ? `${summary}\n\n🔗 Commit: \`${commitHash.slice(0, 7)}\`${commitUrl ? ` — [ver cambios](${commitUrl})` : ""}`
+              : summary)
+          : commitHash
+            ? `✅ Tarea completada.\n\n🔗 Commit: \`${commitHash.slice(0, 7)}\`${commitUrl ? ` — [ver cambios](${commitUrl})` : ""}`
+            : null;
+
+        if (fullSummary) {
           const [message] = await sql`
             INSERT INTO agent_messages (task_id, role, content)
-            VALUES (${taskId}, 'agent', ${summary})
+            VALUES (${taskId}, 'agent', ${fullSummary})
             RETURNING id, task_id, role, content, created_at
           `;
           await pusher.trigger(`task-${taskId}`, "agent:message", message).catch(() => {});
@@ -500,6 +616,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               completedByName: "Agente IA",
               projectId: taskBefore.project_id ?? null,
               url: taskBefore.project_id ? `/projects/${taskBefore.project_id}` : "/tasks",
+              commitHash: commitHash ?? null,
+              commitUrl: commitUrl ?? null,
             }
           ).catch(() => {});
         }
