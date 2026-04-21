@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { agents, tasks } from "@/db/schema";
-import { eq, and, ne, count } from "drizzle-orm";
+import { eq, and, ne, count, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRole } from "@/lib/auth";
@@ -24,7 +24,7 @@ export async function GET() {
   const baseWhere = eq(agents.isActive, true);
   const whereClause = isAdmin
     ? baseWhere
-    : and(baseWhere, eq(agents.createdBy, userId));
+    : and(baseWhere, or(eq(agents.createdBy, userId), eq(agents.isGlobal, true)));
 
   const result = await db
     .select({
@@ -36,6 +36,7 @@ export async function GET() {
       color: agents.color,
       createdBy: agents.createdBy,
       isActive: agents.isActive,
+      isGlobal: agents.isGlobal,
       createdAt: agents.createdAt,
       updatedAt: agents.updatedAt,
       taskCount: count(tasks.id),

@@ -52,9 +52,13 @@ export const projects = pgTable("projects", {
   nextCycleAt:  timestamp("next_cycle_at"),
   momentum:     integer("momentum").default(100).notNull(),
   // ── Financiero ──────────────────────────────────────────────────────────
-  totalAmount: numeric("total_amount", { precision: 18, scale: 2 }), // precio acordado total
+  totalAmount: numeric("total_amount", { precision: 18, scale: 2 }),
   currency: varchar("currency", { length: 10 }).default("MXN"),
   paymentType: projectContractTypeEnum("payment_type").default("fixed"),
+  // ── Código vinculado ─────────────────────────────────────────────────────
+  linkedCodePath: text("linked_code_path"),   // ruta local, ej. /home/dev/Projects/tekton/Projects/WB
+  linkedRepo: varchar("linked_repo", { length: 500 }),  // git remote URL
+  techStack: text("tech_stack"),              // notas de stack para contexto del agente
   // ────────────────────────────────────────────────────────────────────────
 });
 

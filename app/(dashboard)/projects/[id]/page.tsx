@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns, objectives, accounts, businesses, businessMembers } from "@/db/schema";
-import { eq, or, and, sql, inArray } from "drizzle-orm";
+import { projects, clients, tasks, users, agents, userTaskPreferences, workflowColumns, objectives, accounts, businesses, businessMembers, agentProjectAssignments } from "@/db/schema";
+import { eq, or, and, sql, inArray, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { canAccess } from "@/lib/access";
 import { ProjectDetail } from "@/components/projects/project-detail";
@@ -27,7 +27,7 @@ export default async function ProjectDetailPage({
   // Cualquier persona con acceso al proyecto puede editar tareas (cambiar estado, descripción)
   const canEditTasks = true; // hasAccess ya garantiza que el usuario tiene al menos "view" share
 
-  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients, allObjectives] = await Promise.all([
+  const [[project], rawTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients, allObjectives, projectAssignments] = await Promise.all([
     db
       .select({
         id: projects.id,
@@ -51,6 +51,9 @@ export default async function ProjectDetailPage({
         totalAmount: projects.totalAmount,
         currency:    projects.currency,
         paymentType: projects.paymentType,
+        linkedCodePath: projects.linkedCodePath,
+        linkedRepo:     projects.linkedRepo,
+        techStack:      projects.techStack,
       })
       .from(projects)
       .leftJoin(clients, eq(projects.clientId, clients.id))
@@ -91,7 +94,7 @@ export default async function ProjectDetailPage({
       .where(or(eq(projects.privacy, "public"), eq(projects.createdBy, userId)))
       .orderBy(projects.name),
     db.select({ id: users.id, name: users.name }).from(users).orderBy(users.name),
-    db.select({ id: agents.id, name: agents.name, avatar: agents.avatar, color: agents.color })
+    db.select({ id: agents.id, name: agents.name, avatar: agents.avatar, color: agents.color, isGlobal: agents.isGlobal })
       .from(agents)
       .where(eq(agents.isActive, true))
       .orderBy(agents.name),
@@ -103,6 +106,23 @@ export default async function ProjectDetailPage({
     }).from(workflowColumns).orderBy(workflowColumns.sortOrder),
     db.select({ id: clients.id, name: clients.name }).from(clients).orderBy(clients.name),
     db.select({ id: objectives.id, title: objectives.title }).from(objectives).orderBy(objectives.createdAt),
+    db.select({
+      id: agentProjectAssignments.id,
+      agentId: agentProjectAssignments.agentId,
+      scope: agentProjectAssignments.scope,
+      createdAt: agentProjectAssignments.createdAt,
+      agentName: agents.name,
+      agentAvatar: agents.avatar,
+      agentColor: agents.color,
+      agentSpecialty: agents.specialty,
+      agentIsGlobal: agents.isGlobal,
+      agentModel: agents.aiModel,
+      taskCount: sql<number>`(SELECT COUNT(*)::int FROM tasks WHERE agent_id = ${agents.id} AND project_id = ${id} AND status != 'done')`,
+    })
+      .from(agentProjectAssignments)
+      .innerJoin(agents, eq(agentProjectAssignments.agentId, agents.id))
+      .where(eq(agentProjectAssignments.projectId, id))
+      .orderBy(agentProjectAssignments.createdAt),
   ]);
 
   if (!project) notFound();
@@ -139,6 +159,8 @@ export default async function ProjectDetailPage({
       accounts={userAccounts}
       currentUserId={userId}
       canEditTasks={canEditTasks}
+      projectAssignments={projectAssignments}
+      allAgentsForAssign={allAgents}
     />
   );
 }

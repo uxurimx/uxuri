@@ -25,6 +25,7 @@ export const agents = pgTable("agents", {
   temperature: doublePrecision("temperature"),
   createdBy: varchar("created_by", { length: 255 }).references(() => users.id),
   isActive: boolean("is_active").default(true).notNull(),
+  isGlobal: boolean("is_global").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

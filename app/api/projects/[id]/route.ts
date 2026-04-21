@@ -19,6 +19,9 @@ const updateProjectSchema = z.object({
   endDate: z.string().optional().nullable(),
   cycleMinutes: z.number().int().min(1).optional().nullable(),
   businessId: z.string().uuid().optional().nullable(),
+  linkedCodePath: z.string().optional().nullable(),
+  linkedRepo: z.string().max(500).optional().nullable(),
+  techStack: z.string().optional().nullable(),
 });
 
 export async function GET(

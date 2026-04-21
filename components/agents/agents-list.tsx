@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, X, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, X, ChevronRight, Globe } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +47,7 @@ export type AgentWithCount = {
   avatar: string;
   color: string;
   createdBy: string | null;
+  isGlobal: boolean;
   taskCount: number;
 };
 
@@ -96,7 +97,14 @@ function AgentCard({
           )}
         </div>
 
-        <h3 className="font-semibold text-slate-900 text-base leading-snug">{agent.name}</h3>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-semibold text-slate-900 text-base leading-snug">{agent.name}</h3>
+          {agent.isGlobal && (
+            <span className="text-xs px-1.5 py-0.5 bg-violet-50 text-violet-600 rounded-full flex items-center gap-1">
+              <Globe className="w-2.5 h-2.5" /> Global
+            </span>
+          )}
+        </div>
         {agent.specialty && (
           <p className="text-xs text-slate-400 mt-0.5">{agent.specialty}</p>
         )}

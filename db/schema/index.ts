@@ -54,3 +54,4 @@ export * from "./savings-contributions";
 export * from "./project-phases";
 export * from "./project-payments";
 export * from "./shopping-lists";
+export * from "./agent-project-assignments";

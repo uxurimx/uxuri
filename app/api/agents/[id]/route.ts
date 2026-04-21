@@ -17,6 +17,7 @@ const updateSchema = z.object({
   maxTokens: z.number().int().nullable().optional(),
   tokenBudget: z.number().int().nullable().optional(),
   temperature: z.number().min(0).max(2).nullable().optional(),
+  isGlobal: z.boolean().optional(),
 });
 
 export async function GET(
@@ -51,12 +52,21 @@ export async function PATCH(
 
   const [existing] = await db.select().from(agents).where(eq(agents.id, id));
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (existing.createdBy && existing.createdBy !== userId) {
+
+  const { getRole } = await import("@/lib/auth");
+  const role = await getRole();
+  const isAdmin = role === "admin";
+
+  if (existing.createdBy && existing.createdBy !== userId && !isAdmin) {
     return NextResponse.json({ error: "Solo el creador puede editar este agente" }, { status: 403 });
   }
 
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
+  // Solo admin puede marcar/desmarcar isGlobal
+  if (!isAdmin && parsed.success && parsed.data.isGlobal !== undefined) {
+    return NextResponse.json({ error: "Solo admin puede marcar un agente como global" }, { status: 403 });
+  }
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }

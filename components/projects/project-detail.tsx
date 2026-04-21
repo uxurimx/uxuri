@@ -10,6 +10,7 @@ import { EntityChatFiles } from "@/components/chat/entity-chat-files";
 import { ContextFeed } from "@/components/context/context-feed";
 import { ProjectModal, type ProjectForModal } from "./project-modal";
 import { ProjectFinancials, type AccountOption } from "./project-financials";
+import { ProjectAgents, type ProjectAssignment, type AgentOption as AgentOptionPA, type ProjectCodeConfig } from "./project-agents";
 
 type ProjectWithClient = {
   id: string;
@@ -34,6 +35,10 @@ type ProjectWithClient = {
   totalAmount?: string | null;
   currency?: string | null;
   paymentType?: string | null;
+  // Código vinculado
+  linkedCodePath?: string | null;
+  linkedRepo?: string | null;
+  techStack?: string | null;
 };
 
 const statusConfig = {
@@ -60,6 +65,8 @@ export function ProjectDetail({
   accounts,
   currentUserId,
   canEditTasks,
+  projectAssignments,
+  allAgentsForAssign,
 }: {
   project: ProjectWithClient;
   tasks: TaskWithProject[];
@@ -72,16 +79,19 @@ export function ProjectDetail({
   accounts?: AccountOption[];
   currentUserId?: string;
   canEditTasks?: boolean;
+  projectAssignments?: ProjectAssignment[];
+  allAgentsForAssign?: AgentOptionPA[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"tareas" | "finanzas" | "contexto" | "chat">("tareas");
+  const [activeTab, setActiveTab] = useState<"tareas" | "finanzas" | "contexto" | "chat" | "agentes">("tareas");
   const status = statusConfig[project.status];
 
   const tabs = [
-    { id: "tareas",    label: "Tareas",    count: tasks.length },
-    { id: "finanzas",  label: "Finanzas",  icon: <DollarSign className="w-3.5 h-3.5" /> },
-    { id: "contexto",  label: "Contexto" },
-    { id: "chat",      label: "Chat & Archivos" },
+    { id: "tareas",   label: "Tareas",         count: tasks.length },
+    { id: "finanzas", label: "Finanzas",        icon: <DollarSign className="w-3.5 h-3.5" /> },
+    { id: "contexto", label: "Contexto" },
+    { id: "chat",     label: "Chat & Archivos" },
+    { id: "agentes",  label: "Agentes",         count: projectAssignments?.length },
   ] as const;
 
   const projectForModal: ProjectForModal = {
@@ -242,6 +252,20 @@ export function ProjectDetail({
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <EntityChatFiles entityId={project.id} entityType="project" entityName={project.name} currentUserId={currentUserId} />
           </div>
+        )}
+
+        {/* Tab: Agentes */}
+        {activeTab === "agentes" && (
+          <ProjectAgents
+            projectId={project.id}
+            initialAssignments={projectAssignments ?? []}
+            availableAgents={allAgentsForAssign ?? []}
+            codeConfig={{
+              linkedCodePath: project.linkedCodePath ?? null,
+              linkedRepo: project.linkedRepo ?? null,
+              techStack: project.techStack ?? null,
+            }}
+          />
         )}
       </div>
 
