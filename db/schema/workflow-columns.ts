@@ -1,8 +1,10 @@
 import { pgTable, uuid, varchar, integer, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const workflowColumns = pgTable("workflow_columns", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 100 }).notNull(),
   color: varchar("color", { length: 20 }).default("#94a3b8").notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),

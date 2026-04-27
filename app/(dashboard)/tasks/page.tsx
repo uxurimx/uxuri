@@ -6,6 +6,7 @@ import {
 } from "@/db/schema";
 import { eq, or, and, sql, inArray } from "drizzle-orm";
 import { getRole } from "@/lib/auth";
+import { getActiveWorkspaceId } from "@/lib/workspace";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TasksHeader } from "@/components/tasks/tasks-header";
 
@@ -15,6 +16,7 @@ export default async function TasksPage() {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsId = await getActiveWorkspaceId();
 
   // Projects shared with this user (to include their tasks)
   const sharedProjectLinks = await db
@@ -26,15 +28,28 @@ export default async function TasksPage() {
     .filter((s) => s.permission === "edit")
     .map((s) => s.resourceId);
 
-  const tasksWhere = isAdmin
+  const wsTaskFilter = wsId ? eq(tasks.workspaceId, wsId) : undefined;
+  const wsProjFilter = wsId ? eq(projects.workspaceId, wsId) : undefined;
+
+  const baseTasksWhere = isAdmin
     ? undefined
     : sharedProjectIds.length > 0
-      ? or(
-          eq(tasks.createdBy, userId),
-          eq(tasks.assignedTo, userId),
-          inArray(tasks.projectId, sharedProjectIds),
-        )
+      ? or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId), inArray(tasks.projectId, sharedProjectIds))
       : or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId));
+
+  const tasksWhere = wsTaskFilter
+    ? (baseTasksWhere ? and(baseTasksWhere, wsTaskFilter) : wsTaskFilter)
+    : baseTasksWhere;
+
+  const baseProjWhere = isAdmin
+    ? undefined
+    : editableSharedProjectIds.length > 0
+      ? or(eq(projects.createdBy, userId), inArray(projects.id, editableSharedProjectIds))
+      : eq(projects.createdBy, userId);
+
+  const projWhere = wsProjFilter
+    ? (baseProjWhere ? and(baseProjWhere, wsProjFilter) : wsProjFilter)
+    : baseProjWhere;
 
   const [allTasks, allProjects, allUsers, allAgents, allCustomColumns, allClients, allObjectives] =
     await Promise.all([
@@ -72,13 +87,7 @@ export default async function TasksPage() {
       db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(
-          isAdmin
-            ? undefined
-            : editableSharedProjectIds.length > 0
-              ? or(eq(projects.createdBy, userId), inArray(projects.id, editableSharedProjectIds))
-              : eq(projects.createdBy, userId)
-        )
+        .where(projWhere)
         .orderBy(projects.name),
       db.select({ id: users.id, name: users.name }).from(users).orderBy(users.name),
       db

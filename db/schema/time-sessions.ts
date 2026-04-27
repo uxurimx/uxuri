@@ -10,6 +10,7 @@ import {
 import { users } from "./users";
 import { tasks } from "./tasks";
 import { projects } from "./projects";
+import { workspaces } from "./workspaces";
 
 export const timeSessionStatusEnum = pgEnum("time_session_status", [
   "running",
@@ -19,6 +20,7 @@ export const timeSessionStatusEnum = pgEnum("time_session_status", [
 
 export const timeSessions = pgTable("time_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
   taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
   projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),

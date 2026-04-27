@@ -8,10 +8,11 @@ import {
   projects,
   tasks,
 } from "@/db/schema";
-import { eq, count } from "drizzle-orm";
+import { and, eq, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRole } from "@/lib/auth";
+import { resolveNewWorkspaceId, workspaceFilter } from "@/lib/workspace-filter";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -28,10 +29,16 @@ export async function GET() {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsFilter = await workspaceFilter(objectives.workspaceId);
 
-  const rows = isAdmin
-    ? await db.select().from(objectives).orderBy(objectives.createdAt)
-    : await db.select().from(objectives).where(eq(objectives.createdBy, userId)).orderBy(objectives.createdAt);
+  const conditions = [];
+  if (!isAdmin) conditions.push(eq(objectives.createdBy, userId));
+  if (wsFilter) conditions.push(wsFilter);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const rows = whereClause
+    ? await db.select().from(objectives).where(whereClause).orderBy(objectives.createdAt)
+    : await db.select().from(objectives).orderBy(objectives.createdAt);
 
   const allMilestones = await db.select().from(objectiveMilestones);
 
@@ -103,9 +110,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const workspaceId = await resolveNewWorkspaceId();
   const [objective] = await db
     .insert(objectives)
-    .values({ ...parsed.data, createdBy: userId })
+    .values({ ...parsed.data, createdBy: userId, workspaceId })
     .returning();
 
   return NextResponse.json(objective, { status: 201 });

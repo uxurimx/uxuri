@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { currencyEnum } from "./accounts";
+import { workspaces } from "./workspaces";
 
 export const budgetPeriodEnum = pgEnum("budget_period", [
   "weekly",
@@ -19,6 +20,7 @@ export const budgetPeriodEnum = pgEnum("budget_period", [
 
 export const budgets = pgTable("budgets", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 })
     .references(() => users.id)
     .notNull(),

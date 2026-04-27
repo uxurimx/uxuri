@@ -1,8 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { projects, clients, objectives, shares, tasks, businesses, businessMembers } from "@/db/schema";
-import { eq, and, inArray, isNotNull, sql, or, count } from "drizzle-orm";
+import { eq, and, inArray, isNotNull, sql, or } from "drizzle-orm";
 import { getRole } from "@/lib/auth";
+import { getActiveWorkspaceId } from "@/lib/workspace";
 import { ProjectsHeader } from "@/components/projects/projects-header";
 import { ProjectsList } from "@/components/projects/projects-list";
 import { ProjectStats, type UpcomingProject } from "@/components/projects/project-stats";
@@ -13,6 +14,7 @@ export default async function ProjectsPage() {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsId = await getActiveWorkspaceId();
 
   // Shared project IDs for this user
   const sharedLinks = await db
@@ -57,30 +59,44 @@ export default async function ProjectsPage() {
     .where(bizWhere!)
     .orderBy(businesses.name);
 
+  const wsFilter = wsId ? eq(projects.workspaceId, wsId) : undefined;
+  const wsClientFilter = wsId ? eq(clients.workspaceId, wsId) : undefined;
+  const wsObjFilter = wsId ? eq(objectives.workspaceId, wsId) : undefined;
+
+  const ownedWhere = wsFilter
+    ? (isAdmin ? wsFilter : and(eq(projects.createdBy, userId), wsFilter))
+    : (isAdmin ? undefined : eq(projects.createdBy, userId));
+
   const [ownedProjects, sharedProjects, allClients, allObjectives, taskCountRows] = await Promise.all([
     db
       .select(projectFields)
       .from(projects)
       .leftJoin(clients, eq(projects.clientId, clients.id))
-      .where(isAdmin ? undefined : eq(projects.createdBy, userId))
+      .where(ownedWhere)
       .orderBy(projects.createdAt),
     sharedProjectIds.length > 0
       ? db
           .select(projectFields)
           .from(projects)
           .leftJoin(clients, eq(projects.clientId, clients.id))
-          .where(inArray(projects.id, sharedProjectIds))
+          .where(wsFilter
+            ? and(inArray(projects.id, sharedProjectIds), wsFilter)
+            : inArray(projects.id, sharedProjectIds))
           .orderBy(projects.createdAt)
       : Promise.resolve([]),
     db
       .select({ id: clients.id, name: clients.name })
       .from(clients)
-      .where(isAdmin ? undefined : eq(clients.createdBy, userId))
+      .where(wsClientFilter
+        ? (isAdmin ? wsClientFilter : and(eq(clients.createdBy, userId), wsClientFilter))
+        : (isAdmin ? undefined : eq(clients.createdBy, userId)))
       .orderBy(clients.name),
     db
       .select({ id: objectives.id, title: objectives.title })
       .from(objectives)
-      .where(isAdmin ? undefined : eq(objectives.createdBy, userId))
+      .where(wsObjFilter
+        ? (isAdmin ? wsObjFilter : and(eq(objectives.createdBy, userId), wsObjFilter))
+        : (isAdmin ? undefined : eq(objectives.createdBy, userId)))
       .orderBy(objectives.createdAt),
     db
       .select({
@@ -89,7 +105,9 @@ export default async function ProjectsPage() {
         done: sql<number>`cast(count(*) filter (where ${tasks.status} = 'done') as int)`,
       })
       .from(tasks)
-      .where(isNotNull(tasks.projectId))
+      .where(wsId
+        ? and(isNotNull(tasks.projectId), eq(tasks.workspaceId, wsId))
+        : isNotNull(tasks.projectId))
       .groupBy(tasks.projectId),
   ]);
 

@@ -5,6 +5,7 @@ import { PushSetup } from "@/components/notifications/push-setup";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ActiveTimer } from "@/components/timer/active-timer";
 import { PomodoroWidget } from "@/components/pomodoro/pomodoro-widget";
+import { WorkspaceSwitcher } from "@/components/workspaces/workspace-switcher";
 
 export async function Topbar() {
   const user = await currentUser();
@@ -21,6 +22,7 @@ export async function Topbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <WorkspaceSwitcher />
         <PomodoroWidget />
         <ActiveTimer />
         <PushSetup />

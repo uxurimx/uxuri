@@ -11,6 +11,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const shoppingListStatusEnum = pgEnum("shopping_list_status", [
   "active",
@@ -34,6 +35,7 @@ export const shoppingItemCategoryEnum = pgEnum("shopping_item_category", [
 
 export const shoppingLists = pgTable("shopping_lists", {
   id:         uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId:     varchar("user_id", { length: 255 }).references(() => users.id).notNull(),
   businessId: uuid("business_id"),          // null = personal; uuid = negocio compartido
   name:       varchar("name", { length: 200 }).notNull(),

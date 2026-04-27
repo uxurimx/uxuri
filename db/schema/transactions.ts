@@ -12,6 +12,7 @@ import { users } from "./users";
 import { clients } from "./clients";
 import { projects } from "./projects";
 import { accounts, currencyEnum } from "./accounts";
+import { workspaces } from "./workspaces";
 
 export const transactionTypeEnum = pgEnum("transaction_type", [
   "income",
@@ -27,6 +28,7 @@ export const transactionStatusEnum = pgEnum("transaction_status", [
 
 export const transactions = pgTable("transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 })
     .references(() => users.id)
     .notNull(),

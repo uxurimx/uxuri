@@ -9,6 +9,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const habitFrequencyEnum = pgEnum("habit_frequency", [
   "daily",
@@ -19,6 +20,7 @@ export const habitFrequencyEnum = pgEnum("habit_frequency", [
 
 export const habits = pgTable("habits", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),

@@ -6,6 +6,7 @@ import { users } from "./users";
 import { clients } from "./clients";
 import { mktStrategies } from "./mkt-strategies";
 import { mktCampaigns } from "./mkt-campaigns";
+import { workspaces } from "./workspaces";
 
 export const mktLeadStatusEnum = pgEnum("mkt_lead_status", [
   "nuevo", "pendiente", "contactado", "interesado",
@@ -14,6 +15,7 @@ export const mktLeadStatusEnum = pgEnum("mkt_lead_status", [
 
 export const mktLeads = pgTable("mkt_leads", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
 
   // ── Datos scrapeados (mapeados 1:1 desde SQLite) ──────────────────────────
   sourceId: varchar("source_id", { length: 50 }),   // ID original del SQLite (para upsert)

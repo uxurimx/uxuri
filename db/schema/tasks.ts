@@ -13,6 +13,7 @@ import { clients } from "./clients";
 import { projects } from "./projects";
 import { agents } from "./agents";
 import { workflowColumns } from "./workflow-columns";
+import { workspaces } from "./workspaces";
 
 export const taskStatusEnum = pgEnum("task_status", [
   "todo",
@@ -30,6 +31,7 @@ export const taskPriorityEnum = pgEnum("task_priority", [
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   projectId: uuid("project_id").references(() => projects.id),

@@ -9,9 +9,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const journalEntries = pgTable("journal_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
   date: date("date").notNull(),
   mood: integer("mood"),          // 1-5

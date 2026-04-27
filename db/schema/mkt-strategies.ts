@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const mktStrategyStatusEnum = pgEnum("mkt_strategy_status", [
   "draft", "active", "paused", "completed",
@@ -11,6 +12,7 @@ export const mktChannelEnum = pgEnum("mkt_channel", [
 
 export const mktStrategies = pgTable("mkt_strategies", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   productOffered: text("product_offered"),       // "Página web", "Sistema CRM", "App móvil"

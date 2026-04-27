@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { clients } from "./clients";
+import { workspaces } from "./workspaces";
 
 export const projectStatusEnum = pgEnum("project_status", [
   "planning",
@@ -32,6 +33,7 @@ export const projectContractTypeEnum = pgEnum("project_contract_type", [
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   clientId: uuid("client_id").references(() => clients.id),

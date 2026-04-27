@@ -7,9 +7,11 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const taskCategories = pgTable("task_categories", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 100 }).notNull(),
   color: varchar("color", { length: 7 }).notNull().default("#64748b"), // hex
   icon: varchar("icon", { length: 10 }).notNull().default("📌"),       // emoji

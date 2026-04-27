@@ -1,9 +1,11 @@
 import { pgTable, uuid, varchar, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { agents } from "./agents";
+import { workspaces } from "./workspaces";
 
 export const chatChannels = pgTable("chat_channels", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 255 }).notNull(),
   // 'general' | 'client' | 'project' | 'direct' | 'agent-dm'
   entityType: varchar("entity_type", { length: 20 }).notNull().default("general"),

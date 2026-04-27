@@ -2,10 +2,11 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { projects, chatChannels } from "@/db/schema";
 import { ensureUser } from "@/lib/ensure-user";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRole } from "@/lib/auth";
+import { resolveNewWorkspaceId, workspaceFilter } from "@/lib/workspace-filter";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
@@ -27,10 +28,16 @@ export async function GET() {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsFilter = await workspaceFilter(projects.workspaceId);
 
-  const result = isAdmin
-    ? await db.select().from(projects).orderBy(projects.createdAt)
-    : await db.select().from(projects).where(eq(projects.createdBy, userId)).orderBy(projects.createdAt);
+  const conditions = [];
+  if (!isAdmin) conditions.push(eq(projects.createdBy, userId));
+  if (wsFilter) conditions.push(wsFilter);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const result = whereClause
+    ? await db.select().from(projects).where(whereClause).orderBy(projects.createdAt)
+    : await db.select().from(projects).orderBy(projects.createdAt);
 
   return NextResponse.json(result);
 }
@@ -47,6 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const workspaceId = await resolveNewWorkspaceId();
   const [project] = await db.insert(projects).values({
     ...parsed.data,
     clientId: parsed.data.clientId ?? null,
@@ -54,6 +62,7 @@ export async function POST(req: Request) {
     endDate: parsed.data.endDate || null,
     privacy: parsed.data.privacy ?? "public",
     createdBy: userId,
+    workspaceId,
   }).returning();
 
   await db.insert(chatChannels).values({

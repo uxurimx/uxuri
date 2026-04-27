@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { clients, shares } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getRole } from "@/lib/auth";
+import { getActiveWorkspaceId } from "@/lib/workspace";
 import { ClientsTable } from "@/components/clients/clients-table";
 import { ClientsHeader } from "@/components/clients/clients-header";
 
@@ -12,6 +13,8 @@ export default async function ClientsPage() {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsId = await getActiveWorkspaceId();
+  const wsFilter = wsId ? eq(clients.workspaceId, wsId) : undefined;
 
   // Shared client IDs for this user
   const sharedLinks = await db
@@ -20,12 +23,18 @@ export default async function ClientsPage() {
     .where(and(eq(shares.resourceType, "client"), eq(shares.sharedWithId, userId)));
   const sharedClientIds = sharedLinks.map((s) => s.resourceId);
 
+  const ownedWhere = wsFilter
+    ? (isAdmin ? wsFilter : and(eq(clients.createdBy, userId), wsFilter))
+    : (isAdmin ? undefined : eq(clients.createdBy, userId));
+
   const [ownedClients, sharedClients] = await Promise.all([
-    isAdmin
-      ? db.select().from(clients).orderBy(clients.createdAt)
-      : db.select().from(clients).where(eq(clients.createdBy, userId)).orderBy(clients.createdAt),
+    db.select().from(clients).where(ownedWhere).orderBy(clients.createdAt),
     sharedClientIds.length > 0
-      ? db.select().from(clients).where(inArray(clients.id, sharedClientIds)).orderBy(clients.createdAt)
+      ? db.select().from(clients).where(
+          wsFilter
+            ? and(inArray(clients.id, sharedClientIds), wsFilter)
+            : inArray(clients.id, sharedClientIds)
+        ).orderBy(clients.createdAt)
       : Promise.resolve([]),
   ]);
 

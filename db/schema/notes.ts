@@ -7,9 +7,11 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const notes = pgTable("notes", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
   title: varchar("title", { length: 255 }),
   content: text("content").notNull().default(""),

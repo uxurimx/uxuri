@@ -52,6 +52,11 @@
   --skin-header-text-muted: #94a3b8;
   --skin-header-text-strong: #e2e8f0;
   --skin-border: #334155;
+  --skin-primary: #3b82f6;
+  --skin-card-bg: #1e293b;
+  --skin-text: #f1f5f9;
+  --skin-text-muted: #94a3b8;
+  --skin-hover: #334155;
 }
 
 /* Fix native select/input/textarea in dark mode */
@@ -85,6 +90,11 @@
   --skin-header-text-muted: #64748b;
   --skin-header-text-strong: #1e293b;
   --skin-border: #e2e8f0;
+  --skin-primary: #1e3a5f;
+  --skin-card-bg: #ffffff;
+  --skin-text: #0f172a;
+  --skin-text-muted: #64748b;
+  --skin-hover: #f1f5f9;
 }
 
 /* ============================================================
@@ -104,6 +114,11 @@
   --skin-header-text-muted:  #8892a4;
   --skin-header-text-strong: #e2e8f0;
   --skin-border:             #1a2233;
+  --skin-primary:            #22d3ee;
+  --skin-card-bg:            #0d1117;
+  --skin-text:               #e6edf3;
+  --skin-text-muted:         #8b949e;
+  --skin-hover:              #161b22;
 
   /* Torres color overrides for Tailwind classes used in page content */
   --color-background: #07090f;

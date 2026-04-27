@@ -9,6 +9,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const objectiveStatusEnum = pgEnum("objective_status", [
   "draft",
@@ -20,6 +21,7 @@ export const objectiveStatusEnum = pgEnum("objective_status", [
 
 export const objectives = pgTable("objectives", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   status: objectiveStatusEnum("status").default("draft").notNull(),

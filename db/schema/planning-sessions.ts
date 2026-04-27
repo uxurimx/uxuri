@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const planningContextTypeEnum = pgEnum("planning_context_type", [
   "blank",
@@ -13,6 +14,7 @@ export const planningStatusEnum = pgEnum("planning_status", ["active", "archived
 
 export const planningSessions = pgTable("planning_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   title: varchar("title", { length: 500 }).notNull().default("Nueva sesión"),
   description: text("description"),
   contextType: planningContextTypeEnum("context_type").notNull().default("blank"),

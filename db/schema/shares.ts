@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, timestamp, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const sharePermissionEnum = pgEnum("share_permission", ["view", "edit"]);
 
@@ -9,6 +10,7 @@ export const shareResourceTypeEnum = pgEnum("share_resource_type", [
 
 export const shares = pgTable("shares", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   resourceType: shareResourceTypeEnum("resource_type").notNull(),
   resourceId: uuid("resource_id").notNull(),
   ownerId: varchar("owner_id", { length: 255 }).notNull().references(() => users.id),

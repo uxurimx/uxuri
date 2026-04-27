@@ -9,6 +9,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const clientStatusEnum = pgEnum("client_status", [
   "active",
@@ -41,6 +42,7 @@ export const clientSourceChannelEnum = pgEnum("client_source_channel", [
 
 export const clients = pgTable("clients", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
   phone: varchar("phone", { length: 50 }),

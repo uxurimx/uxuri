@@ -7,9 +7,11 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const cyclePresets = pgTable("cycle_presets", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 }).references(() => users.id, { onDelete: "cascade" }),
   label: varchar("label", { length: 50 }).notNull(),   // "5min", "1h", "3 días"
   minutes: integer("minutes").notNull(),               // duración en minutos

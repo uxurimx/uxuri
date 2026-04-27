@@ -3,7 +3,8 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { MobileTopActions } from "@/components/dashboard/mobile-top-actions";
-import { getUserRoleData, augmentPermissions } from "@/lib/auth";
+import { getUserRoleData } from "@/lib/auth";
+import { RouteGuard } from "@/components/dashboard/route-guard";
 import { ToastProvider } from "@/components/ui/toast";
 import { NotificationListener } from "@/components/notifications/notification-listener";
 import { PwaRegister } from "@/components/pwa-register";
@@ -17,12 +18,12 @@ export default async function DashboardLayout({
 }) {
   const { userId } = await auth();
   const roleData = await getUserRoleData();
-  // augmentPermissions ya fue aplicado dentro de getUserRoleData
   const permissions = roleData?.permissions ?? [];
 
   return (
     <ToastProvider>
       <GlobalQuickAddProvider>
+        <RouteGuard permissions={permissions} />
         <div className="flex h-screen overflow-hidden bg-[var(--skin-page-bg)]">
           <Sidebar permissions={permissions} currentUserId={userId ?? ""} />
           <div className="flex flex-col flex-1 overflow-hidden">

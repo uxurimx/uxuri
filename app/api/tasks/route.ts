@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
 import { sendPushToUser } from "@/lib/web-push";
+import { resolveNewWorkspaceId, workspaceFilter } from "@/lib/workspace-filter";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -34,24 +35,19 @@ export async function GET(req: Request) {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsFilter = await workspaceFilter(tasks.workspaceId);
 
-  let result;
-  if (projectId) {
-    result = isAdmin
-      ? await db.select().from(tasks).where(eq(tasks.projectId, projectId))
-      : await db.select().from(tasks).where(
-          and(
-            eq(tasks.projectId, projectId),
-            or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId))
-          )
-        );
-  } else {
-    result = isAdmin
-      ? await db.select().from(tasks)
-      : await db.select().from(tasks).where(
-          or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId))
-        );
+  const conditions = [];
+  if (projectId) conditions.push(eq(tasks.projectId, projectId));
+  if (!isAdmin) {
+    conditions.push(or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId)));
   }
+  if (wsFilter) conditions.push(wsFilter);
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const result = whereClause
+    ? await db.select().from(tasks).where(whereClause)
+    : await db.select().from(tasks);
 
   // Fetch categories for all tasks in a single query
   const taskIds = result.map((t) => t.id);
@@ -91,6 +87,7 @@ export async function POST(req: Request) {
   }
 
   const { categoryIds, ...taskData } = parsed.data;
+  const workspaceId = await resolveNewWorkspaceId();
   const [task] = await db.insert(tasks).values({
     ...taskData,
     projectId: taskData.projectId ?? null,
@@ -102,6 +99,7 @@ export async function POST(req: Request) {
     energyLevel: taskData.energyLevel ?? null,
     estMinutes: taskData.estMinutes ?? null,
     createdBy: userId,
+    workspaceId,
   }).returning();
 
   if (categoryIds && categoryIds.length > 0) {

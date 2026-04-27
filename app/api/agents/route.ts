@@ -5,6 +5,7 @@ import { eq, and, ne, count, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRole } from "@/lib/auth";
+import { resolveNewWorkspaceId, workspaceFilter } from "@/lib/workspace-filter";
 
 const agentSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -20,11 +21,17 @@ export async function GET() {
 
   const role = await getRole();
   const isAdmin = role === "admin";
+  const wsFilter = await workspaceFilter(agents.workspaceId);
 
-  const baseWhere = eq(agents.isActive, true);
-  const whereClause = isAdmin
-    ? baseWhere
-    : and(baseWhere, or(eq(agents.createdBy, userId), eq(agents.isGlobal, true)));
+  // Globales (isGlobal=true) son cross-workspace y no se filtran por workspace.
+  const conditions = [eq(agents.isActive, true)];
+  if (!isAdmin) {
+    conditions.push(or(eq(agents.createdBy, userId), eq(agents.isGlobal, true))!);
+  }
+  // Solo aplicar workspace filter a no-globales
+  const whereClause = wsFilter
+    ? and(...conditions, or(eq(agents.isGlobal, true), wsFilter))
+    : and(...conditions);
 
   const result = await db
     .select({
@@ -60,9 +67,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const workspaceId = await resolveNewWorkspaceId();
   const [agent] = await db
     .insert(agents)
-    .values({ ...parsed.data, createdBy: userId })
+    .values({ ...parsed.data, createdBy: userId, workspaceId })
     .returning();
 
   return NextResponse.json(agent, { status: 201 });

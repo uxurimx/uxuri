@@ -9,9 +9,11 @@ import {
   doublePrecision,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const agents = pgTable("agents", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 255 }).notNull(),
   specialty: varchar("specialty", { length: 100 }),
   description: text("description"),

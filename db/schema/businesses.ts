@@ -7,6 +7,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const businessTypeEnum = pgEnum("business_type", [
   "saas",
@@ -25,6 +26,7 @@ export const businessStatusEnum = pgEnum("business_status", [
 
 export const businesses = pgTable("businesses", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   name: varchar("name", { length: 255 }).notNull(),
   type: businessTypeEnum("type").default("service").notNull(),
   description: text("description"),

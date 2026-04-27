@@ -12,6 +12,7 @@ import {
 import { users } from "./users";
 import { currencyEnum } from "./accounts";
 import { objectives } from "./objectives";
+import { workspaces } from "./workspaces";
 
 export const savingsGoalCategoryEnum = pgEnum("savings_goal_category", [
   "viaje",
@@ -26,6 +27,7 @@ export const savingsGoalCategoryEnum = pgEnum("savings_goal_category", [
 
 export const savingsGoals = pgTable("savings_goals", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 })
     .references(() => users.id)
     .notNull(),

@@ -1,8 +1,10 @@
 import { pgTable, uuid, varchar, text, date, jsonb, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const weeklyReviews = pgTable("weekly_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id),
   weekStart: date("week_start").notNull(), // Monday ISO date
   workedWell: text("worked_well"),

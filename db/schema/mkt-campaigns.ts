@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { mktStrategies } from "./mkt-strategies";
+import { workspaces } from "./workspaces";
 
 export const mktCampaignStatusEnum = pgEnum("mkt_campaign_status", [
   "draft", "queued", "claimed", "scraping", "enriching",
@@ -10,6 +11,7 @@ export const mktCampaignStatusEnum = pgEnum("mkt_campaign_status", [
 
 export const mktCampaigns = pgTable("mkt_campaigns", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   strategyId: uuid("strategy_id").references(() => mktStrategies.id),
   // copyId sin FK para evitar dependencia circular con mkt-copies
   copyId: uuid("copy_id"),

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users, roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { canAccessPath } from "@/lib/permissions";
+import { getActiveContext } from "@/lib/workspace";
 
 export type Role = string;
 
@@ -80,6 +81,9 @@ export function augmentPermissions(raw: string[]): string[] {
   if (p.includes("/projects") && !p.includes("/comidas"))   p = [...p, "/comidas"];
   if (p.includes("/clients") && !p.includes("/marketing"))        p = [...p, "/marketing"];
   if (p.includes("/clients") && !p.includes("/clients/pipeline")) p = [...p, "/clients/pipeline"];
+  // Acceso al gestor de workspaces y settings siempre disponible si tiene dashboard
+  if (p.includes("/dashboard") && !p.includes("/workspaces")) p = [...p, "/workspaces"];
+  if (p.includes("/dashboard") && !p.includes("/settings"))   p = [...p, "/settings"];
   return p;
 }
 
@@ -87,6 +91,17 @@ export function augmentPermissions(raw: string[]): string[] {
 export async function getUserRoleData(): Promise<{ roleName: string; permissions: string[] } | null> {
   const roleName = await getRole();
   if (!roleName) return null;
+
+  // El perfil de workspace activo define los permisos exactos.
+  // El rol global solo se usa como fallback cuando no hay perfil seleccionado.
+  try {
+    const ctx = await getActiveContext();
+    if (ctx?.profile) {
+      return { roleName, permissions: ctx.profile.permissions };
+    }
+  } catch {
+    // Si workspaces aún no migrado, caemos al rol global
+  }
 
   const [roleRecord] = await db
     .select({ permissions: roles.permissions })

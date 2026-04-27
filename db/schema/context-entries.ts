@@ -7,6 +7,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const contextEntityTypeEnum = pgEnum("context_entity_type", [
   "client",
@@ -16,6 +17,7 @@ export const contextEntityTypeEnum = pgEnum("context_entity_type", [
 
 export const contextEntries = pgTable("context_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id),
   entityType: contextEntityTypeEnum("entity_type").notNull(),
   entityId: uuid("entity_id").notNull(),
   content: text("content").notNull(),

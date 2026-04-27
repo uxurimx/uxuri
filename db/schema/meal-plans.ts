@@ -11,6 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { workspaces } from "./workspaces";
 
 export const mealTimeEnum = pgEnum("meal_time", [
   "desayuno",
@@ -23,6 +24,7 @@ export const mealPlans = pgTable(
   "meal_plans",
   {
     id:        uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").references(() => workspaces.id),
     userId:    varchar("user_id", { length: 255 }).references(() => users.id).notNull(),
     weekStart: date("week_start").notNull(), // Lunes de la semana YYYY-MM-DD
     notes:     text("notes"),
