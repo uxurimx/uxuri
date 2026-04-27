@@ -25,6 +25,7 @@ const updateTaskSchema = z.object({
   energyLevel: z.enum(["low", "medium", "high"]).nullable().optional(),
   estMinutes: z.number().int().positive().nullable().optional(),
   categoryIds: z.array(z.string().uuid()).max(4).nullable().optional(),
+  workspaceId: z.string().uuid().optional().nullable(),
 });
 
 const STATUS_LABELS: Record<string, string> = {

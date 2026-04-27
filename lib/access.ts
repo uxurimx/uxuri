@@ -6,13 +6,15 @@ import { db } from "@/db";
 import { shares } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getRole } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { ACTIVE_WORKSPACE_COOKIE, GLOBAL_MODE_VALUE } from "@/lib/workspace";
 
 type ResourceType = "objective" | "project" | "client" | "task";
 type Permission = "view" | "edit";
 
 /**
  * Returns true if userId owns the resource OR has been granted at least minPermission via a share.
- * Admins always pass.
+ * Admins always pass. In global mode, admin+manager pass for any resource.
  */
 export async function canAccess(
   userId: string,
@@ -24,9 +26,19 @@ export async function canAccess(
   // Owner always has access
   if (ownerId === userId) return true;
 
-  // Admins see everything
   const role = await getRole();
+
+  // Admins see everything
   if (role === "admin") return true;
+
+  // In global mode, managers also get full edit access (elevated mode for privileged users)
+  try {
+    const cookieStore = await cookies();
+    const isGlobal = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value === GLOBAL_MODE_VALUE;
+    if (isGlobal && role === "manager") return true;
+  } catch {
+    // cookies() might not be available in some contexts
+  }
 
   // Check share record
   const [share] = await db

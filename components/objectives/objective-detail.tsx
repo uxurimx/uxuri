@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Target, Pencil, X, Check, Users } from "lucide-react";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 import { ShareModal } from "@/components/sharing/share-modal";
 import { cn } from "@/lib/utils";
 import { ObjectiveProgress } from "./objective-progress";
@@ -65,6 +66,7 @@ interface ObjectiveDetailData {
   status: "draft" | "active" | "paused" | "completed" | "cancelled";
   priority: string;
   targetDate: string | null;
+  workspaceId?: string | null;
   createdAt: string;
   milestones: (Milestone & { dueDate?: string })[];
   linkedProjects: (LinkedItem & { name: string; endDate?: string })[];
@@ -109,6 +111,7 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(initial.title);
   const [editDescription, setEditDescription] = useState(initial.description ?? "");
+  const [editWorkspaceId, setEditWorkspaceId] = useState(initial.workspaceId ?? "");
   const [editStatus, setEditStatus] = useState(initial.status);
   const [saving, setSaving] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -160,6 +163,7 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
           title: editTitle.trim(),
           description: editDescription.trim() || null,
           status: editStatus,
+          workspaceId: editWorkspaceId || null,
         }),
       });
       if (res.ok) {
@@ -218,6 +222,7 @@ export function ObjectiveDetail({ objective: initial }: ObjectiveDetailProps) {
                 className="w-full text-2xl font-bold text-slate-900 bg-transparent border-b border-[#1e3a5f] focus:outline-none"
                 autoFocus
               />
+              <WorkspacePicker value={editWorkspaceId} onChange={setEditWorkspaceId} />
               <div className="flex items-center gap-2">
                 <select
                   value={editStatus}

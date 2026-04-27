@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 
 const schema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -20,6 +21,7 @@ type FormData = z.infer<typeof schema>;
 export function ClientForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState("");
 
   const {
     register,
@@ -36,7 +38,7 @@ export function ClientForm() {
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, ...(workspaceId ? { workspaceId } : {}) }),
       });
 
       if (res.ok) {
@@ -54,6 +56,9 @@ export function ClientForm() {
       onSubmit={handleSubmit(onSubmit)}
       className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
     >
+      {/* Workspace picker — visible only in global mode */}
+      <WorkspacePicker value={workspaceId} onChange={setWorkspaceId} required />
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">

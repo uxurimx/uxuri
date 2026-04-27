@@ -24,6 +24,7 @@ const createTaskSchema = z.object({
   energyLevel: z.enum(["low", "medium", "high"]).nullish(),
   estMinutes: z.number().int().positive().nullish(),
   categoryIds: z.array(z.string().uuid()).max(4).nullish(),
+  workspaceId: z.string().uuid().optional(),
 });
 
 export async function GET(req: Request) {
@@ -86,8 +87,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { categoryIds, ...taskData } = parsed.data;
-  const workspaceId = await resolveNewWorkspaceId();
+  const { categoryIds, workspaceId: bodyWsId, ...taskData } = parsed.data;
+  const workspaceId = bodyWsId ?? await resolveNewWorkspaceId();
   const [task] = await db.insert(tasks).values({
     ...taskData,
     projectId: taskData.projectId ?? null,

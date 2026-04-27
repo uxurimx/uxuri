@@ -20,6 +20,7 @@ const createProjectSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   businessId: z.string().uuid().optional().nullable(),
+  workspaceId: z.string().uuid().optional(),
 });
 
 export async function GET() {
@@ -54,13 +55,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const workspaceId = await resolveNewWorkspaceId();
+  const { workspaceId: bodyWsId, ...projectData } = parsed.data;
+  const workspaceId = bodyWsId ?? await resolveNewWorkspaceId();
   const [project] = await db.insert(projects).values({
-    ...parsed.data,
-    clientId: parsed.data.clientId ?? null,
-    startDate: parsed.data.startDate || null,
-    endDate: parsed.data.endDate || null,
-    privacy: parsed.data.privacy ?? "public",
+    ...projectData,
+    clientId: projectData.clientId ?? null,
+    startDate: projectData.startDate || null,
+    endDate: projectData.endDate || null,
+    privacy: projectData.privacy ?? "public",
     createdBy: userId,
     workspaceId,
   }).returning();

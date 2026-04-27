@@ -12,10 +12,11 @@ import { z } from "zod";
 import {
   ACTIVE_PROFILE_COOKIE,
   ACTIVE_WORKSPACE_COOKIE,
+  GLOBAL_MODE_VALUE,
 } from "@/lib/workspace";
 
 const bodySchema = z.object({
-  workspaceId: z.string().uuid(),
+  workspaceId: z.union([z.string().uuid(), z.literal(GLOBAL_MODE_VALUE)]),
 });
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -32,6 +33,15 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const cookieStore = await cookies();
+
+  // Modo global: bypassa filtros de workspace y usa rol global completo
+  if (parsed.data.workspaceId === GLOBAL_MODE_VALUE) {
+    cookieStore.set(ACTIVE_WORKSPACE_COOKIE, GLOBAL_MODE_VALUE, { path: "/", maxAge: ONE_YEAR, sameSite: "lax" });
+    cookieStore.delete(ACTIVE_PROFILE_COOKIE);
+    return NextResponse.json({ ok: true, workspaceId: GLOBAL_MODE_VALUE, profileId: null });
   }
 
   // Verifica que el usuario pertenece al workspace
@@ -71,18 +81,9 @@ export async function POST(req: Request) {
   const defaultProfile =
     profilesAssigned.find((p) => p.isDefault) ?? profilesAssigned[0] ?? null;
 
-  const cookieStore = await cookies();
-  cookieStore.set(ACTIVE_WORKSPACE_COOKIE, parsed.data.workspaceId, {
-    path: "/",
-    maxAge: ONE_YEAR,
-    sameSite: "lax",
-  });
+  cookieStore.set(ACTIVE_WORKSPACE_COOKIE, parsed.data.workspaceId, { path: "/", maxAge: ONE_YEAR, sameSite: "lax" });
   if (defaultProfile) {
-    cookieStore.set(ACTIVE_PROFILE_COOKIE, defaultProfile.profileId, {
-      path: "/",
-      maxAge: ONE_YEAR,
-      sameSite: "lax",
-    });
+    cookieStore.set(ACTIVE_PROFILE_COOKIE, defaultProfile.profileId, { path: "/", maxAge: ONE_YEAR, sameSite: "lax" });
   } else {
     cookieStore.delete(ACTIVE_PROFILE_COOKIE);
   }

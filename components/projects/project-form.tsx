@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { X, Search, Loader2 } from "lucide-react";
 import type { Client } from "@/db/schema";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 
 const schema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -29,6 +30,7 @@ type SharedUser = { id: string; name: string | null; email: string; permission: 
 export function ProjectForm({ clients }: { clients: Client[] }) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState("");
 
   // Share-with state
   const [userSearch, setUserSearch] = useState("");
@@ -99,6 +101,7 @@ export function ProjectForm({ clients }: { clients: Client[] }) {
           clientId: data.clientId || undefined,
           range: data.range || undefined,
           category: data.category || undefined,
+          ...(workspaceId ? { workspaceId } : {}),
         }),
       });
 
@@ -138,6 +141,9 @@ export function ProjectForm({ clients }: { clients: Client[] }) {
       onSubmit={handleSubmit(onSubmit)}
       className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
     >
+      {/* Workspace picker — visible only in global mode */}
+      <WorkspacePicker value={workspaceId} onChange={setWorkspaceId} required />
+
       {/* Name */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>

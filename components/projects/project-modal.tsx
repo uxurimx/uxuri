@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { X, Trash2, Pencil, Calendar, User, Flag, ArrowLeft, ExternalLink, Lock, Globe, Target, Zap, Users, Clock, Tag, Building2 } from "lucide-react";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 import { ShareModal } from "@/components/sharing/share-modal";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -48,6 +49,7 @@ export type ProjectForModal = {
   momentum?:    number;
   businessId?: string | null;
   businessName?: string | null;
+  workspaceId?: string | null;
 };
 
 type Client = { id: string; name: string };
@@ -85,6 +87,7 @@ export function ProjectModal({ open, onClose, project, clients, objectives, busi
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [businessId, setBusinessId] = useState<string>(project.businessId ?? "");
+  const [projWorkspaceId, setProjWorkspaceId] = useState<string>(project.workspaceId ?? "");
 
   // Objective linking
   const [linkedObjective, setLinkedObjective] = useState<{ linkId: string; objectiveId: string; title: string } | null>(null);
@@ -110,6 +113,7 @@ export function ProjectModal({ open, onClose, project, clients, objectives, busi
     if (!open) return;
     setMode(initialMode);
     setBusinessId(project.businessId ?? "");
+    setProjWorkspaceId(project.workspaceId ?? "");
     reset({
       name: project.name,
       description: project.description ?? "",
@@ -138,6 +142,7 @@ export function ProjectModal({ open, onClose, project, clients, objectives, busi
           startDate: data.startDate || null,
           endDate: data.endDate || null,
           businessId: businessId || null,
+          workspaceId: projWorkspaceId || null,
         }),
       });
       if (res.ok) { onClose(); router.refresh(); }
@@ -374,6 +379,9 @@ export function ProjectModal({ open, onClose, project, clients, objectives, busi
         {/* EDIT MODE */}
         {mode === "edit" && (
           <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4 overflow-y-auto flex-1">
+            {/* Workspace picker — visible only in global mode */}
+            <WorkspacePicker value={projWorkspaceId} onChange={setProjWorkspaceId} />
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
               <input

@@ -25,6 +25,7 @@ const updateSchema = z.object({
   horizon: z.enum(["daily", "weekly", "monthly", "quarterly", "yearly", "life"]).optional().nullable(),
   targetDate: z.string().optional().nullable(),
   pinnedToDashboard: z.boolean().optional(),
+  workspaceId: z.string().uuid().optional().nullable(),
 });
 
 export async function GET(

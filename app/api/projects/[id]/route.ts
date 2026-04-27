@@ -22,6 +22,7 @@ const updateProjectSchema = z.object({
   linkedCodePath: z.string().optional().nullable(),
   linkedRepo: z.string().max(500).optional().nullable(),
   techStack: z.string().optional().nullable(),
+  workspaceId: z.string().uuid().optional().nullable(),
 });
 
 export async function GET(

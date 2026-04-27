@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
 import { startTimer } from "@/components/timer/active-timer";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 import { CategoryPicker } from "./category-picker";
 import { MentionInput, renderWithMentions } from "./mention-input";
 import { useRouter } from "next/navigation";
@@ -51,6 +52,7 @@ export type TaskForModal = {
   personalDone?: boolean;
   energyLevel?: string | null;
   estMinutes?: number | null;
+  workspaceId?: string | null;
   categories?: { id: string; name: string; color: string; icon: string }[];
 };
 
@@ -382,6 +384,9 @@ export function TaskModal({
   // Objective linking (create mode)
   const [selectedObjectiveId, setSelectedObjectiveId] = useState("");
 
+  // Workspace picker (create + edit — visible in global mode)
+  const [taskWorkspaceId, setTaskWorkspaceId] = useState(task?.workspaceId ?? "");
+
   // Personal done
   const [markingDone, setMarkingDone] = useState(false);
 
@@ -415,6 +420,7 @@ export function TaskModal({
     setMoodEstInput(task?.estMinutes?.toString() ?? "");
     setCategoryIds(task?.categories?.map((c) => c.id) ?? []);
     if (task) {
+      setTaskWorkspaceId(task.workspaceId ?? "");
       reset({
         title: task.title,
         description: task.description ?? "",
@@ -429,6 +435,7 @@ export function TaskModal({
         estMinutes: task.estMinutes ?? undefined,
       });
     } else {
+      setTaskWorkspaceId("");
       reset({ title: "", description: "", status: "todo", priority: "medium", dueDate: today(), projectId: projectId ?? "", clientId: "", assignedTo: "", agentId: "" });
     }
   }, [open, task, initialMode, projectId, reset]);
@@ -524,6 +531,7 @@ export function TaskModal({
         assignedTo: data.assignedTo || null,
         agentId: data.agentId || null,
         categoryIds,
+        workspaceId: taskWorkspaceId || null,
       };
 
       const res = await fetch(url, {
@@ -1264,6 +1272,9 @@ export function TaskModal({
         {/* EDIT / CREATE MODE */}
         {(mode === "edit" || mode === "create") && (
           <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4 overflow-y-auto flex-1">
+            {/* Workspace picker — visible only in global mode */}
+            <WorkspacePicker value={taskWorkspaceId} onChange={setTaskWorkspaceId} required={!isExisting} />
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Título *</label>
               <input

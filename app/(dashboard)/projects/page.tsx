@@ -42,6 +42,7 @@ export default async function ProjectsPage() {
     lastCycleAt: projects.lastCycleAt,
     nextCycleAt: projects.nextCycleAt,
     momentum: projects.momentum,
+    workspaceId: projects.workspaceId,
   } as const;
 
   // Businesses for project selector

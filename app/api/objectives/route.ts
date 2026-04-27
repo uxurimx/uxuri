@@ -21,6 +21,7 @@ const createSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   horizon: z.enum(["daily", "weekly", "monthly", "quarterly", "yearly", "life"]).optional().nullable(),
   targetDate: z.string().optional().nullable(),
+  workspaceId: z.string().uuid().optional(),
 });
 
 export async function GET() {
@@ -110,10 +111,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const workspaceId = await resolveNewWorkspaceId();
+  const { workspaceId: bodyWsId, ...objectiveData } = parsed.data;
+  const workspaceId = bodyWsId ?? await resolveNewWorkspaceId();
   const [objective] = await db
     .insert(objectives)
-    .values({ ...parsed.data, createdBy: userId, workspaceId })
+    .values({ ...objectiveData, createdBy: userId, workspaceId })
     .returning();
 
   return NextResponse.json(objective, { status: 201 });

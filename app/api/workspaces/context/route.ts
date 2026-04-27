@@ -8,7 +8,8 @@ import {
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getActiveContext } from "@/lib/workspace";
+import { cookies } from "next/headers";
+import { getActiveContext, ACTIVE_WORKSPACE_COOKIE, GLOBAL_MODE_VALUE } from "@/lib/workspace";
 
 /**
  * Devuelve todo lo que necesita el WorkspaceSwitcher:
@@ -19,6 +20,10 @@ import { getActiveContext } from "@/lib/workspace";
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const cookieStore = await cookies();
+  const wsCookie = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value ?? null;
+  const isGlobalMode = wsCookie === GLOBAL_MODE_VALUE;
 
   const ctx = await getActiveContext();
 
@@ -89,6 +94,7 @@ export async function GET() {
     activeWorkspace: ctx?.workspace ?? null,
     activeProfile: ctx?.profile ?? null,
     isOwner: ctx?.isOwner ?? false,
+    isGlobalMode,
     workspaces: userWorkspaces,
     availableProfiles,
   });

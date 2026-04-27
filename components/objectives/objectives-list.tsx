@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Target, X, Pin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 
 type HorizonKey = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "life";
 
@@ -66,6 +67,7 @@ export function ObjectivesList({ initialObjectives }: ObjectivesListProps) {
   const [statusFilter, setStatusFilter] = useState<"all" | ObjectiveCard["status"]>("all");
   const [horizonFilter, setHorizonFilter] = useState<"all" | HorizonKey>("all");
   const [horizon, setHorizon] = useState<HorizonKey | "">("");
+  const [objWorkspaceId, setObjWorkspaceId] = useState("");
 
   async function handleTogglePin(id: string, current: boolean) {
     setPinning(id);
@@ -106,6 +108,7 @@ export function ObjectivesList({ initialObjectives }: ObjectivesListProps) {
           priority,
           horizon: horizon || null,
           targetDate: targetDate || null,
+          ...(objWorkspaceId ? { workspaceId: objWorkspaceId } : {}),
         }),
       });
       if (res.ok) {
@@ -317,6 +320,9 @@ export function ObjectivesList({ initialObjectives }: ObjectivesListProps) {
             </div>
 
             <form onSubmit={handleCreate} className="p-5 space-y-4">
+              {/* Workspace picker — visible only in global mode */}
+              <WorkspacePicker value={objWorkspaceId} onChange={setObjWorkspaceId} required />
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Título *</label>
                 <input

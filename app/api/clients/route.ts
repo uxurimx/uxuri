@@ -26,6 +26,7 @@ const createClientSchema = z.object({
   ]).optional(),
   firstContactDate: z.string().optional(),
   estimatedValue: z.string().optional(),
+  workspaceId: z.string().uuid().optional(),
 });
 
 export async function GET() {
@@ -60,10 +61,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const workspaceId = await resolveNewWorkspaceId();
+  const { workspaceId: bodyWsId, ...clientData } = parsed.data;
+  const workspaceId = bodyWsId ?? await resolveNewWorkspaceId();
   const [client] = await db.insert(clients).values({
-    ...parsed.data,
-    email: parsed.data.email || null,
+    ...clientData,
+    email: clientData.email || null,
     createdBy: userId,
     workspaceId,
   }).returning();

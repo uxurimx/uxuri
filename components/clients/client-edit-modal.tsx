@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import type { Client } from "@/db/schema";
+import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 
 type BusinessOption = { id: string; name: string };
 
@@ -29,6 +30,9 @@ export function ClientEditModal({ client, onClose, businesses }: ClientEditModal
     (client as Client & { businessId?: string | null }).businessId ?? ""
   );
   const [saving, setSaving] = useState(false);
+  const [clientWorkspaceId, setClientWorkspaceId] = useState(
+    (client as Client & { workspaceId?: string | null }).workspaceId ?? ""
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +52,7 @@ export function ClientEditModal({ client, onClose, businesses }: ClientEditModal
           website: website.trim() || null,
           registrationDate: registrationDate || null,
           businessId: businessId || null,
+          workspaceId: clientWorkspaceId || null,
         }),
       });
       if (res.ok) {
@@ -70,6 +75,9 @@ export function ClientEditModal({ client, onClose, businesses }: ClientEditModal
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* Workspace picker — visible only in global mode */}
+          <WorkspacePicker value={clientWorkspaceId} onChange={setClientWorkspaceId} />
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>

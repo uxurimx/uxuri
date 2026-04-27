@@ -27,6 +27,7 @@ const updateClientSchema = z.object({
   ]).optional().nullable(),
   firstContactDate: z.string().optional().nullable(),
   estimatedValue: z.string().optional().nullable(),
+  workspaceId: z.string().uuid().optional().nullable(),
 });
 
 async function getClientWithAccess(id: string, userId: string) {

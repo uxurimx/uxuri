@@ -13,6 +13,7 @@ import {
 
 export const ACTIVE_WORKSPACE_COOKIE = "uxuri_workspace_id";
 export const ACTIVE_PROFILE_COOKIE = "uxuri_profile_id";
+export const GLOBAL_MODE_VALUE = "global";
 
 export interface ActiveContext {
   workspace: Workspace;
@@ -43,6 +44,9 @@ export async function getActiveContext(): Promise<ActiveContext | null> {
   const cookieStore = await cookies();
   const wsCookie = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value ?? null;
   const profileCookie = cookieStore.get(ACTIVE_PROFILE_COOKIE)?.value ?? null;
+
+  // Modo global: admin ve todos los datos sin filtro de workspace
+  if (wsCookie === GLOBAL_MODE_VALUE) return null;
 
   // 1. Workspaces del usuario
   const memberships = await db
