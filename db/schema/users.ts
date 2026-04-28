@@ -1,4 +1,4 @@
-import { pgTable, varchar, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: varchar("id", { length: 255 }).primaryKey(), // Clerk user ID
@@ -6,8 +6,10 @@ export const users = pgTable("users", {
   name: varchar("name", { length: 255 }),
   imageUrl: varchar("image_url", { length: 1024 }),
   role: varchar("role", { length: 100 }).default("client").notNull(), // nombre del rol
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt:        timestamp("created_at").defaultNow().notNull(),
+  updatedAt:        timestamp("updated_at").defaultNow().notNull(),
+  activeSkinId:     varchar("active_skin_id", { length: 100 }),
+  customSkinsData:  jsonb("custom_skins_data"),
 });
 
 export type User = typeof users.$inferSelect;

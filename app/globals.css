@@ -72,26 +72,59 @@
    Skin CSS vars — defaults (light)
    ============================================================ */
 :root {
-  --skin-page-bg: #f8fafc;
-  --skin-sidebar-bg: #0f172a;
-  --skin-sidebar-border: #1e293b;
-  --skin-sidebar-text: #94a3b8;
+  /* Base */
+  --skin-page-bg:            #f8fafc;
+  --skin-content-bg:         #f1f5f9;
+  /* Sidebar */
+  --skin-sidebar-bg:         #0f172a;
+  --skin-sidebar-border:     #1e293b;
+  --skin-sidebar-text:       #94a3b8;
   --skin-sidebar-text-muted: #475569;
-  --skin-active-bg: #1e3a5f;
-  --skin-active-text: #ffffff;
-  --skin-sidebar-hover: #1e293b;
-  --skin-header-bg: #ffffff;
-  --skin-header-text: #0f172a;
-  --skin-header-text-muted: #64748b;
+  --skin-active-bg:          #1e3a5f;
+  --skin-active-text:        #ffffff;
+  --skin-sidebar-hover:      #1e293b;
+  /* Header */
+  --skin-header-bg:          #ffffff;
+  --skin-header-border:      #e2e8f0;
+  --skin-header-text:        #0f172a;
+  --skin-header-text-muted:  #64748b;
   --skin-header-text-strong: #1e293b;
-  --skin-border: #e2e8f0;
+  /* Cards */
+  --skin-card-bg:            #ffffff;
+  --skin-card-border:        #e2e8f0;
+  --skin-card-text:          #0f172a;
+  --skin-card-text-muted:    #64748b;
+  /* Tables */
+  --skin-table-header-bg:    #f8fafc;
+  --skin-table-header-text:  #64748b;
+  --skin-table-row-hover:    #f1f5f9;
+  --skin-table-border:       #e2e8f0;
+  /* Forms */
+  --skin-input-bg:           #ffffff;
+  --skin-input-border:       #cbd5e1;
+  --skin-input-text:         #0f172a;
+  --skin-input-focus:        rgba(30,58,95,0.4);
+  /* Button */
+  --skin-btn-bg:             #1e3a5f;
+  --skin-btn-text:           #ffffff;
+  --skin-btn-hover:          #152c47;
+  /* Text */
+  --skin-text-primary:       #0f172a;
+  --skin-text-secondary:     #334155;
+  --skin-text-muted:         #64748b;
+  /* Borders */
+  --skin-border:             #e2e8f0;
+  --skin-divider:            #f1f5f9;
 }
 
 /* ============================================================
    Torres skin
    ============================================================ */
 [data-skin="torres"] {
+  /* Base */
   --skin-page-bg:            #07090f;
+  --skin-content-bg:         #09101a;
+  /* Sidebar */
   --skin-sidebar-bg:         #0a0e1a;
   --skin-sidebar-border:     #1a2233;
   --skin-sidebar-text:       #8892a4;
@@ -99,19 +132,46 @@
   --skin-active-bg:          #0e2233;
   --skin-active-text:        #22d3ee;
   --skin-sidebar-hover:      #111827;
+  /* Header */
   --skin-header-bg:          #0a0e1a;
+  --skin-header-border:      #1a2233;
   --skin-header-text:        #c9d1d9;
   --skin-header-text-muted:  #8892a4;
   --skin-header-text-strong: #e2e8f0;
-  --skin-border:             #1a2233;
+  /* Cards */
+  --skin-card-bg:            #0d1117;
+  --skin-card-border:        #21262d;
+  --skin-card-text:          #e6edf3;
+  --skin-card-text-muted:    #8b949e;
+  /* Tables */
+  --skin-table-header-bg:    #0d1520;
+  --skin-table-header-text:  #8892a4;
+  --skin-table-row-hover:    rgba(34,211,238,0.07);
+  --skin-table-border:       #21262d;
+  /* Forms */
+  --skin-input-bg:           #0d1520;
+  --skin-input-border:       #30363d;
+  --skin-input-text:         #e6edf3;
+  --skin-input-focus:        rgba(34,211,238,0.4);
+  /* Button */
+  --skin-btn-bg:             #22d3ee;
+  --skin-btn-text:           #000000;
+  --skin-btn-hover:          #06b6d4;
+  /* Text */
+  --skin-text-primary:       #e6edf3;
+  --skin-text-secondary:     #cdd9e5;
+  --skin-text-muted:         #8b949e;
+  /* Borders */
+  --skin-border:             #21262d;
+  --skin-divider:            #161b22;
 
-  /* Torres color overrides for Tailwind classes used in page content */
+  /* Tailwind token overrides */
   --color-background: #07090f;
   --color-foreground: #e6edf3;
-  --color-border: #21262d;
-  --color-card: #0d1117;
+  --color-border:     #21262d;
+  --color-card:       #0d1117;
   --color-card-foreground: #e6edf3;
-  --color-muted: #0d1520;
+  --color-muted:      #0d1520;
   --color-muted-foreground: #8b949e;
 }
 
