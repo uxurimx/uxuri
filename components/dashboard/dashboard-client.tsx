@@ -28,6 +28,8 @@ type ActiveProject = {
   id: string;
   name: string;
   priority: string;
+  category: string | null;
+  endDate: string | null;
   totalTasks: number;
   doneTasks: number;
 };
@@ -267,39 +269,71 @@ function CompletedTodayWidget({
   );
 }
 
+const priorityDotColor: Record<string, string> = {
+  high: "bg-orange-500",
+  medium: "bg-amber-400",
+  low: "bg-slate-300",
+};
+
 function ProjectsWidget({ projects }: { projects: ActiveProject[] }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
   return (
     <WidgetShell id="projects" label="Proyectos activos" icon={Folder} count={projects.length}>
       {projects.length === 0 ? (
         <EmptyState label="Sin proyectos activos" />
       ) : (
-        <ul className="space-y-3">
-          {projects.map((p) => {
-            const pct = p.totalTasks > 0 ? Math.round((p.doneTasks / p.totalTasks) * 100) : 0;
-            const pending = p.totalTasks - p.doneTasks;
-            return (
-              <li key={p.id}>
-                <Link href={`/projects/${p.id}`} className="group block">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-slate-700 truncate group-hover:text-[#1e3a5f] transition-colors">
-                      {p.name}
-                    </span>
-                    <span className="text-[10px] text-slate-400 flex-shrink-0 ml-2">
-                      {pending > 0 ? `${pending} pendientes` : "completado"}
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all", pct >= 100 ? "bg-emerald-500" : "bg-[#1e3a5f]")}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{pct}% completado</p>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="space-y-3">
+            {projects.map((p) => {
+              const pct = p.totalTasks > 0 ? Math.round((p.doneTasks / p.totalTasks) * 100) : 0;
+              const pending = p.totalTasks - p.doneTasks;
+              const isOverdue = p.endDate && p.endDate < todayStr;
+              return (
+                <li key={p.id}>
+                  <Link href={`/projects/${p.id}`} className="group block">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={cn("w-2 h-2 rounded-full flex-shrink-0 mt-0.5", priorityDotColor[p.priority] ?? "bg-slate-300")} />
+                      <span className="text-sm font-medium text-slate-700 truncate flex-1 group-hover:text-[#1e3a5f] transition-colors">
+                        {p.name}
+                      </span>
+                      <span className={cn("text-[10px] flex-shrink-0", isOverdue ? "text-red-500 font-medium" : "text-slate-400")}>
+                        {isOverdue
+                          ? `⚠ ${formatDate(p.endDate!)}`
+                          : p.endDate
+                          ? formatDate(p.endDate)
+                          : pending > 0
+                          ? `${pending} pend.`
+                          : "✓"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 pl-4">
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full transition-all", pct >= 100 ? "bg-emerald-500" : "bg-[#1e3a5f]")}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {p.doneTasks}/{p.totalTasks || "0"} · {pct}%
+                      </span>
+                    </div>
+                    {p.category && (
+                      <p className="text-[10px] text-slate-400 mt-0.5 pl-4">{p.category}</p>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <Link
+              href="/projects?status=active"
+              className="text-xs text-[#1e3a5f] hover:underline flex items-center gap-1"
+            >
+              Ver todos los proyectos activos <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </>
       )}
     </WidgetShell>
   );

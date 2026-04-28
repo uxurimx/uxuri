@@ -91,11 +91,14 @@ export default async function DashboardPage() {
         id: projects.id,
         name: projects.name,
         priority: projects.priority,
+        category: projects.category,
+        endDate: projects.endDate,
         totalTasks: sql<number>`(SELECT COUNT(*)::int FROM tasks WHERE project_id = ${projects.id})`,
         doneTasks:  sql<number>`(SELECT COUNT(*)::int FROM tasks WHERE project_id = ${projects.id} AND status = 'done')`,
       })
       .from(projects)
       .where(eq(projects.status, "active"))
+      .orderBy(projects.endDate)
       .limit(6),
 
     // Tasks completed today with who did it
