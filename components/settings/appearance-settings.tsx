@@ -213,7 +213,7 @@ function ColorField({
 }: {
   label: string; hint?: string; value: string; onChange: (v: string) => void;
 }) {
-  const safeValue = value.startsWith("#") && value.length >= 7 ? value.slice(0, 7) : "#000000";
+  const safeValue = value?.startsWith("#") && value.length >= 7 ? value.slice(0, 7) : "#000000";
 
   return (
     <div className="flex items-start gap-3 py-1.5">
@@ -386,7 +386,9 @@ export function AppearanceSettings() {
       const detectedMode: Mode = isColorDark(skin.vars.pageBackground) ? "dark" : "light";
       setMode(detectedMode);
       setAccent(skin.vars.activeText);
-      setVars(skin.vars);
+      // Merge saved vars over fresh defaults so new fields always have a value
+      const fresh = deriveSkinVars(skin.vars.pageBackground, skin.vars.sidebarBackground, skin.vars.activeText, skin.vars.textPrimary);
+      setVars({ ...fresh, ...skin.vars });
     } else {
       setMode("dark");
       setAccent(DARK_BASE.accent);

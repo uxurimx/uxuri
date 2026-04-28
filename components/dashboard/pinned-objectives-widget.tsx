@@ -87,10 +87,10 @@ export function PinnedObjectivesWidget({ objectives }: { objectives: PinnedObjec
                   </div>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--skin-progress-track)" }}>
                     <div
-                      className="h-full rounded-full bg-[#1e3a5f] transition-all"
-                      style={{ width: `${obj.overallProgress}%` }}
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${obj.overallProgress}%`, backgroundColor: "var(--skin-progress-bar)" }}
                     />
                   </div>
                   <span className="text-[10px] text-slate-500 tabular-nums w-8 text-right">

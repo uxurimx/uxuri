@@ -84,6 +84,24 @@ export interface SkinVars {
   // Bordes globales
   borderColor: string;
   dividerColor: string;
+  // Estados semánticos
+  danger:       string;
+  dangerBg:     string;
+  warning:      string;
+  warningBg:    string;
+  success:      string;
+  successBg:    string;
+  info:         string;
+  infoBg:       string;
+  // Barras de progreso
+  progressBar:   string;
+  progressTrack: string;
+  progressDone:  string;
+  // Puntos de prioridad
+  dotUrgent: string;
+  dotHigh:   string;
+  dotMedium: string;
+  dotLow:    string;
 }
 
 export interface SkinPreview {
@@ -217,6 +235,37 @@ export const SKIN_GROUPS: SkinGroupDef[] = [
       { key: "textMuted",     label: "Texto suave",      hint: "Fechas, placeholders, metadata" },
     ],
   },
+  {
+    id: "states",
+    emoji: "🚦",
+    label: "Estados",
+    description: "Colores semánticos: éxito, alerta, peligro e info",
+    fields: [
+      { key: "success",   label: "Éxito — texto",   hint: "Color de texto para estados positivos/completados" },
+      { key: "successBg", label: "Éxito — fondo",   hint: "Fondo de tarjetas y badges de éxito" },
+      { key: "warning",   label: "Alerta — texto",  hint: "Color de texto para advertencias y tareas urgentes" },
+      { key: "warningBg", label: "Alerta — fondo",  hint: "Fondo de tarjetas y badges de alerta" },
+      { key: "danger",    label: "Peligro — texto", hint: "Color de texto para errores y vencidos" },
+      { key: "dangerBg",  label: "Peligro — fondo", hint: "Fondo de tarjetas y badges de peligro" },
+      { key: "info",      label: "Info — texto",    hint: "Color de texto para información y objetivos completos" },
+      { key: "infoBg",    label: "Info — fondo",    hint: "Fondo de tarjetas y badges informativos" },
+    ],
+  },
+  {
+    id: "priorities",
+    emoji: "🎯",
+    label: "Prioridades y progreso",
+    description: "Dots de prioridad y barras de progreso",
+    fields: [
+      { key: "dotUrgent",     label: "Dot urgente",       hint: "Punto de color para prioridad urgente" },
+      { key: "dotHigh",       label: "Dot alta",          hint: "Punto de color para prioridad alta" },
+      { key: "dotMedium",     label: "Dot media",         hint: "Punto de color para prioridad media" },
+      { key: "dotLow",        label: "Dot baja",          hint: "Punto de color para prioridad baja" },
+      { key: "progressBar",   label: "Barra de progreso", hint: "Color del relleno de las barras de progreso" },
+      { key: "progressTrack", label: "Fondo de barra",    hint: "Color del fondo (pista) de las barras de progreso" },
+      { key: "progressDone",  label: "Progreso 100%",     hint: "Color cuando una tarea o proyecto está completo" },
+    ],
+  },
 ];
 
 // ─── Derive all vars from 4 base colors ───────────────────────────────────────
@@ -268,6 +317,24 @@ export function deriveSkinVars(
     textMuted:         withAlpha(text, 0.5),
     borderColor:       dark ? lightenHex(bg, 0.2)  : "#e2e8f0",
     dividerColor:      dark ? lightenHex(bg, 0.1)  : "#f1f5f9",
+    // Semantic states
+    danger:       dark ? "#f87171" : "#dc2626",
+    dangerBg:     dark ? withAlpha("#f87171", 0.12) : "#fef2f2",
+    warning:      dark ? "#fb923c" : "#ea580c",
+    warningBg:    dark ? withAlpha("#fb923c", 0.12) : "#fff7ed",
+    success:      dark ? "#4ade80" : "#16a34a",
+    successBg:    dark ? withAlpha("#4ade80", 0.12) : "#f0fdf4",
+    info:         dark ? "#60a5fa" : "#2563eb",
+    infoBg:       dark ? withAlpha("#60a5fa", 0.12) : "#eff6ff",
+    // Progress bars
+    progressBar:   accent,
+    progressTrack: dark ? lightenHex(bg, 0.1) : "#f1f5f9",
+    progressDone:  dark ? "#4ade80" : "#22c55e",
+    // Priority dots
+    dotUrgent: dark ? "#f87171" : "#ef4444",
+    dotHigh:   dark ? "#fb923c" : "#f97316",
+    dotMedium: "#fbbf24",
+    dotLow:    dark ? withAlpha(text, 0.3) : "#94a3b8",
   };
 }
 
@@ -328,6 +395,21 @@ export function skinVarsToCss(vars: SkinVars): Record<string, string> {
     "--skin-text-muted":         vars.textMuted,
     "--skin-border":             vars.borderColor,
     "--skin-divider":            vars.dividerColor,
+    "--skin-danger":             vars.danger,
+    "--skin-danger-bg":          vars.dangerBg,
+    "--skin-warning":            vars.warning,
+    "--skin-warning-bg":         vars.warningBg,
+    "--skin-success":            vars.success,
+    "--skin-success-bg":         vars.successBg,
+    "--skin-info":               vars.info,
+    "--skin-info-bg":            vars.infoBg,
+    "--skin-progress-bar":       vars.progressBar,
+    "--skin-progress-track":     vars.progressTrack,
+    "--skin-progress-done":      vars.progressDone,
+    "--skin-dot-urgent":         vars.dotUrgent,
+    "--skin-dot-high":           vars.dotHigh,
+    "--skin-dot-medium":         vars.dotMedium,
+    "--skin-dot-low":            vars.dotLow,
   };
 }
 

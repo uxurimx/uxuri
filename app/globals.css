@@ -115,6 +115,24 @@
   /* Borders */
   --skin-border:             #e2e8f0;
   --skin-divider:            #f1f5f9;
+  /* Semantic states */
+  --skin-danger:             #dc2626;
+  --skin-danger-bg:          #fef2f2;
+  --skin-warning:            #ea580c;
+  --skin-warning-bg:         #fff7ed;
+  --skin-success:            #16a34a;
+  --skin-success-bg:         #f0fdf4;
+  --skin-info:               #2563eb;
+  --skin-info-bg:            #eff6ff;
+  /* Progress bars */
+  --skin-progress-bar:       #1e3a5f;
+  --skin-progress-track:     #f1f5f9;
+  --skin-progress-done:      #22c55e;
+  /* Priority dots */
+  --skin-dot-urgent:         #ef4444;
+  --skin-dot-high:           #f97316;
+  --skin-dot-medium:         #fbbf24;
+  --skin-dot-low:            #94a3b8;
 }
 
 /* ============================================================
@@ -164,6 +182,24 @@
   /* Borders */
   --skin-border:             #21262d;
   --skin-divider:            #161b22;
+  /* Semantic states */
+  --skin-danger:             #f87171;
+  --skin-danger-bg:          rgba(248,113,113,0.12);
+  --skin-warning:            #fb923c;
+  --skin-warning-bg:         rgba(251,146,60,0.12);
+  --skin-success:            #4ade80;
+  --skin-success-bg:         rgba(74,222,128,0.12);
+  --skin-info:               #60a5fa;
+  --skin-info-bg:            rgba(96,165,250,0.12);
+  /* Progress bars */
+  --skin-progress-bar:       #22d3ee;
+  --skin-progress-track:     #1a2030;
+  --skin-progress-done:      #4ade80;
+  /* Priority dots */
+  --skin-dot-urgent:         #f87171;
+  --skin-dot-high:           #fb923c;
+  --skin-dot-medium:         #fbbf24;
+  --skin-dot-low:            #64748b;
 
   /* Tailwind token overrides */
   --color-background: #07090f;
@@ -203,10 +239,42 @@
 [data-skin="torres"] .text-slate-600     { color: #8b949e !important; }
 [data-skin="torres"] .text-slate-500     { color: #768390 !important; }
 [data-skin="torres"] .text-slate-400     { color: #545d68 !important; }
-[data-skin="torres"] .bg-blue-50         { background: #1a2332 !important; }
-[data-skin="torres"] .bg-emerald-50      { background: #122018 !important; }
 [data-skin="torres"] .hover\:bg-slate-50:hover  { background: #0d1520 !important; }
 [data-skin="torres"] .hover\:bg-slate-100:hover { background: #161b22 !important; }
+/* Torres: semantic state backgrounds */
+[data-skin="torres"] .bg-red-50         { background-color: var(--skin-danger-bg) !important; }
+[data-skin="torres"] .bg-orange-50      { background-color: var(--skin-warning-bg) !important; }
+[data-skin="torres"] .bg-amber-50       { background-color: var(--skin-warning-bg) !important; }
+[data-skin="torres"] .bg-emerald-50     { background-color: var(--skin-success-bg) !important; }
+[data-skin="torres"] .bg-blue-50        { background-color: var(--skin-info-bg) !important; }
+[data-skin="torres"] .bg-violet-50      { background-color: var(--skin-info-bg) !important; }
+/* Torres: semantic text colors */
+[data-skin="torres"] .text-red-500,
+[data-skin="torres"] .text-red-600,
+[data-skin="torres"] .text-red-700      { color: var(--skin-danger) !important; }
+[data-skin="torres"] .text-orange-500,
+[data-skin="torres"] .text-orange-600   { color: var(--skin-warning) !important; }
+[data-skin="torres"] .text-amber-500,
+[data-skin="torres"] .text-amber-700    { color: var(--skin-warning) !important; }
+[data-skin="torres"] .text-emerald-500,
+[data-skin="torres"] .text-emerald-600,
+[data-skin="torres"] .text-emerald-700  { color: var(--skin-success) !important; }
+[data-skin="torres"] .text-blue-500,
+[data-skin="torres"] .text-blue-600,
+[data-skin="torres"] .text-blue-700     { color: var(--skin-info) !important; }
+[data-skin="torres"] .text-violet-500,
+[data-skin="torres"] .text-violet-600   { color: var(--skin-info) !important; }
+/* Torres: semantic solid backgrounds */
+[data-skin="torres"] .bg-red-500        { background-color: var(--skin-dot-urgent) !important; }
+[data-skin="torres"] .bg-orange-500     { background-color: var(--skin-dot-high) !important; }
+[data-skin="torres"] .bg-amber-400      { background-color: var(--skin-dot-medium) !important; }
+[data-skin="torres"] .bg-emerald-400    { background-color: var(--skin-success) !important; }
+[data-skin="torres"] .bg-emerald-500    { background-color: var(--skin-progress-done) !important; }
+/* Torres: semantic borders */
+[data-skin="torres"] .border-red-100    { border-color: var(--skin-danger-bg) !important; }
+[data-skin="torres"] .border-orange-100 { border-color: var(--skin-warning-bg) !important; }
+[data-skin="torres"] .border-emerald-100{ border-color: var(--skin-success-bg) !important; }
+[data-skin="torres"] .border-blue-100   { border-color: var(--skin-info-bg) !important; }
 
 * {
   box-sizing: border-box;

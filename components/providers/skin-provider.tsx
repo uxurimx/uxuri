@@ -45,7 +45,31 @@ function buildOverrideCSS(v: SkinVars): string {
     `${s} input:not([type=checkbox]):not([type=radio]):not([type=color]),${s} select,${s} textarea{background-color:${v.inputBackground}!important;border-color:${v.inputBorder}!important;color:${v.inputText}!important}`,
     `${s} select option{background-color:${v.inputBackground};color:${v.inputText}}`,
     `${s} input:focus,${s} select:focus,${s} textarea:focus{border-color:${v.inputFocusRing}!important}`,
-    `${s} .bg-blue-50,${s} .bg-emerald-50,${s} .bg-amber-50,${s} .bg-red-50{background-color:${v.contentBackground}!important}`,
+    // Semantic state backgrounds
+    `${s} .bg-red-50{background-color:${v.dangerBg}!important}`,
+    `${s} .bg-orange-50{background-color:${v.warningBg}!important}`,
+    `${s} .bg-amber-50{background-color:${v.warningBg}!important}`,
+    `${s} .bg-emerald-50{background-color:${v.successBg}!important}`,
+    `${s} .bg-blue-50{background-color:${v.infoBg}!important}`,
+    `${s} .bg-violet-50{background-color:${v.infoBg}!important}`,
+    // Semantic text colors
+    `${s} .text-red-500,${s} .text-red-600,${s} .text-red-700{color:${v.danger}!important}`,
+    `${s} .text-orange-500,${s} .text-orange-600{color:${v.warning}!important}`,
+    `${s} .text-amber-500,${s} .text-amber-700{color:${v.warning}!important}`,
+    `${s} .text-emerald-500,${s} .text-emerald-600,${s} .text-emerald-700{color:${v.success}!important}`,
+    `${s} .text-blue-500,${s} .text-blue-600,${s} .text-blue-700{color:${v.info}!important}`,
+    `${s} .text-violet-500,${s} .text-violet-600{color:${v.info}!important}`,
+    // Semantic solid backgrounds (dots, badges)
+    `${s} .bg-red-500{background-color:${v.dotUrgent}!important}`,
+    `${s} .bg-orange-500{background-color:${v.dotHigh}!important}`,
+    `${s} .bg-amber-400{background-color:${v.dotMedium}!important}`,
+    `${s} .bg-emerald-400{background-color:${v.success}!important}`,
+    `${s} .bg-emerald-500{background-color:${v.progressDone}!important}`,
+    // Semantic borders
+    `${s} .border-red-100{border-color:${v.dangerBg}!important}`,
+    `${s} .border-orange-100{border-color:${v.warningBg}!important}`,
+    `${s} .border-emerald-100{border-color:${v.successBg}!important}`,
+    `${s} .border-blue-100{border-color:${v.infoBg}!important}`,
     `html[data-skin="custom"]{--color-background:${v.pageBackground};--color-foreground:${v.textPrimary};--color-card:${v.cardBackground};--color-card-foreground:${v.cardText};--color-border:${v.cardBorder};--color-muted:${v.contentBackground};--color-muted-foreground:${v.textMuted}}`,
   ].join("\n");
 }
