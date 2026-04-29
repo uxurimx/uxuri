@@ -234,7 +234,7 @@ function AccountModal({
         initialBalance: parseFloat(initialBalance) || 0,
         icon,
         color,
-        notes: notes.trim() || null,
+        notes: notes.trim() || undefined,
         isActive,
         businessId: businessId || null,
       };
