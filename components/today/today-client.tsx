@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sun, Flag, Folder, CheckCircle2, X, Pin, AlertCircle, Target, ChevronRight, Clock, Play, Timer, Repeat2, BookOpen, CalendarDays, RefreshCw } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { startTimer } from "@/components/timer/active-timer";
+import { getPusherClient } from "@/lib/pusher";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -133,6 +134,21 @@ export function TodayClient({
   const [focusTasks, setFocusTasks] = useState<FocusTask[]>(initialFocus);
   const [pinLimitHit, setPinLimitHit] = useState(false);
   const [habits, setHabits] = useState<TodayHabit[]>(initialHabits);
+
+  useEffect(() => {
+    const pusher = getPusherClient();
+    const ch = pusher.subscribe("tasks-global");
+    const refresh = () => router.refresh();
+    ch.bind("task:created", refresh);
+    ch.bind("task:updated", refresh);
+    ch.bind("task:deleted", refresh);
+    return () => {
+      ch.unbind("task:created", refresh);
+      ch.unbind("task:updated", refresh);
+      ch.unbind("task:deleted", refresh);
+      pusher.unsubscribe("tasks-global");
+    };
+  }, [router]);
 
   const focusTaskIds = new Set(focusTasks.map((f) => f.taskId));
   const canPin = focusTasks.length < 3;

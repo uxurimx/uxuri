@@ -5,6 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { JournalEditor } from "@/components/journal/journal-editor";
 import { todayStr as getTodayStr } from "@/lib/date";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Diario — Uxuri" };
 
 interface Props {

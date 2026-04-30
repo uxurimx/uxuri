@@ -8,6 +8,7 @@ import { eq, and, or, lt, not, sql, gte, ne } from "drizzle-orm";
 import { TodayClient } from "@/components/today/today-client";
 import { todayStr as getTodayStr, startOfLocalDay, startOfLocalWeek } from "@/lib/date";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Hoy — Uxuri" };
 
 export default async function TodayPage() {
