@@ -61,7 +61,7 @@ function formatAmount(amount: string, currency: string) {
 }
 
 function todayISO() {
-  return new Date().toISOString().split("T")[0];
+  return new Intl.DateTimeFormat("en-CA").format(new Date());
 }
 
 // Returns days until due (negative = overdue)

@@ -318,7 +318,7 @@ function ActivityTimeline({ events, loading }: { events: ActivityEvent[]; loadin
 // ─────────────────────────────────────────────────────────────────────────────
 
 function today() {
-  return new Date().toISOString().split("T")[0];
+  return new Intl.DateTimeFormat("en-CA").format(new Date());
 }
 
 export function TaskModal({
@@ -552,7 +552,7 @@ export function TaskModal({
     if (!task) return;
     setPinningToday(true);
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = new Intl.DateTimeFormat("en-CA").format(new Date());
       const res = await fetch("/api/daily-focus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

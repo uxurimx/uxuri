@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { timeBlocks, tasks, projects } from "@/db/schema";
 import { eq, and, or, ne } from "drizzle-orm";
 import { ScheduleClient } from "@/components/schedule/schedule-client";
+import { todayStr as getTodayStr } from "@/lib/date";
 
 export const metadata = { title: "Agenda — Uxuri" };
 
@@ -14,7 +15,7 @@ export default async function SchedulePage({ searchParams }: Props) {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayStr();
   const { date } = await searchParams;
   const dateStr = date ?? todayStr;
 

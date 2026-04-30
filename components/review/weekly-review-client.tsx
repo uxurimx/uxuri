@@ -66,10 +66,12 @@ function getNextWeek(weekStart: string) {
   return d.toISOString().split("T")[0];
 }
 function getCurrentWeekStart() {
-  const d = new Date();
+  // Usa la fecha LOCAL del browser, no UTC
+  const today = new Intl.DateTimeFormat("en-CA").format(new Date()); // "YYYY-MM-DD" local
+  const d = new Date(today + "T12:00:00");
   const dow = d.getDay();
   d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-  return d.toISOString().split("T")[0];
+  return new Intl.DateTimeFormat("en-CA").format(d);
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────

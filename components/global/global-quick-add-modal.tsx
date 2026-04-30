@@ -232,7 +232,7 @@ export function GlobalQuickAddModal() {
         const amount = parseFloat(payAmount.replace(",", "."));
         const desc = payDesc.trim();
         if (!amount || amount <= 0 || !desc || !payAccountId) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = new Intl.DateTimeFormat("en-CA").format(new Date());
         const res = await fetch("/api/transactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

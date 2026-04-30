@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { journalEntries } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { JournalEditor } from "@/components/journal/journal-editor";
+import { todayStr as getTodayStr } from "@/lib/date";
 
 export const metadata = { title: "Diario — Uxuri" };
 
@@ -15,7 +16,7 @@ export default async function JournalPage({ searchParams }: Props) {
   if (!userId) return null;
 
   const { date } = await searchParams;
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayStr();
   const dateStr = date ?? todayStr;
 
   const [entry, recentEntries] = await Promise.all([

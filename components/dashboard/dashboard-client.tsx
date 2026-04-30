@@ -277,7 +277,7 @@ const priorityDotColor: Record<string, string> = {
 };
 
 function ProjectsWidget({ projects }: { projects: ActiveProject[] }) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Intl.DateTimeFormat("en-CA").format(new Date());
   return (
     <WidgetShell id="projects" label="Proyectos activos" icon={Folder} count={projects.length}>
       {projects.length === 0 ? (

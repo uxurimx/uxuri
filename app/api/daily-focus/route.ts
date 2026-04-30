@@ -4,13 +4,14 @@ import { db } from "@/db";
 import { dailyFocus, tasks, projects } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
+import { todayStr } from "@/lib/date";
 
 export async function GET(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
+  const date = searchParams.get("date") ?? todayStr();
 
   const rows = await db
     .select({

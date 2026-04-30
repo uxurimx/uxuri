@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { canAccess } from "@/lib/access";
+import { localDateStr } from "@/lib/date";
 
 const updatePaymentSchema = z.object({
   concept: z.string().min(1).max(500).optional(),
@@ -86,7 +87,7 @@ export async function PATCH(
       amount: paidAmount,
       currency: (paidCurrency as "MXN" | "USD" | "EUR"),
       description: `${concept} — ${project.name}`,
-      date: paidAt.toISOString().split("T")[0],
+      date: localDateStr(paidAt),
       status: "completed",
       clientId: currentPayment.clientId ?? project.clientId,
       projectId: id,

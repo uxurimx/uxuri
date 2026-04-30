@@ -4,6 +4,7 @@ import { habits, habitLogs } from "@/db/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { todayStr, daysAgoStr } from "@/lib/date";
 
 const createSchema = z.object({
   title: z.string().min(1).max(255),
@@ -20,12 +21,8 @@ export async function GET(req: Request) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const dateParam = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
-
-  // Last 30 days for streak computation
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyStr = thirtyDaysAgo.toISOString().split("T")[0];
+  const dateParam = searchParams.get("date") ?? todayStr();
+  const thirtyStr = daysAgoStr(30);
 
   const [allHabits, recentLogs] = await Promise.all([
     db.select().from(habits)
@@ -42,26 +39,17 @@ export async function GET(req: Request) {
     // Today's status
     const doneToday = logDates.has(dateParam);
 
-    // Last 7 days for mini heatmap
     const last7: { date: string; done: boolean }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const ds = d.toISOString().split("T")[0];
+      const ds = daysAgoStr(i);
       last7.push({ date: ds, done: logDates.has(ds) });
     }
 
-    // Streak: count consecutive days going backward from today
     let streak = 0;
-    let checkDate = new Date();
-    while (true) {
-      const ds = checkDate.toISOString().split("T")[0];
-      if (logDates.has(ds)) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
+    while (streak < 30) {
+      const ds = daysAgoStr(streak);
+      if (logDates.has(ds)) streak++;
+      else break;
     }
 
     return { ...habit, doneToday, last7, streak };
