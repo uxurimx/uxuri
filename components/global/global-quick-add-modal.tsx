@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   X, CheckSquare, StickyNote, FolderOpen, Target, Search,
-  CheckCircle, Loader2, ArrowDownLeft, ArrowUpRight, Wallet,
+  CheckCircle, Loader2, ArrowDownLeft, ArrowUpRight, Wallet, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGlobalQuickAdd, type QuickAddTab } from "./global-quick-add-provider";
@@ -50,6 +50,16 @@ export function GlobalQuickAddModal() {
   const [projectStatus, setProjectStatus] = useState("planning");
   const [horizon, setHorizon] = useState("");
 
+  // Task extras
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskProjectId, setTaskProjectId] = useState("");
+  const [showTaskAdvanced, setShowTaskAdvanced] = useState(false);
+  const [taskProjects, setTaskProjects] = useState<{ id: string; name: string }[]>([]);
+
+  // Project extras
+  const [projectDescription, setProjectDescription] = useState("");
+  const [showProjectAdvanced, setShowProjectAdvanced] = useState(false);
+
   // Payment form state
   const [payAmount, setPayAmount] = useState("");
   const [payType, setPayType] = useState<"income" | "expense">("expense");
@@ -68,6 +78,7 @@ export function GlobalQuickAddModal() {
 
   // Refs for autofocus
   const titleRef = useRef<HTMLInputElement>(null);
+  const taskDescRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Reset all form state when modal closes
@@ -84,8 +95,22 @@ export function GlobalQuickAddModal() {
       setPayAmount("");
       setPayType("expense");
       setPayDesc("");
+      setTaskDescription("");
+      setTaskProjectId("");
+      setShowTaskAdvanced(false);
+      setProjectDescription("");
+      setShowProjectAdvanced(false);
     }
   }, [isOpen]);
+
+  // Load projects when task tab is active
+  useEffect(() => {
+    if (activeTab !== "task" || taskProjects.length > 0) return;
+    fetch("/api/projects")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { id: string; name: string }[]) => setTaskProjects(data));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // Load accounts when payment tab is active
   useEffect(() => {
@@ -109,6 +134,7 @@ export function GlobalQuickAddModal() {
     if (!isOpen) return;
     const timer = setTimeout(() => {
       if (activeTab === "search") searchRef.current?.focus();
+      else if (activeTab === "task") taskDescRef.current?.focus();
       else titleRef.current?.focus();
     }, 60);
     return () => clearTimeout(timer);
@@ -158,7 +184,13 @@ export function GlobalQuickAddModal() {
         const res = await fetch("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: t, priority, status: "todo" }),
+          body: JSON.stringify({
+            title: t,
+            priority,
+            status: "todo",
+            projectId: taskProjectId || null,
+            description: taskDescription.trim() || null,
+          }),
         });
         if (res.ok) showSuccess(`Tarea "${t}" creada`);
 
@@ -178,7 +210,11 @@ export function GlobalQuickAddModal() {
         const res = await fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: n, status: projectStatus }),
+          body: JSON.stringify({
+            name: n,
+            status: projectStatus,
+            description: projectDescription.trim() || undefined,
+          }),
         });
         if (res.ok) showSuccess(`Proyecto "${n}" creado`);
 
@@ -348,16 +384,47 @@ export function GlobalQuickAddModal() {
                   placeholder="Título de la tarea"
                   className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
                 />
+                <textarea
+                  ref={taskDescRef}
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  placeholder="¿Qué necesitas hacer? Agrega contexto..."
+                  rows={3}
+                  className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 resize-none"
+                />
                 <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
+                  value={taskProjectId}
+                  onChange={(e) => setTaskProjectId(e.target.value)}
                   className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
                 >
-                  <option value="low">Prioridad: Baja</option>
-                  <option value="medium">Prioridad: Media</option>
-                  <option value="high">Prioridad: Alta</option>
-                  <option value="urgent">Prioridad: Urgente</option>
+                  <option value="">📥 Bandeja de entrada</option>
+                  {taskProjects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTaskAdvanced((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", showTaskAdvanced && "rotate-180")} />
+                  Opciones avanzadas
+                </button>
+
+                {showTaskAdvanced && (
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                  >
+                    <option value="low">Prioridad: Baja</option>
+                    <option value="medium">Prioridad: Media</option>
+                    <option value="high">Prioridad: Alta</option>
+                    <option value="urgent">Prioridad: Urgente</option>
+                  </select>
+                )}
+
                 <SubmitButton label="Crear tarea" loading={loading} disabled={!title.trim()} onClick={handleCreate} />
               </div>
             )}
@@ -394,15 +461,37 @@ export function GlobalQuickAddModal() {
                   placeholder="Nombre del proyecto"
                   className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 focus:border-[#1e3a5f]"
                 />
-                <select
-                  value={projectStatus}
-                  onChange={(e) => setProjectStatus(e.target.value)}
-                  className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                <textarea
+                  value={projectDescription}
+                  onChange={(e) => setProjectDescription(e.target.value)}
+                  placeholder="Descripción del proyecto (opcional)"
+                  rows={3}
+                  className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 resize-none"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowProjectAdvanced((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  <option value="planning">Estado: Planificación</option>
-                  <option value="active">Estado: Activo</option>
-                  <option value="paused">Estado: Pausado</option>
-                </select>
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", showProjectAdvanced && "rotate-180")} />
+                  Opciones avanzadas
+                </button>
+
+                {showProjectAdvanced && (
+                  <select
+                    value={projectStatus}
+                    onChange={(e) => setProjectStatus(e.target.value)}
+                    className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                  >
+                    <option value="planning">Estado: Planificación</option>
+                    <option value="active">Estado: Activo</option>
+                    <option value="paused">Estado: Pausado</option>
+                    <option value="completed">Estado: Completado</option>
+                    <option value="cancelled">Estado: Cancelado</option>
+                  </select>
+                )}
+
                 <SubmitButton label="Crear proyecto" loading={loading} disabled={!title.trim()} onClick={handleCreate} />
               </div>
             )}
