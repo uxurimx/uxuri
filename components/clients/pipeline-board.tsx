@@ -121,7 +121,7 @@ function QuickAddModal({ businesses, onAdded, onClose }: {
         pipelineStage: form.pipelineStage,
         estimatedValue: form.estimatedValue || undefined,
         notes: form.notes || undefined,
-        firstContactDate: new Date().toISOString().split("T")[0],
+        firstContactDate: new Intl.DateTimeFormat("en-CA").format(new Date()),
         status: "prospect",
       }),
     });
@@ -411,7 +411,7 @@ function MktLeadCard({ lead, businesses, onConverted }: {
         sourceChannel: "otro",
         sourceBusinessId: bizId || undefined,
         status: "prospect",
-        firstContactDate: new Date().toISOString().split("T")[0],
+        firstContactDate: new Intl.DateTimeFormat("en-CA").format(new Date()),
       }),
     });
     if (res.ok) {

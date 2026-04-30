@@ -6,17 +6,20 @@ import {
 } from "@/db/schema";
 import { eq, and, or, lt, not, sql, gte, ne } from "drizzle-orm";
 import { TodayClient } from "@/components/today/today-client";
+import { todayStr as getTodayStr, startOfLocalDay, startOfLocalWeek } from "@/lib/date";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Hoy — Uxuri" };
 
 export default async function TodayPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const today = getTodayStr();
 
   const formatted = new Intl.DateTimeFormat("es-ES", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
+    timeZone: process.env.APP_TIMEZONE,
   }).format(new Date());
 
   const [
@@ -49,7 +52,7 @@ export default async function TodayPage() {
       .from(dailyFocus)
       .innerJoin(tasks, eq(dailyFocus.taskId, tasks.id))
       .leftJoin(projects, eq(tasks.projectId, projects.id))
-      .where(and(eq(dailyFocus.userId, userId), eq(dailyFocus.date, todayStr)))
+      .where(and(eq(dailyFocus.userId, userId), eq(dailyFocus.date, today)))
       .orderBy(dailyFocus.sortOrder, dailyFocus.createdAt),
 
     // Tasks due today (not done, mine)
@@ -67,7 +70,7 @@ export default async function TodayPage() {
       .where(
         and(
           or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId)),
-          eq(tasks.dueDate, todayStr),
+          eq(tasks.dueDate, today),
           not(sql`${tasks.status} = 'done'`),
         )
       )
@@ -90,7 +93,7 @@ export default async function TodayPage() {
       .where(
         and(
           or(eq(tasks.createdBy, userId), eq(tasks.assignedTo, userId)),
-          lt(tasks.dueDate, todayStr),
+          lt(tasks.dueDate, today),
           not(sql`${tasks.status} = 'done'`),
         )
       )
@@ -116,17 +119,13 @@ export default async function TodayPage() {
       .orderBy(habits.sortOrder, habits.createdAt),
 
     db.select().from(habitLogs)
-      .where(and(eq(habitLogs.userId, userId), eq(habitLogs.date, todayStr))),
+      .where(and(eq(habitLogs.userId, userId), eq(habitLogs.date, today))),
   ]);
 
-  // Time stats
-  const now = new Date();
-  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
-  const dow = now.getDay();
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
-  weekStart.setHours(0, 0, 0, 0);
+  // Time stats — usando zona horaria local
+  const todayStart = startOfLocalDay();
+  const todayEnd = new Date(todayStart.getTime() + 24 * 3600 * 1000 - 1);
+  const weekStart = startOfLocalWeek();
 
   const [todaySessionRows, weekSessionRows] = await Promise.all([
     db.select({ elapsedSeconds: timeSessions.elapsedSeconds })
@@ -178,7 +177,7 @@ export default async function TodayPage() {
   return (
     <TodayClient
       userName={userRow?.name ?? ""}
-      todayStr={todayStr}
+      todayStr={today}
       formattedDate={formatted}
       focusTasks={focusRows}
       dueTodayTasks={dueTodayRows}

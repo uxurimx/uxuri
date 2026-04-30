@@ -28,6 +28,8 @@ type ActiveProject = {
   id: string;
   name: string;
   priority: string;
+  category: string | null;
+  endDate: string | null;
   totalTasks: number;
   doneTasks: number;
 };
@@ -78,16 +80,16 @@ function loadWidgets(userId: string): WidgetId[] {
 
 // ── Shared sub-components ──────────────────────────────────────────────────
 
-const PRIORITY_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  urgent: { label: "Urgente", color: "text-red-600",    dot: "bg-red-500" },
-  high:   { label: "Alta",    color: "text-orange-500", dot: "bg-orange-500" },
-  medium: { label: "Media",   color: "text-amber-500",  dot: "bg-amber-400" },
-  low:    { label: "Baja",    color: "text-slate-400",  dot: "bg-slate-300" },
+const PRIORITY_CONFIG: Record<string, { label: string; textColor: string; dotColor: string }> = {
+  urgent: { label: "Urgente", textColor: "var(--skin-danger)",   dotColor: "var(--skin-dot-urgent)" },
+  high:   { label: "Alta",    textColor: "var(--skin-warning)",  dotColor: "var(--skin-dot-high)" },
+  medium: { label: "Media",   textColor: "var(--skin-warning)",  dotColor: "var(--skin-dot-medium)" },
+  low:    { label: "Baja",    textColor: "var(--skin-text-muted)", dotColor: "var(--skin-dot-low)" },
 };
 
 function PriorityDot({ priority }: { priority: string }) {
   const cfg = PRIORITY_CONFIG[priority] ?? PRIORITY_CONFIG.medium;
-  return <span className={cn("w-2 h-2 rounded-full flex-shrink-0", cfg.dot)} title={cfg.label} />;
+  return <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.dotColor }} title={cfg.label} />;
 }
 
 function EmptyState({ label }: { label: string }) {
@@ -184,7 +186,7 @@ function UrgentWidget({ tasks }: { tasks: PendingTask[] }) {
                 <Link href="/tasks" className="flex-1 text-sm text-slate-700 truncate hover:text-[#1e3a5f] transition-colors">
                   {t.title}
                 </Link>
-                <span className={cn("text-[10px] font-semibold flex-shrink-0", cfg.color)}>
+                <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: cfg.textColor }}>
                   {cfg.label}
                 </span>
               </li>
@@ -267,39 +269,72 @@ function CompletedTodayWidget({
   );
 }
 
+const priorityDotColor: Record<string, string> = {
+  urgent: "var(--skin-dot-urgent)",
+  high:   "var(--skin-dot-high)",
+  medium: "var(--skin-dot-medium)",
+  low:    "var(--skin-dot-low)",
+};
+
 function ProjectsWidget({ projects }: { projects: ActiveProject[] }) {
+  const todayStr = new Intl.DateTimeFormat("en-CA").format(new Date());
   return (
     <WidgetShell id="projects" label="Proyectos activos" icon={Folder} count={projects.length}>
       {projects.length === 0 ? (
         <EmptyState label="Sin proyectos activos" />
       ) : (
-        <ul className="space-y-3">
-          {projects.map((p) => {
-            const pct = p.totalTasks > 0 ? Math.round((p.doneTasks / p.totalTasks) * 100) : 0;
-            const pending = p.totalTasks - p.doneTasks;
-            return (
-              <li key={p.id}>
-                <Link href={`/projects/${p.id}`} className="group block">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-slate-700 truncate group-hover:text-[#1e3a5f] transition-colors">
-                      {p.name}
-                    </span>
-                    <span className="text-[10px] text-slate-400 flex-shrink-0 ml-2">
-                      {pending > 0 ? `${pending} pendientes` : "completado"}
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all", pct >= 100 ? "bg-emerald-500" : "bg-[#1e3a5f]")}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{pct}% completado</p>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="space-y-3">
+            {projects.map((p) => {
+              const pct = p.totalTasks > 0 ? Math.round((p.doneTasks / p.totalTasks) * 100) : 0;
+              const pending = p.totalTasks - p.doneTasks;
+              const isOverdue = p.endDate && p.endDate < todayStr;
+              return (
+                <li key={p.id}>
+                  <Link href={`/projects/${p.id}`} className="group block">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: priorityDotColor[p.priority] ?? "var(--skin-dot-low)" }} />
+                      <span className="text-sm font-medium text-slate-700 truncate flex-1 group-hover:text-[#1e3a5f] transition-colors">
+                        {p.name}
+                      </span>
+                      <span className={cn("text-[10px] flex-shrink-0", isOverdue ? "text-red-500 font-medium" : "text-slate-400")}>
+                        {isOverdue
+                          ? `⚠ ${formatDate(p.endDate!)}`
+                          : p.endDate
+                          ? formatDate(p.endDate)
+                          : pending > 0
+                          ? `${pending} pend.`
+                          : "✓"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 pl-4">
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--skin-progress-track)" }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? "var(--skin-progress-done)" : "var(--skin-progress-bar)" }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {p.doneTasks}/{p.totalTasks || "0"} · {pct}%
+                      </span>
+                    </div>
+                    {p.category && (
+                      <p className="text-[10px] text-slate-400 mt-0.5 pl-4">{p.category}</p>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <Link
+              href="/projects?status=active"
+              className="text-xs text-[#1e3a5f] hover:underline flex items-center gap-1"
+            >
+              Ver todos los proyectos activos <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </>
       )}
     </WidgetShell>
   );

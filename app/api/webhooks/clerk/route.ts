@@ -2,9 +2,35 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { WebhookEvent, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { DEFAULT_ROLE_SEEDS } from "@/lib/permissions";
+
+/** Siembra roles por defecto si la tabla está vacía */
+async function seedDefaultRolesIfEmpty() {
+  const [anyRole] = await db.select({ id: roles.id }).from(roles).limit(1);
+  if (anyRole) return;
+
+  for (const seed of DEFAULT_ROLE_SEEDS) {
+    await db.insert(roles).values({
+      name: seed.name,
+      label: seed.label,
+      permissions: [...seed.permissions],
+      isDefault: seed.isDefault,
+    }).onConflictDoNothing();
+  }
+}
+
+/** Devuelve el nombre del rol marcado como default, o "client" como fallback */
+async function getDefaultRoleName(): Promise<string> {
+  const [defaultRole] = await db
+    .select({ name: roles.name })
+    .from(roles)
+    .where(eq(roles.isDefault, true))
+    .limit(1);
+  return defaultRole?.name ?? "client";
+}
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
@@ -48,11 +74,13 @@ export async function POST(req: Request) {
     console.log("[webhook] user.created:", { id, email, name });
 
     // El primer usuario que se registra se convierte en admin automáticamente
-    const [existingAdmin] = await db
-      .select({ id: users.id })
-      .from(users)
-      .limit(1);
-    const role = existingAdmin ? "client" : "admin";
+    const [existingUser] = await db.select({ id: users.id }).from(users).limit(1);
+    const isFirstUser = !existingUser;
+
+    // Sembrar roles por defecto si no existen
+    await seedDefaultRolesIfEmpty();
+
+    const role = isFirstUser ? "admin" : await getDefaultRoleName();
 
     await db.insert(users).values({
       id, email, name, imageUrl: image_url, role,

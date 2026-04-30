@@ -6,9 +6,13 @@ import { getRole } from "@/lib/auth";
 import { getActiveWorkspaceId } from "@/lib/workspace";
 import { ProjectsHeader } from "@/components/projects/projects-header";
 import { ProjectsList } from "@/components/projects/projects-list";
-import { ProjectStats, type UpcomingProject } from "@/components/projects/project-stats";
+import { ProjectStats, type UpcomingProject, type OverdueProject } from "@/components/projects/project-stats";
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage(props: {
+  searchParams?: Promise<Record<string, string>>;
+}) {
+  const sp = props.searchParams ? await props.searchParams : {} as Record<string, string>;
+
   const { userId } = await auth();
   if (!userId) return null;
 
@@ -43,6 +47,8 @@ export default async function ProjectsPage() {
     nextCycleAt: projects.nextCycleAt,
     momentum: projects.momentum,
     workspaceId: projects.workspaceId,
+    totalAmount: projects.totalAmount,
+    currency: projects.currency,
   } as const;
 
   // Businesses for project selector
@@ -144,13 +150,32 @@ export default async function ProjectsPage() {
   const active = allProjects.filter((p) => p.status === "active").length;
   const planning = allProjects.filter((p) => p.status === "planning").length;
   const completed = allProjects.filter((p) => p.status === "completed").length;
-  const overdue = allProjects.filter(
+
+  const overdueList = allProjects.filter(
     (p) =>
       p.endDate &&
       new Date(p.endDate) < today &&
       p.status !== "completed" &&
       p.status !== "cancelled"
+  );
+  const overdue = overdueList.length;
+
+  const overdueProjects: OverdueProject[] = overdueList
+    .sort((a, b) => new Date(a.endDate!).getTime() - new Date(b.endDate!).getTime())
+    .map((p) => ({ id: p.id, name: p.name, endDate: p.endDate!, priority: p.priority }));
+
+  const noDateCount = allProjects.filter(
+    (p) => !p.endDate && p.status !== "completed" && p.status !== "cancelled"
   ).length;
+
+  const totalActiveBudget = allProjects
+    .filter((p) => p.status === "active")
+    .reduce((sum, p) => sum + Number((p as { totalAmount?: string | null }).totalAmount ?? 0), 0);
+
+  const primaryCurrency = allProjects.find(
+    (p) => p.status === "active" && (p as { currency?: string | null }).currency
+  ) as { currency?: string | null } | undefined;
+  const currency = (primaryCurrency?.currency) ?? "MXN";
 
   const upcoming: UpcomingProject[] = allProjects
     .filter(
@@ -173,6 +198,8 @@ export default async function ProjectsPage() {
       doneCount: p.doneCount,
     }));
 
+  const activeFilter = sp.status ?? "active";
+
   return (
     <div className="space-y-6">
       <ProjectsHeader />
@@ -183,6 +210,11 @@ export default async function ProjectsPage() {
         completed={completed}
         overdue={overdue}
         upcoming={upcoming}
+        overdueProjects={overdueProjects}
+        totalActiveBudget={totalActiveBudget}
+        noDateCount={noDateCount}
+        currency={currency}
+        activeFilter={activeFilter}
       />
       <ProjectsList
         projects={allProjects}
@@ -190,6 +222,17 @@ export default async function ProjectsPage() {
         objectives={allObjectives}
         businesses={allBusinesses}
         currentUserId={userId}
+        initialFilters={{
+          status: sp.status,
+          priority: sp.priority,
+          range: sp.range,
+          privacy: sp.privacy,
+          owner: sp.owner,
+          clientId: sp.client,
+          category: sp.category,
+          search: sp.q,
+          sort: sp.sort,
+        }}
       />
     </div>
   );

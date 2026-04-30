@@ -3,14 +3,18 @@ import { db } from "@/db";
 import { weeklyReviews, tasks, timeSessions, habitLogs, objectives } from "@/db/schema";
 import { eq, and, gte, lt, ne } from "drizzle-orm";
 import { WeeklyReviewClient } from "@/components/review/weekly-review-client";
+import { todayStr as getTodayStr } from "@/lib/date";
 
 export const metadata = { title: "Revisión semanal — Uxuri" };
 
 function getWeekStart(dateStr?: string): string {
-  const d = dateStr ? new Date(dateStr + "T12:00:00") : new Date();
+  // Si no hay dateStr, usamos la fecha LOCAL del servidor (no UTC)
+  const base = dateStr ?? getTodayStr();
+  const d = new Date(base + "T12:00:00");
   const dow = d.getDay();
   d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-  return d.toISOString().split("T")[0];
+  // Resultado es aritmética de fecha pura — T12:00:00 garantiza que toISOString da el día correcto
+  return new Intl.DateTimeFormat("en-CA").format(d);
 }
 
 interface Props {
@@ -26,7 +30,7 @@ export default async function ReviewPage({ searchParams }: Props) {
   const weekStartDate = new Date(weekStart + "T00:00:00");
   const weekEndDate = new Date(weekStart + "T00:00:00");
   weekEndDate.setDate(weekEndDate.getDate() + 7);
-  const weekEndStr = weekEndDate.toISOString().split("T")[0];
+  const weekEndStr = new Intl.DateTimeFormat("en-CA").format(weekEndDate);
 
   const [reviewRow, doneTasks, timeSessionRows, habitLogRows, activeObjs] = await Promise.all([
     db.select().from(weeklyReviews)

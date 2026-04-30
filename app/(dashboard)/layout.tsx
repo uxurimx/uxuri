@@ -3,8 +3,8 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { MobileTopActions } from "@/components/dashboard/mobile-top-actions";
-import { getUserRoleData } from "@/lib/auth";
 import { RouteGuard } from "@/components/dashboard/route-guard";
+import { getUserRoleData, augmentPermissions } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/toast";
 import { NotificationListener } from "@/components/notifications/notification-listener";
 import { PwaRegister } from "@/components/pwa-register";
@@ -28,13 +28,12 @@ export default async function DashboardLayout({
           <Sidebar permissions={permissions} currentUserId={userId ?? ""} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <Topbar />
-            <main className="flex-1 overflow-y-auto p-4 pt-12 pb-20 md:pt-4 md:pb-6 md:p-6 lg:p-8">
+            <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-6 md:p-6 lg:p-8">
               <ScrollReset />
               {children}
             </main>
           </div>
           <MobileNav permissions={permissions} currentUserId={userId ?? ""} />
-          <MobileTopActions />
         </div>
         {userId && <NotificationListener userId={userId} />}
         <PwaRegister />

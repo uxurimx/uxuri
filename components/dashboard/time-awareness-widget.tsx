@@ -4,10 +4,10 @@ import { Clock } from "lucide-react";
 
 function ProgressBar({ pct, color }: { pct: number; color: string }) {
   return (
-    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--skin-progress-track)" }}>
       <div
-        className={`h-full rounded-full transition-all ${color}`}
-        style={{ width: `${pct}%` }}
+        className="h-full rounded-full transition-all"
+        style={{ width: `${pct}%`, backgroundColor: color }}
       />
     </div>
   );
@@ -58,7 +58,7 @@ export function TimeAwarenessWidget() {
             <span className="text-xs text-slate-600 font-medium">{now.getFullYear()}</span>
             <span className="text-xs text-slate-500">Día {dayOfYear} de {daysInYear} · <span className="font-semibold text-slate-700">{yearPct}%</span></span>
           </div>
-          <ProgressBar pct={yearPct} color={yearPct > 75 ? "bg-orange-400" : yearPct > 50 ? "bg-amber-400" : "bg-[#1e3a5f]"} />
+          <ProgressBar pct={yearPct} color={yearPct > 75 ? "var(--skin-danger)" : yearPct > 50 ? "var(--skin-warning)" : "var(--skin-progress-bar)"} />
         </div>
 
         {/* Month */}
@@ -67,7 +67,7 @@ export function TimeAwarenessWidget() {
             <span className="text-xs text-slate-600 font-medium">{monthNames[now.getMonth()]}</span>
             <span className="text-xs text-slate-500">Día {now.getDate()} de {daysInMonth} · <span className="font-semibold text-slate-700">{monthPct}%</span></span>
           </div>
-          <ProgressBar pct={monthPct} color="bg-violet-400" />
+          <ProgressBar pct={monthPct} color="var(--skin-info)" />
         </div>
 
         {/* Week */}
@@ -76,7 +76,7 @@ export function TimeAwarenessWidget() {
             <span className="text-xs text-slate-600 font-medium">{dayNames[dow]}, semana {weekNumber}</span>
             <span className="text-xs text-slate-500"><span className="font-semibold text-slate-700">{weekPct}%</span> de la semana</span>
           </div>
-          <ProgressBar pct={weekPct} color="bg-emerald-400" />
+          <ProgressBar pct={weekPct} color="var(--skin-success)" />
         </div>
       </div>
 

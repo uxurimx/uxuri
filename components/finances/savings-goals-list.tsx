@@ -261,7 +261,7 @@ function ContributeModal({
   onClose: () => void;
   onSuccess: (amount: number) => void;
 }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Intl.DateTimeFormat("en-CA").format(new Date());
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today);
   const [note, setNote] = useState("");
@@ -430,7 +430,7 @@ function GoalCard({
   function handleContributed(amount: number) {
     onUpdate({ ...goal, savedAmount: saved + amount });
     if (contributions !== null) {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Intl.DateTimeFormat("en-CA").format(new Date());
       setContributions([...contributions, {
         id: crypto.randomUUID(),
         goalId: goal.id,

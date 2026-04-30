@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RoleRecord } from "@/db/schema/roles";
-import { SECTIONS } from "@/lib/permissions";
-import { Plus, Pencil, Trash2, Check, Shield } from "lucide-react";
+import { SECTIONS, SECTION_GROUP_LABELS, type SectionGroup } from "@/lib/permissions";
+import { Plus, Pencil, Trash2, Check, Shield, Sparkles, Info } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type FormState = {
   name: string;
@@ -15,12 +16,15 @@ type FormState = {
 
 const emptyForm: FormState = { name: "", label: "", permissions: ["/dashboard"], isDefault: false };
 
+const GROUPS_ORDER: SectionGroup[] = ["core", "personal", "trabajo", "negocio", "sistema"];
+
 export function RolesTab({ initialRoles }: { initialRoles: RoleRecord[] }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<RoleRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function openCreate() {
@@ -84,26 +88,66 @@ export function RolesTab({ initialRoles }: { initialRoles: RoleRecord[] }) {
     }
   }
 
+  async function handleSeed() {
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/roles/seed", { method: "POST" });
+      if (res.ok) router.refresh();
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  const sectionsByGroup = GROUPS_ORDER.map((group) => ({
+    group,
+    label: SECTION_GROUP_LABELS[group],
+    sections: SECTIONS.filter((s) => s.group === group),
+  }));
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-slate-500">
           Define qué secciones puede ver cada rol. Asigna roles a usuarios en la pestaña Usuarios.
         </p>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo rol
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+            title="Crea admin, manager y cliente si no existen"
+          >
+            <Sparkles className="w-4 h-4" />
+            {seeding ? "Creando..." : "Roles por defecto"}
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#162d4a] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo rol
+          </button>
+        </div>
       </div>
+
+      {/* Aviso cuando no hay roles */}
+      {initialRoles.length === 0 && !showForm && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-900">No hay roles configurados</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Los nuevos usuarios no pueden ver ningún menú. Usa <strong>Roles por defecto</strong> para crear admin, manager y cliente en un clic.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Formulario crear/editar */}
       {showForm && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
           <h3 className="font-semibold text-slate-900">
-            {editing ? "Editar rol" : "Crear rol"}
+            {editing ? `Editar: ${editing.label}` : "Crear rol"}
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -121,9 +165,7 @@ export function RolesTab({ initialRoles }: { initialRoles: RoleRecord[] }) {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nombre visible
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Nombre visible</label>
               <input
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
@@ -133,30 +175,52 @@ export function RolesTab({ initialRoles }: { initialRoles: RoleRecord[] }) {
             </div>
           </div>
 
+          {/* Permisos agrupados */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-sm font-medium text-slate-700 mb-3">
               Secciones accesibles
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {SECTIONS.map((section) => {
-                const checked = form.permissions.includes(section.path);
-                return (
-                  <button
-                    key={section.path}
-                    type="button"
-                    onClick={() => togglePermission(section.path)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      checked
-                        ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {checked && <Check className="w-3.5 h-3.5" />}
-                    {section.label}
-                  </button>
-                );
-              })}
+            <div className="space-y-4">
+              {sectionsByGroup.map(({ group, label, sections }) => (
+                <div key={group}>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                    {label}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {sections.map((section) => {
+                      const checked = form.permissions.includes(section.path);
+                      const isAuto = !!section.autoFrom && form.permissions.includes(section.autoFrom);
+                      return (
+                        <button
+                          key={section.path}
+                          type="button"
+                          onClick={() => togglePermission(section.path)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors text-left",
+                            checked
+                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                              : isAuto
+                              ? "bg-slate-50 text-slate-500 border-slate-200 opacity-60"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                          )}
+                        >
+                          {checked && <Check className="w-3 h-3 flex-shrink-0" />}
+                          <span className="truncate">{section.label}</span>
+                          {section.autoFrom && (
+                            <span className={cn("ml-auto text-[10px] flex-shrink-0", checked ? "text-white/70" : "text-slate-400")}>
+                              auto
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
+            <p className="text-xs text-slate-400 mt-3">
+              Los permisos marcados <span className="font-medium">auto</span> son incluidos automáticamente cuando se activa su permiso padre (ej: activar Tareas incluye Hoy, Hábitos, Diario…)
+            </p>
           </div>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -192,22 +256,17 @@ export function RolesTab({ initialRoles }: { initialRoles: RoleRecord[] }) {
 
       {/* Lista de roles */}
       <div className="space-y-3">
-        {initialRoles.length === 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">
-            No hay roles creados aún
-          </div>
-        )}
         {initialRoles.map((role) => (
           <div
             key={role.id}
             className="bg-white rounded-xl border border-slate-200 p-4 flex items-start justify-between gap-4"
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
                 <Shield className="w-4 h-4 text-slate-500" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-slate-900">{role.label}</span>
                   <span className="text-xs text-slate-400 font-mono">{role.name}</span>
                   {role.isDefault && (
@@ -236,7 +295,7 @@ export function RolesTab({ initialRoles }: { initialRoles: RoleRecord[] }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => openEdit(role)}
                 className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"

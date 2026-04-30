@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { habits, habitLogs } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { HabitsClient, type HabitWithStats } from "@/components/habits/habits-client";
+import { todayStr as getTodayStr, daysAgoStr, localDateStr } from "@/lib/date";
 
 export const metadata = { title: "Hábitos — Uxuri" };
 
@@ -10,12 +11,8 @@ export default async function HabitsPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  // Last 30 days for streak/heatmap
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyStr = thirtyDaysAgo.toISOString().split("T")[0];
+  const todayStr = getTodayStr();
+  const thirtyStr = daysAgoStr(30);
 
   const [allHabits, recentLogs] = await Promise.all([
     db.select().from(habits)
@@ -33,22 +30,15 @@ export default async function HabitsPage() {
 
     const last7: { date: string; done: boolean }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const ds = d.toISOString().split("T")[0];
+      const ds = daysAgoStr(i);
       last7.push({ date: ds, done: logDates.has(ds) });
     }
 
     let streak = 0;
-    const checkDate = new Date();
     while (streak < 30) {
-      const ds = checkDate.toISOString().split("T")[0];
-      if (logDates.has(ds)) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
+      const ds = daysAgoStr(streak);
+      if (logDates.has(ds)) streak++;
+      else break;
     }
 
     return { ...habit, doneToday, last7, streak };

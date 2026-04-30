@@ -6,14 +6,14 @@ import {
 } from "@/db/schema";
 import { eq, and, or, gte, lt, sql, count, isNotNull, desc, not } from "drizzle-orm";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
+import { todayStr as getTodayStr, startOfLocalDay } from "@/lib/date";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split("T")[0]; // YYYY-MM-DD for date columns
+  const todayStr = getTodayStr();         // "YYYY-MM-DD" para comparar con columnas date
+  const todayStart = startOfLocalDay();   // Date UTC para comparar con columnas timestamp
 
   const [
     [userRow],
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
           sql`${taskActivity.type} = 'status_changed'`,
           eq(taskActivity.newValue, "done"),
           eq(taskActivity.userId, userId),
-          gte(taskActivity.createdAt, today),
+          gte(taskActivity.createdAt, todayStart),
         )
       ),
 
@@ -53,7 +53,7 @@ export default async function DashboardPage() {
         and(
           sql`${agentSessions.status} = 'done'`,
           isNotNull(agentSessions.endedAt),
-          gte(agentSessions.endedAt, today),
+          gte(agentSessions.endedAt, todayStart),
         )
       ),
 
@@ -91,11 +91,14 @@ export default async function DashboardPage() {
         id: projects.id,
         name: projects.name,
         priority: projects.priority,
+        category: projects.category,
+        endDate: projects.endDate,
         totalTasks: sql<number>`(SELECT COUNT(*)::int FROM tasks WHERE project_id = ${projects.id})`,
         doneTasks:  sql<number>`(SELECT COUNT(*)::int FROM tasks WHERE project_id = ${projects.id} AND status = 'done')`,
       })
       .from(projects)
       .where(eq(projects.status, "active"))
+      .orderBy(projects.endDate)
       .limit(6),
 
     // Tasks completed today with who did it
@@ -113,7 +116,7 @@ export default async function DashboardPage() {
         and(
           sql`${taskActivity.type} = 'status_changed'`,
           eq(taskActivity.newValue, "done"),
-          gte(taskActivity.createdAt, today),
+          gte(taskActivity.createdAt, todayStart),
         )
       )
       .orderBy(desc(taskActivity.createdAt))
@@ -131,7 +134,7 @@ export default async function DashboardPage() {
       })
       .from(agentSessions)
       .leftJoin(agents, eq(agentSessions.agentId, agents.id))
-      .where(gte(agentSessions.startedAt, today))
+      .where(gte(agentSessions.startedAt, todayStart))
       .groupBy(agents.id, agents.name, agents.avatar, agents.color)
       .limit(6),
 
