@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { db } from "@/db";
 import {
   workspaceMembers,
@@ -9,7 +10,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { WorkspacesManager } from "@/components/workspaces/workspaces-manager";
-import { getActiveContext } from "@/lib/workspace";
+import { getActiveContext, ACTIVE_WORKSPACE_COOKIE, GLOBAL_MODE_VALUE } from "@/lib/workspace";
 
 export default async function WorkspacesPage() {
   const { userId } = await auth();
@@ -27,6 +28,8 @@ export default async function WorkspacesPage() {
     .where(eq(workspaceMembers.userId, userId));
 
   const ctx = await getActiveContext();
+  const cookieStore = await cookies();
+  const isGlobalMode = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value === GLOBAL_MODE_VALUE;
 
   // Para cada workspace traer perfiles + indicar cuáles tiene asignados el user
   const enriched = await Promise.all(
@@ -57,6 +60,7 @@ export default async function WorkspacesPage() {
     <WorkspacesManager
       data={enriched}
       activeWorkspaceId={ctx?.workspace.id ?? null}
+      isGlobalMode={isGlobalMode}
     />
   );
 
