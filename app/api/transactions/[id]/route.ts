@@ -1,9 +1,29 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { transactions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { transactions, accounts, businesses, businessMembers } from "@/db/schema";
+import { eq, or, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+async function getUserAccountIds(userId: string): Promise<string[]> {
+  const [owned, member] = await Promise.all([
+    db.select({ id: businesses.id }).from(businesses).where(eq(businesses.ownerId, userId)),
+    db.select({ businessId: businessMembers.businessId }).from(businessMembers).where(eq(businessMembers.userId, userId)),
+  ]);
+  const bizIds = [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
+  const accs = await db.select({ id: accounts.id }).from(accounts).where(
+    bizIds.length > 0
+      ? or(eq(accounts.userId, userId), inArray(accounts.businessId, bizIds))
+      : eq(accounts.userId, userId)
+  );
+  return accs.map((a) => a.id);
+}
+
+async function canAccessTx(tx: { userId: string; accountId: string }, userId: string) {
+  if (tx.userId === userId) return true;
+  const ids = await getUserAccountIds(userId);
+  return ids.includes(tx.accountId);
+}
 
 const updateSchema = z.object({
   accountId: z.string().uuid().optional(),
@@ -31,7 +51,7 @@ export async function GET(
   const { id } = await params;
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, id));
   if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (tx.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessTx(tx, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return NextResponse.json(tx);
 }
 
@@ -42,9 +62,9 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const [tx] = await db.select({ userId: transactions.userId }).from(transactions).where(eq(transactions.id, id));
+  const [tx] = await db.select({ userId: transactions.userId, accountId: transactions.accountId }).from(transactions).where(eq(transactions.id, id));
   if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (tx.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessTx(tx, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
@@ -66,9 +86,9 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const [tx] = await db.select({ userId: transactions.userId }).from(transactions).where(eq(transactions.id, id));
+  const [tx] = await db.select({ userId: transactions.userId, accountId: transactions.accountId }).from(transactions).where(eq(transactions.id, id));
   if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (tx.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessTx(tx, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   await db.delete(transactions).where(eq(transactions.id, id));
   return NextResponse.json({ success: true });
 }
