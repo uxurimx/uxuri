@@ -25,7 +25,7 @@ export default async function ClientDetailPage({
         ]);
         const bizIds = [...new Set([...owned.map((b) => b.id), ...member.map((m) => m.businessId)])];
         return db
-          .select({ id: accounts.id, name: accounts.name, icon: accounts.icon, currency: accounts.currency, businessId: accounts.businessId })
+          .select({ id: accounts.id, name: accounts.name, icon: accounts.icon, currency: accounts.currency, businessId: accounts.businessId, type: accounts.type })
           .from(accounts)
           .where(
             bizIds.length > 0

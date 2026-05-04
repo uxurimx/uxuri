@@ -38,7 +38,8 @@ export async function applyTransactionsToBalances(
     if (row.type === "transfer") balances[row.accountId] = (balances[row.accountId] ?? 0) - amt; // outgoing debit
   }
 
-  // Incoming transfers: credited to toAccountId
+  // Incoming credits: any completed tx where toAccountId is one of our accounts
+  // (transfers AND expenses like Sueldos that target a nomina account)
   const inTransfers = await db
     .select({
       toAccountId: transactions.toAccountId,
@@ -47,7 +48,6 @@ export async function applyTransactionsToBalances(
     .from(transactions)
     .where(and(
       inArray(transactions.toAccountId, accountIds),
-      eq(transactions.type, "transfer"),
       eq(transactions.status, "completed"),
       isNotNull(transactions.toAccountId),
     ))

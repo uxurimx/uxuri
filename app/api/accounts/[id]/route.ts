@@ -7,7 +7,7 @@ import { z } from "zod";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
-  type: z.enum(["cash", "bank", "credit", "stripe", "paypal", "crypto", "other"]).optional(),
+  type: z.enum(["cash", "bank", "credit", "stripe", "paypal", "crypto", "nomina", "other"]).optional(),
   currency: z.enum(["MXN", "USD", "EUR", "BTC", "ETH", "USDT", "other"]).optional(),
   initialBalance: z.number().optional(),
   icon: z.string().max(10).optional(),

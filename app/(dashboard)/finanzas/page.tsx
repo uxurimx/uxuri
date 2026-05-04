@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { transactions, accounts, businesses, businessMembers, bills } from "@/db/schema";
 import { eq, or, inArray, and, gte, lte, desc, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { FinanceDashboard } from "@/components/finances/finance-dashboard";
 import { applyTransactionsToBalances } from "@/lib/finance-balances";
 
@@ -188,6 +189,7 @@ export default async function FinanzasPage() {
 
   // ── Recent transactions ────────────────────────────────────────────────────
 
+  const toAccountsAlias = alias(accounts, "to_accounts");
   const recentTx = accountIds.length > 0
     ? await db
         .select({
@@ -199,10 +201,16 @@ export default async function FinanzasPage() {
           date: transactions.date,
           accountName: accounts.name,
           accountIcon: accounts.icon,
+          toAccountName: toAccountsAlias.name,
+          toAccountIcon: toAccountsAlias.icon,
         })
         .from(transactions)
         .leftJoin(accounts, eq(transactions.accountId, accounts.id))
-        .where(inArray(transactions.accountId, accountIds))
+        .leftJoin(toAccountsAlias, eq(transactions.toAccountId, toAccountsAlias.id))
+        .where(or(
+          inArray(transactions.accountId, accountIds),
+          inArray(transactions.toAccountId, accountIds),
+        )!)
         .orderBy(desc(transactions.date), desc(transactions.createdAt))
         .limit(8)
     : [];

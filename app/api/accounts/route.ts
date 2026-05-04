@@ -5,10 +5,15 @@ import { eq, or, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensure-user";
+import { randomBytes } from "crypto";
+
+function generateWalletAddress(): string {
+  return "uxuri-" + randomBytes(4).toString("hex");
+}
 
 const createSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(["cash", "bank", "credit", "stripe", "paypal", "crypto", "other"]).optional(),
+  type: z.enum(["cash", "bank", "credit", "stripe", "paypal", "crypto", "nomina", "other"]).optional(),
   currency: z.enum(["MXN", "USD", "EUR", "BTC", "ETH", "USDT", "other"]).optional(),
   initialBalance: z.number().optional(),
   icon: z.string().max(10).optional(),
@@ -63,6 +68,7 @@ export async function POST(req: Request) {
       ...rest,
       userId,
       initialBalance: initialBalance?.toString() ?? "0",
+      walletAddress: generateWalletAddress(),
     })
     .returning();
 

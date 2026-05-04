@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { transactions, accounts, businesses, businessMembers, clients, projects } from "@/db/schema";
 import { eq, or, inArray, and, gte, lte, desc } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensure-user";
@@ -57,8 +58,20 @@ export async function GET(req: Request) {
   const accountIds = await getUserAccountIds(userId);
   if (accountIds.length === 0) return NextResponse.json([]);
 
-  const conditions = [inArray(transactions.accountId, accountIds)];
-  if (accountId) conditions.push(eq(transactions.accountId, accountId));
+  // Show transactions where the account is origin (any type) OR destination (transfers only).
+  // Expenses/income with toAccountId are only shown from the origin account perspective.
+  const baseCondition = or(
+    inArray(transactions.accountId, accountIds),
+    inArray(transactions.toAccountId, accountIds),
+  )!;
+
+  const conditions = [baseCondition];
+  if (accountId) conditions.push(
+    or(
+      eq(transactions.accountId, accountId),
+      eq(transactions.toAccountId, accountId),
+    )!
+  );
   if (type) conditions.push(eq(transactions.type, type));
   if (startDate) conditions.push(gte(transactions.date, startDate));
   if (endDate) conditions.push(lte(transactions.date, endDate));
@@ -66,6 +79,8 @@ export async function GET(req: Request) {
   if (projectId) conditions.push(eq(transactions.projectId, projectId));
   if (businessId) conditions.push(eq(transactions.businessId, businessId));
   if (status) conditions.push(eq(transactions.status, status as "completed" | "pending" | "cancelled"));
+
+  const toAccounts = alias(accounts, "to_accounts");
 
   const rows = await db
     .select({
@@ -89,11 +104,14 @@ export async function GET(req: Request) {
       updatedAt: transactions.updatedAt,
       accountName: accounts.name,
       accountIcon: accounts.icon,
+      toAccountName: toAccounts.name,
+      toAccountIcon: toAccounts.icon,
       clientName: clients.name,
       projectName: projects.name,
     })
     .from(transactions)
     .leftJoin(accounts, eq(transactions.accountId, accounts.id))
+    .leftJoin(toAccounts, eq(transactions.toAccountId, toAccounts.id))
     .leftJoin(clients, eq(transactions.clientId, clients.id))
     .leftJoin(projects, eq(transactions.projectId, projects.id))
     .where(and(...conditions))

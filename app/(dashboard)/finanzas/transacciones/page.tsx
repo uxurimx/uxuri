@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { transactions, accounts, businesses, businessMembers, clients, projects } from "@/db/schema";
 import { eq, or, inArray, and, gte, lte, desc, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { TransactionsList } from "@/components/finances/transactions-list";
 
 async function getUserBizIds(userId: string) {
@@ -22,8 +23,13 @@ function monthRange(date = new Date()) {
   };
 }
 
-export default async function TransaccionesPage() {
+export default async function TransaccionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ accountId?: string }>;
+}) {
   const { userId } = await auth();
+  const { accountId: initialAccountId = "" } = await searchParams;
   if (!userId) return null;
 
   const bizIds = await getUserBizIds(userId);
@@ -36,7 +42,7 @@ export default async function TransaccionesPage() {
   // Selectors
   const [userAccounts, allBusinesses, userClients, userProjects] = await Promise.all([
     db
-      .select({ id: accounts.id, name: accounts.name, icon: accounts.icon, currency: accounts.currency, businessId: accounts.businessId })
+      .select({ id: accounts.id, name: accounts.name, icon: accounts.icon, currency: accounts.currency, businessId: accounts.businessId, type: accounts.type })
       .from(accounts)
       .where(accountWhere!)
       .orderBy(accounts.name),
@@ -51,6 +57,12 @@ export default async function TransaccionesPage() {
 
   const accountIds = userAccounts.map((a) => a.id);
   const { start, end } = monthRange();
+
+  const toAccounts = alias(accounts, "to_accounts");
+  const baseTxCondition = or(
+    inArray(transactions.accountId, accountIds),
+    inArray(transactions.toAccountId, accountIds),
+  )!;
 
   const [initialTx, totals] = accountIds.length > 0
     ? await Promise.all([
@@ -76,15 +88,18 @@ export default async function TransaccionesPage() {
             updatedAt: transactions.updatedAt,
             accountName: accounts.name,
             accountIcon: accounts.icon,
+            toAccountName: toAccounts.name,
+            toAccountIcon: toAccounts.icon,
             clientName: clients.name,
             projectName: projects.name,
           })
           .from(transactions)
           .leftJoin(accounts, eq(transactions.accountId, accounts.id))
+          .leftJoin(toAccounts, eq(transactions.toAccountId, toAccounts.id))
           .leftJoin(clients, eq(transactions.clientId, clients.id))
           .leftJoin(projects, eq(transactions.projectId, projects.id))
           .where(and(
-            inArray(transactions.accountId, accountIds),
+            baseTxCondition,
             gte(transactions.date, start),
             lte(transactions.date, end),
           ))
@@ -125,6 +140,7 @@ export default async function TransaccionesPage() {
       projects={userProjects}
       businesses={allBusinesses}
       currentUserId={userId}
+      initialAccountId={initialAccountId}
     />
   );
 }

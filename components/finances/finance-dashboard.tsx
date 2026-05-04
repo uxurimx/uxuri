@@ -46,6 +46,8 @@ export type RecentTx = {
   date: string;
   accountName: string | null;
   accountIcon: string | null;
+  toAccountName?: string | null;
+  toAccountIcon?: string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -501,8 +503,11 @@ export function FinanceDashboard({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-900 truncate">{tx.description}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-400 truncate">
                         {dateStr} · {tx.accountIcon || "💰"} {tx.accountName}
+                        {tx.toAccountName && (
+                          <> → {tx.toAccountIcon || "💰"} {tx.toAccountName}</>
+                        )}
                       </p>
                     </div>
                     <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", amtCls)}>
@@ -525,17 +530,21 @@ function AccountRow({ acc, compact }: { acc: DashboardAccount; compact?: boolean
   const color = acc.color || "#1e3a5f";
   const isNeg = acc.computedBalance < 0;
   return (
-    <div className="flex items-center gap-3 py-2">
+    <Link
+      href={`/finanzas/transacciones?accountId=${acc.id}`}
+      className="flex items-center gap-3 py-2 px-1 -mx-1 rounded-lg hover:bg-slate-50 transition-colors group"
+    >
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
         style={{ backgroundColor: color + "22" }}
       >
         {acc.icon || "💰"}
       </div>
-      <p className="flex-1 text-sm text-slate-700 truncate">{acc.name}</p>
+      <p className="flex-1 text-sm text-slate-700 truncate group-hover:text-slate-900">{acc.name}</p>
       <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", isNeg ? "text-red-500" : "text-slate-900")}>
         {fmt(acc.computedBalance, acc.currency, compact ?? true)}
       </p>
-    </div>
+      <ChevronRight className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-opacity" />
+    </Link>
   );
 }

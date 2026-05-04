@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   Plus, Pencil, Trash2, X, Wallet, TrendingUp,
   CreditCard, Building2, ChevronRight,
+  ArrowUpRight, ArrowDownRight, ArrowLeftRight,
+  Calendar, Hash, Activity, Copy, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,13 +18,14 @@ export type AccountRow = {
   userId: string;
   businessId: string | null;
   name: string;
-  type: "cash" | "bank" | "credit" | "stripe" | "paypal" | "crypto" | "other";
+  type: "cash" | "bank" | "credit" | "stripe" | "paypal" | "crypto" | "nomina" | "other";
   currency: "MXN" | "USD" | "EUR" | "BTC" | "ETH" | "USDT" | "other";
   initialBalance: string;
   icon: string | null;
   color: string | null;
   notes: string | null;
   isActive: boolean;
+  walletAddress: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 };
@@ -42,6 +46,7 @@ const typeConfig: Record<AccountRow["type"], { label: string; defaultIcon: strin
   stripe:  { label: "Stripe",      defaultIcon: "⚡", className: "bg-indigo-50 text-indigo-700" },
   paypal:  { label: "PayPal",      defaultIcon: "🅿",  className: "bg-sky-50 text-sky-700" },
   crypto:  { label: "Cripto",      defaultIcon: "₿",  className: "bg-amber-50 text-amber-700" },
+  nomina:  { label: "Nómina",      defaultIcon: "👷", className: "bg-orange-50 text-orange-700" },
   other:   { label: "Otro",        defaultIcon: "💰", className: "bg-slate-100 text-slate-600" },
 };
 
@@ -49,7 +54,7 @@ const currencySymbol: Record<AccountRow["currency"], string> = {
   MXN: "$", USD: "$", EUR: "€", BTC: "₿", ETH: "Ξ", USDT: "$", other: "",
 };
 
-const ICONS = ["💵", "🏦", "💳", "⚡", "🅿", "₿", "Ξ", "💰", "🏠", "🚀", "💼", "🎯", "🔐", "🌐", "💹", "🪙"];
+const ICONS = ["💵", "🏦", "💳", "⚡", "🅿", "₿", "Ξ", "💰", "👷", "🏠", "🚀", "💼", "🎯", "🔐", "🌐", "💹", "🪙"];
 const COLORS = [
   { value: "#1e3a5f", label: "Azul" },
   { value: "#059669", label: "Verde" },
@@ -88,6 +93,374 @@ function groupByCurrency(accs: AccountRow[], computedBalances: Record<string, nu
   return totals;
 }
 
+// ── Detail panel types & helpers ─────────────────────────────────────────────
+
+type TxItem = {
+  id: string;
+  accountId: string;
+  type: "income" | "expense" | "transfer";
+  amount: string;
+  currency: string;
+  description: string;
+  date: string;
+  status: string;
+  category: string | null;
+  accountName: string | null;
+  toAccountName: string | null;
+  toAccountIcon: string | null;
+};
+
+function getPeriodDates(period: string): { start: string; end: string } {
+  const today = new Date();
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (period === "this_month") {
+    return {
+      start: fmt(new Date(today.getFullYear(), today.getMonth(), 1)),
+      end:   fmt(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+    };
+  }
+  if (period === "last_month") {
+    return {
+      start: fmt(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+      end:   fmt(new Date(today.getFullYear(), today.getMonth(), 0)),
+    };
+  }
+  if (period === "this_year") {
+    return { start: `${today.getFullYear()}-01-01`, end: `${today.getFullYear()}-12-31` };
+  }
+  return { start: "", end: "" };
+}
+
+// ── Account Detail Panel ──────────────────────────────────────────────────────
+
+function DetailRow({
+  label, value, valueClass,
+}: {
+  label: string; value: string; valueClass?: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-slate-100 last:border-0">
+      <p className="text-xs text-slate-400 flex-shrink-0 mt-0.5">{label}</p>
+      <p className={cn("text-xs text-slate-700 text-right", valueClass)}>{value}</p>
+    </div>
+  );
+}
+
+function AccountDetailPanel({
+  account,
+  business,
+  computedBalance,
+  onClose,
+  onEdit,
+}: {
+  account: AccountRow;
+  business?: BusinessOption;
+  computedBalance: number;
+  onClose: () => void;
+  onEdit: (a: AccountRow) => void;
+}) {
+  const [txs, setTxs]         = useState<TxItem[]>([]);
+  const [loadingTx, setLoadingTx] = useState(true);
+  const [period, setPeriod]   = useState("this_month");
+  const [stats, setStats]     = useState({ income: 0, expense: 0 });
+  const [copied, setCopied]   = useState(false);
+
+  const typeCfg  = typeConfig[account.type];
+  const icon     = account.icon  || typeCfg.defaultIcon;
+  const color    = account.color || "#1e3a5f";
+  const isNeg    = computedBalance < 0;
+  const neto     = stats.income - stats.expense;
+
+  const periodLabels: Record<string, string> = {
+    this_month: "Este mes",
+    last_month: "Mes anterior",
+    this_year:  "Este año",
+    all:        "Todo",
+  };
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setLoadingTx(true);
+      const { start, end } = getPeriodDates(period);
+      const params = new URLSearchParams({ accountId: account.id, limit: "50" });
+      if (start) params.set("startDate", start);
+      if (end)   params.set("endDate",   end);
+      const res = await fetch(`/api/transactions?${params}`);
+      if (!active) return;
+      if (res.ok) {
+        const data: TxItem[] = await res.json();
+        setTxs(data);
+        let income = 0, expense = 0;
+        for (const tx of data) {
+          if (tx.status !== "completed") continue;
+          const isDestination = tx.accountId !== account.id; // this account is toAccountId
+          if (tx.type === "income")  income  += parseFloat(tx.amount);
+          if (tx.type === "expense") {
+            if (isDestination) income  += parseFloat(tx.amount); // salary received
+            else               expense += parseFloat(tx.amount);
+          }
+          if (tx.type === "transfer") {
+            if (isDestination) income  += parseFloat(tx.amount);
+            else               expense += parseFloat(tx.amount);
+          }
+        }
+        setStats({ income, expense });
+      }
+      setLoadingTx(false);
+    }
+    load();
+    return () => { active = false; };
+  }, [account.id, period]);
+
+  const createdStr = new Date(account.createdAt).toLocaleDateString("es-MX", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+
+  const healthScore = (() => {
+    if (isNeg) return { label: "Saldo negativo", cls: "text-red-600 bg-red-50", icon: "⚠" };
+    if (neto >= 0 && stats.income > 0) return { label: "Flujo positivo", cls: "text-emerald-600 bg-emerald-50", icon: "✓" };
+    if (neto < 0 && stats.expense > 0) return { label: "Más egresos que ingresos", cls: "text-amber-600 bg-amber-50", icon: "~" };
+    return { label: "Sin movimientos", cls: "text-slate-500 bg-slate-50", icon: "–" };
+  })();
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex z-50" onClick={onClose}>
+      <div
+        className="ml-auto w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Sticky top bar */}
+        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-5 py-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { onClose(); onEdit(account); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <Pencil className="w-3 h-3" />
+              Editar
+            </button>
+            <Link
+              href={`/finanzas/transacciones?accountId=${account.id}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1e3a5f] border border-[#1e3a5f]/20 rounded-lg hover:bg-[#1e3a5f]/5 transition-colors"
+            >
+              Transacciones <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* Hero */}
+          <div className="px-6 pt-6 pb-4">
+            <div className="flex items-center gap-4 mb-5">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 shadow-sm"
+                style={{ backgroundColor: color + "22" }}
+              >
+                {icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-bold text-slate-900 truncate">{account.name}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", typeCfg.className)}>
+                    {typeCfg.label}
+                  </span>
+                  <span className="text-xs text-slate-400">{account.currency}</span>
+                  {business ? (
+                    <span className="text-xs text-slate-400">{business.logo || "🏢"} {business.name}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">Personal</span>
+                  )}
+                  {!account.isActive && (
+                    <span className="text-xs bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full">Inactiva</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Balance + health */}
+            <div className={cn("rounded-2xl p-4", isNeg ? "bg-red-50" : "bg-[#1e3a5f]/5")}>
+              <p className="text-xs text-slate-500 mb-0.5">Saldo actual</p>
+              <p className={cn("text-3xl font-bold tabular-nums", isNeg ? "text-red-600" : "text-[#1e3a5f]")}>
+                {formatBalance(computedBalance, account.currency)}
+              </p>
+              <div className={cn("inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-xs font-medium", healthScore.cls)}>
+                <span>{healthScore.icon}</span>
+                <span>{healthScore.label}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Period selector */}
+          <div className="px-6 pb-4">
+            <div className="flex gap-1 bg-slate-50 rounded-xl p-1">
+              {Object.entries(periodLabels).map(([p, label]) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                    period === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="px-6 pb-5">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-center">
+                <ArrowUpRight className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Ingresos</p>
+                <p className="text-sm font-bold text-emerald-600 tabular-nums mt-0.5">
+                  {formatBalance(stats.income, account.currency)}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-center">
+                <ArrowDownRight className="w-4 h-4 text-red-500 mx-auto mb-1" />
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Egresos</p>
+                <p className="text-sm font-bold text-red-500 tabular-nums mt-0.5">
+                  {formatBalance(stats.expense, account.currency)}
+                </p>
+              </div>
+              <div className={cn(
+                "rounded-xl border shadow-sm p-3 text-center",
+                neto >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"
+              )}>
+                <Activity className="w-4 h-4 mx-auto mb-1 text-slate-400" />
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Neto</p>
+                <p className={cn("text-sm font-bold tabular-nums mt-0.5", neto >= 0 ? "text-emerald-600" : "text-red-500")}>
+                  {neto >= 0 ? "+" : "−"}{formatBalance(Math.abs(neto), account.currency)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Transactions */}
+          <div className="px-6 pb-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-700">
+                Movimientos{!loadingTx && txs.length > 0 && (
+                  <span className="ml-1.5 text-xs font-normal text-slate-400">{txs.length}</span>
+                )}
+              </h3>
+              <Link
+                href={`/finanzas/transacciones?accountId=${account.id}`}
+                className="text-xs text-[#1e3a5f] hover:underline flex items-center gap-1"
+              >
+                Ver todos <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+
+            {loadingTx ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="w-5 h-5 border-2 border-slate-200 border-t-[#1e3a5f] rounded-full animate-spin" />
+              </div>
+            ) : txs.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-sm bg-slate-50 rounded-xl">
+                Sin movimientos en este período
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-100 shadow-sm divide-y divide-slate-50">
+                {txs.slice(0, 20).map((tx) => {
+                  const isDestination = tx.accountId !== account.id;
+                  const isCredit = tx.type === "income" || isDestination;
+                  const tCfg = isCredit
+                    ? { Icon: ArrowDownRight, cls: "text-emerald-600 bg-emerald-50", amtCls: "text-emerald-600", prefix: "+" }
+                    : tx.type === "transfer"
+                      ? { Icon: ArrowUpRight, cls: "text-red-500 bg-red-50", amtCls: "text-red-500", prefix: "−" }
+                      : { Icon: ArrowDownRight, cls: "text-red-500 bg-red-50", amtCls: "text-red-500", prefix: "−" };
+                  const dateStr = new Date(tx.date + "T12:00:00").toLocaleDateString("es-MX", {
+                    day: "numeric", month: "short",
+                  });
+                  return (
+                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", tCfg.cls)}>
+                        <tCfg.Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-900 truncate">{tx.description}</p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {dateStr}
+                          {tx.toAccountName
+                            ? ` · ${tx.accountName ?? ""} → ${tx.toAccountIcon || "💰"} ${tx.toAccountName}`
+                            : tx.category ? ` · ${tx.category}` : ""}
+                        </p>
+                      </div>
+                      <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", tCfg.amtCls)}>
+                        {tCfg.prefix}{formatBalance(parseFloat(tx.amount), account.currency)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Wallet address */}
+          {account.walletAddress && (
+            <div className="px-6 pb-5">
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">Dirección de recepción</h3>
+              <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+                <span className="flex-1 font-mono text-sm text-slate-700 select-all tracking-wide">
+                  {account.walletAddress}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(account.walletAddress!);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-[#1e3a5f] hover:bg-white transition-colors"
+                  title="Copiar dirección"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Comparte esta dirección para recibir transferencias de otros usuarios.
+              </p>
+            </div>
+          )}
+
+          {/* Account details */}
+          <div className="px-6 pb-8">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Detalles de la cuenta</h3>
+            <div className="bg-slate-50 rounded-2xl px-4 py-2">
+              <DetailRow label="Tipo" value={typeCfg.label} />
+              <DetailRow label="Moneda" value={account.currency} />
+              <DetailRow
+                label="Saldo inicial"
+                value={formatBalance(parseFloat(account.initialBalance ?? "0"), account.currency)}
+              />
+              <DetailRow label="Creada el" value={createdStr} />
+              {business && <DetailRow label="Negocio" value={`${business.logo || "🏢"} ${business.name}`} />}
+              {account.notes && <DetailRow label="Notas" value={account.notes} />}
+              <DetailRow
+                label="Estado"
+                value={account.isActive ? "Activa" : "Inactiva"}
+                valueClass={account.isActive ? "text-emerald-600 font-medium" : "text-slate-400"}
+              />
+              <DetailRow
+                label="ID"
+                value={account.id}
+                valueClass="font-mono text-[10px] text-slate-300 break-all"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Account Card ──────────────────────────────────────────────────────────────
 
 function AccountCard({
@@ -97,6 +470,7 @@ function AccountCard({
   isOwner,
   onEdit,
   onDelete,
+  onDetail,
 }: {
   account: AccountRow;
   business?: BusinessOption;
@@ -104,6 +478,7 @@ function AccountCard({
   isOwner: boolean;
   onEdit: (a: AccountRow) => void;
   onDelete: (id: string) => void;
+  onDetail: (a: AccountRow) => void;
 }) {
   const typeCfg = typeConfig[account.type];
   const icon = account.icon || typeCfg.defaultIcon;
@@ -113,8 +488,9 @@ function AccountCard({
 
   return (
     <div
+      onClick={() => onDetail(account)}
       className={cn(
-        "group relative bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-5 flex flex-col gap-3",
+        "group relative bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-5 flex flex-col gap-3 cursor-pointer",
         account.isActive ? "border-slate-100" : "border-slate-100 opacity-60"
       )}
     >
@@ -140,7 +516,10 @@ function AccountCard({
         </div>
         {/* Actions */}
         {isOwner && (
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div
+            className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => onEdit(account)}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50"
@@ -181,6 +560,7 @@ function AccountCard({
         {account.notes && (
           <span className="text-xs text-slate-400 ml-auto truncate max-w-[120px]">{account.notes}</span>
         )}
+        <ChevronRight className="w-3.5 h-3.5 text-slate-200 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
   );
@@ -342,6 +722,7 @@ function AccountModal({
                 <option value="stripe">⚡ Stripe</option>
                 <option value="paypal">🅿 PayPal</option>
                 <option value="crypto">₿ Cripto</option>
+                <option value="nomina">👷 Nómina</option>
                 <option value="other">💰 Otro</option>
               </select>
             </div>
@@ -491,6 +872,7 @@ export function AccountsList({
   useEffect(() => { setAccountList(initialAccounts); }, [initialAccounts]);
   const [modal, setModal] = useState<AccountRow | null | undefined>(undefined);
   // undefined=closed, null=create, AccountRow=edit
+  const [detailAccount, setDetailAccount] = useState<AccountRow | null>(null);
 
   function openCreate() { setModal(null); }
   function openEdit(a: AccountRow) { setModal(a); }
@@ -614,6 +996,7 @@ export function AccountsList({
                     isOwner={a.userId === currentUserId}
                     onEdit={openEdit}
                     onDelete={handleDelete}
+                    onDetail={setDetailAccount}
                   />
                 ))}
               </div>
@@ -640,6 +1023,7 @@ export function AccountsList({
                       isOwner={a.userId === currentUserId}
                       onEdit={openEdit}
                       onDelete={handleDelete}
+                      onDetail={setDetailAccount}
                     />
                   ))}
                 </div>
@@ -656,6 +1040,17 @@ export function AccountsList({
           businesses={businesses}
           onClose={closeModal}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Detail panel */}
+      {detailAccount && (
+        <AccountDetailPanel
+          account={detailAccount}
+          business={businesses.find((b) => b.id === detailAccount.businessId)}
+          computedBalance={computedBalances[detailAccount.id] ?? parseFloat(detailAccount.initialBalance ?? "0")}
+          onClose={() => setDetailAccount(null)}
+          onEdit={(a) => { setDetailAccount(null); openEdit(a); }}
         />
       )}
     </div>

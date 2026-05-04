@@ -18,6 +18,7 @@ export const accountTypeEnum = pgEnum("account_type", [
   "stripe",
   "paypal",
   "crypto",
+  "nomina",
   "other",
 ]);
 
@@ -50,6 +51,7 @@ export const accounts = pgTable("accounts", {
   color: varchar("color", { length: 20 }).default("#1e3a5f"),
   notes: text("notes"),
   isActive: boolean("is_active").default(true).notNull(),
+  walletAddress: varchar("wallet_address", { length: 20 }).unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

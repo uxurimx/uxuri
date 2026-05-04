@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, ArrowUpRight, ArrowDownRight, ArrowLeftRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, ArrowUpRight, ArrowDownRight, ArrowLeftRight, Search, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ export type AccountOption = {
   icon: string | null;
   currency: string;
   businessId: string | null;
+  type?: string;
 };
 
 export type TransactionForModal = {
@@ -104,8 +105,76 @@ export function TransactionModal({
   const [exchangeRate, setExchangeRate] = useState(transaction?.exchangeRateMXN ?? "");
   const [saving, setSaving]           = useState(false);
 
+  // External account lookup (for transfer to other users)
+  const [destMode, setDestMode]         = useState<"own" | "external">("own");
+  const [extAddress, setExtAddress]     = useState("");
+  const [extSearching, setExtSearching] = useState(false);
+  const [extAccount, setExtAccount]     = useState<{ id: string; name: string; icon: string | null; currency: string; ownerName: string | null; isOwn: boolean } | null>(null);
+  const [extError, setExtError]         = useState("");
+  const extInputRef                     = useRef<HTMLInputElement>(null);
+
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const categories = type === "income" ? INCOME_CATEGORIES : type === "expense" ? EXPENSE_CATEGORIES : [];
+  const showToAccount = type === "transfer" || (type === "expense" && category === "Sueldos");
+
+  // Reset dest mode when switching away from transfer
+  useEffect(() => {
+    if (type !== "transfer") { setDestMode("own"); setExtAccount(null); setExtError(""); }
+  }, [type]);
+
+  // Sueldos: lookup nomina by wallet address
+  const [sueldosAddr, setSueldosAddr]       = useState("");
+  const [sueldosSearching, setSueldosSearching] = useState(false);
+  const [sueldosAccount, setSueldosAccount] = useState<{ id: string; name: string; icon: string | null; currency: string; ownerName: string | null; isOwn: boolean } | null>(null);
+  const [sueldosError, setSueldosError]     = useState("");
+  const sueldosInputRef                     = useRef<HTMLInputElement>(null);
+
+  // Reset sueldos state when leaving Sueldos category
+  useEffect(() => {
+    if (category !== "Sueldos") { setSueldosAddr(""); setSueldosAccount(null); setSueldosError(""); }
+  }, [category]);
+
+  async function lookupSueldos() {
+    const addr = sueldosAddr.trim().toLowerCase();
+    if (!addr) return;
+    setSueldosSearching(true);
+    setSueldosError("");
+    setSueldosAccount(null);
+    try {
+      const res = await fetch(`/api/accounts/lookup?address=${encodeURIComponent(addr)}`);
+      const data = await res.json();
+      if (!res.ok) { setSueldosError(data.error ?? "Cuenta no encontrada"); return; }
+      setSueldosAccount(data);
+      setToAccountId(data.id);
+    } catch {
+      setSueldosError("Error de conexión");
+    } finally {
+      setSueldosSearching(false);
+    }
+  }
+
+  // For transfer dest grouping (own accounts only)
+  const nominaAccounts    = accounts.filter((a) => a.type === "nomina" && a.id !== accountId);
+  const nonNominaAccounts = accounts.filter((a) => a.type !== "nomina" && a.id !== accountId);
+
+  async function lookupExternal() {
+    const addr = extAddress.trim().toLowerCase();
+    if (!addr) return;
+    setExtSearching(true);
+    setExtError("");
+    setExtAccount(null);
+    try {
+      const res = await fetch(`/api/accounts/lookup?address=${encodeURIComponent(addr)}`);
+      const data = await res.json();
+      if (!res.ok) { setExtError(data.error ?? "Cuenta no encontrada"); return; }
+      setExtAccount(data);
+      setToAccountId(data.id);
+    } catch {
+      setExtError("Error de conexión");
+    } finally {
+      setExtSearching(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,7 +190,7 @@ export function TransactionModal({
         date,
         status,
         category:      category || null,
-        toAccountId:   type === "transfer" && toAccountId ? toAccountId : null,
+        toAccountId:   showToAccount && toAccountId ? toAccountId : null,
         businessId:    businessId || null,
         clientId:      clientId   || null,
         projectId:     projectId  || null,
@@ -226,22 +295,111 @@ export function TransactionModal({
             </div>
             {type === "transfer" && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Cuenta destino *</label>
-                <select
-                  value={toAccountId}
-                  onChange={(e) => setToAccountId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
-                  required={type === "transfer"}
-                >
-                  <option value="">Selecciona...</option>
-                  {accounts
-                    .filter((a) => a.id !== accountId)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.icon || "💰"} {a.name} ({a.currency})
-                      </option>
-                    ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">Cuenta destino *</label>
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+                    <button
+                      type="button"
+                      onClick={() => { setDestMode("own"); setExtAccount(null); setExtError(""); if (!extAccount) setToAccountId(""); }}
+                      className={cn("px-2.5 py-1 transition-colors", destMode === "own" ? "bg-[#1e3a5f] text-white" : "text-slate-500 hover:bg-slate-50")}
+                    >
+                      Mis cuentas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDestMode("external"); setToAccountId(extAccount?.id ?? ""); setTimeout(() => extInputRef.current?.focus(), 50); }}
+                      className={cn("px-2.5 py-1 transition-colors", destMode === "external" ? "bg-[#1e3a5f] text-white" : "text-slate-500 hover:bg-slate-50")}
+                    >
+                      Dirección externa
+                    </button>
+                  </div>
+                </div>
+
+                {destMode === "own" ? (
+                  <select
+                    value={toAccountId}
+                    onChange={(e) => setToAccountId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                    required={destMode === "own"}
+                  >
+                    <option value="">Selecciona destino...</option>
+                    {nominaAccounts.filter((a) => a.id !== accountId).length > 0 && (
+                      <optgroup label="👷 Cuentas de nómina">
+                        {nominaAccounts
+                          .filter((a) => a.id !== accountId)
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.icon || "👷"} {a.name} ({a.currency})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Otras cuentas">
+                      {nonNominaAccounts
+                        .filter((a) => a.id !== accountId)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.icon || "💰"} {a.name} ({a.currency})
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        ref={extInputRef}
+                        type="text"
+                        value={extAddress}
+                        onChange={(e) => { setExtAddress(e.target.value); setExtAccount(null); setExtError(""); setToAccountId(""); }}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), lookupExternal())}
+                        placeholder="uxuri-xxxxxxxx"
+                        className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={lookupExternal}
+                        disabled={!extAddress.trim() || extSearching}
+                        className="px-3 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm disabled:opacity-40 hover:bg-[#1e3a5f]/90 transition-colors flex items-center gap-1.5"
+                      >
+                        {extSearching ? (
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                        ) : (
+                          <Search className="w-4 h-4" />
+                        )}
+                        Buscar
+                      </button>
+                    </div>
+
+                    {extError && (
+                      <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        {extError}
+                      </div>
+                    )}
+
+                    {extAccount && (
+                      <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                        <span className="text-2xl">{extAccount.icon || "💰"}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate">{extAccount.name}</p>
+                          <p className="text-xs text-slate-500">
+                            {extAccount.currency}
+                            {extAccount.ownerName ? ` · ${extAccount.ownerName}` : ""}
+                            {extAccount.isOwn ? " · (tuya)" : ""}
+                          </p>
+                        </div>
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                      </div>
+                    )}
+
+                    {!extAccount && !extError && (
+                      <p className="text-xs text-slate-400">
+                        Pide al destinatario su dirección <span className="font-mono">uxuri-xxxxxxxx</span> en Finanzas → Cuentas.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -278,7 +436,7 @@ export function TransactionModal({
                 <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => { setCategory(e.target.value); if (e.target.value !== "Sueldos") setToAccountId(""); }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"
                 >
                   <option value="">Sin categoría</option>
@@ -289,6 +447,66 @@ export function TransactionModal({
               </div>
             )}
           </div>
+
+          {/* Cuenta nómina — solo cuando egreso + Sueldos */}
+          {type === "expense" && category === "Sueldos" && (
+            <div className="rounded-xl border border-orange-100 bg-orange-50 p-3 space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                👷 Cuenta nómina destino
+                <span className="ml-1.5 text-xs font-normal text-slate-400">opcional — para rastreo</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  ref={sueldosInputRef}
+                  type="text"
+                  value={sueldosAddr}
+                  onChange={(e) => { setSueldosAddr(e.target.value); setSueldosAccount(null); setSueldosError(""); setToAccountId(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), lookupSueldos())}
+                  placeholder="uxuri-xxxxxxxx"
+                  className="flex-1 px-3 py-2 border border-orange-200 bg-white rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+                <button
+                  type="button"
+                  onClick={lookupSueldos}
+                  disabled={!sueldosAddr.trim() || sueldosSearching}
+                  className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm disabled:opacity-40 hover:bg-orange-600 transition-colors flex items-center gap-1.5"
+                >
+                  {sueldosSearching
+                    ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                    : <Search className="w-4 h-4" />}
+                  Buscar
+                </button>
+              </div>
+
+              {sueldosError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {sueldosError}
+                </div>
+              )}
+
+              {sueldosAccount && (
+                <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                  <span className="text-2xl">{sueldosAccount.icon || "👷"}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{sueldosAccount.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {sueldosAccount.currency}
+                      {sueldosAccount.ownerName ? ` · ${sueldosAccount.ownerName}` : ""}
+                      {sueldosAccount.isOwn ? " · (tuya)" : ""}
+                    </p>
+                  </div>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                </div>
+              )}
+
+              {!sueldosAccount && !sueldosError && (
+                <p className="text-xs text-orange-600">
+                  Pide al empleado su dirección <span className="font-mono font-semibold">uxuri-xxxxxxxx</span> en Finanzas → Cuentas.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Status */}
           <div>

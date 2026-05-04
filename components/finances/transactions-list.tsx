@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
@@ -33,6 +33,8 @@ export type TransactionRow = {
   updatedAt: string;
   accountName: string | null;
   accountIcon: string | null;
+  toAccountName: string | null;
+  toAccountIcon: string | null;
   clientName: string | null;
   projectName: string | null;
 };
@@ -64,10 +66,10 @@ const currencySymbol: Record<string, string> = {
   MXN: "$", USD: "$", EUR: "€", BTC: "₿", ETH: "Ξ", USDT: "$", other: "",
 };
 
-function formatAmount(amount: string, currency: string, type: "income" | "expense" | "transfer") {
+function formatAmount(amount: string, currency: string, type: "income" | "expense" | "transfer", incoming = false) {
   const num = parseFloat(amount);
   const sym = currencySymbol[currency] ?? "";
-  const prefix = type === "income" ? "+" : type === "expense" ? "−" : "";
+  const prefix = (type === "income" || incoming) ? "+" : type === "expense" ? "−" : "";
   if (["BTC", "ETH"].includes(currency)) return `${prefix}${num.toFixed(6)} ${currency}`;
   return `${prefix}${sym}${num.toLocaleString("es-MX", { minimumFractionDigits: 2 })} ${currency}`;
 }
@@ -100,14 +102,21 @@ function getPresetDates(preset: string): { start: string; end: string } {
 
 function TxRow({
   tx,
+  viewingAccountId,
   onEdit,
   onDelete,
 }: {
   tx: TransactionRow;
+  viewingAccountId?: string;
   onEdit: (t: TransactionRow) => void;
   onDelete: (id: string) => void;
 }) {
-  const cfg = typeConfig[tx.type];
+  // When viewing a specific account, show direction from that account's perspective
+  const isDestination = !!viewingAccountId && tx.accountId !== viewingAccountId && tx.toAccountId === viewingAccountId;
+  const incoming = isDestination || tx.type === "income";
+  const cfg = isDestination
+    ? { ...typeConfig[tx.type], icon: ArrowDownRight, className: "text-emerald-600 bg-emerald-50", amount: "text-emerald-600" }
+    : typeConfig[tx.type];
   const Icon = cfg.icon;
   const statusCfg = statusConfig[tx.status];
 
@@ -132,6 +141,14 @@ function TxRow({
               <span className="text-slate-200 text-xs">·</span>
               <span className="text-xs text-slate-400">
                 {tx.accountIcon || "💰"} {tx.accountName}
+              </span>
+            </>
+          )}
+          {tx.toAccountName && (
+            <>
+              <span className="text-xs text-slate-300">→</span>
+              <span className="text-xs text-slate-400">
+                {tx.toAccountIcon || "💰"} {tx.toAccountName}
               </span>
             </>
           )}
@@ -160,7 +177,7 @@ function TxRow({
 
       {/* Amount */}
       <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", cfg.amount)}>
-        {formatAmount(tx.amount, tx.currency, tx.type)}
+        {formatAmount(tx.amount, tx.currency, tx.type, incoming)}
       </p>
 
       {/* Actions */}
@@ -235,6 +252,7 @@ export function TransactionsList({
   projects,
   businesses,
   currentUserId,
+  initialAccountId = "",
 }: {
   initialTransactions: TransactionRow[];
   initialStats: StatsData;
@@ -243,10 +261,15 @@ export function TransactionsList({
   projects: ProjectOption[];
   businesses: BusinessOption[];
   currentUserId: string;
+  initialAccountId?: string;
 }) {
   const router = useRouter();
 
-  const [txList, setTxList]           = useState(initialTransactions);
+  const [txList, setTxList]           = useState(
+    initialAccountId
+      ? initialTransactions.filter((t) => t.accountId === initialAccountId)
+      : initialTransactions
+  );
   const [stats, setStats]             = useState(initialStats);
   const [modal, setModal]             = useState<TransactionRow | null | undefined>(undefined);
   const [loading, setLoading]         = useState(false);
@@ -254,9 +277,14 @@ export function TransactionsList({
   // Filters
   const [period, setPeriod]           = useState("this_month");
   const [filterType, setFilterType]   = useState<string>("all");
-  const [filterAccount, setFilterAccount] = useState("");
+  const [filterAccount, setFilterAccount] = useState(initialAccountId);
   const [filterStatus, setFilterStatus]   = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(!!initialAccountId);
+
+  useEffect(() => {
+    if (initialAccountId) fetchData({ fa: initialAccountId });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function fetchData(opts?: {
     p?: string; ft?: string; fa?: string; fs?: string;
@@ -470,6 +498,7 @@ export function TransactionsList({
               <TxRow
                 key={tx.id}
                 tx={tx}
+                viewingAccountId={filterAccount || undefined}
                 onEdit={setModal}
                 onDelete={handleDelete}
               />
