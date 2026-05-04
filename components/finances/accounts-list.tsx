@@ -10,6 +10,7 @@ import {
   Calendar, Hash, Activity, Copy, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TransactionModal } from "./transaction-modal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -151,12 +152,16 @@ function AccountDetailPanel({
   account,
   business,
   computedBalance,
+  allAccounts,
+  businesses,
   onClose,
   onEdit,
 }: {
   account: AccountRow;
   business?: BusinessOption;
   computedBalance: number;
+  allAccounts: AccountRow[];
+  businesses: BusinessOption[];
   onClose: () => void;
   onEdit: (a: AccountRow) => void;
 }) {
@@ -165,6 +170,11 @@ function AccountDetailPanel({
   const [period, setPeriod]   = useState("this_month");
   const [stats, setStats]     = useState({ income: 0, expense: 0 });
   const [copied, setCopied]   = useState(false);
+  const [txModal, setTxModal] = useState<"income" | "expense" | "transfer" | null>(null);
+
+  const accountOptions = allAccounts.map((a) => ({
+    id: a.id, name: a.name, icon: a.icon, currency: a.currency, businessId: a.businessId, type: a.type,
+  }));
 
   const typeCfg  = typeConfig[account.type];
   const icon     = account.icon  || typeCfg.defaultIcon;
@@ -232,25 +242,46 @@ function AccountDetailPanel({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky top bar */}
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-5 py-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { onClose(); onEdit(account); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              <Pencil className="w-3 h-3" />
-              Editar
+        <div className="sticky top-0 bg-white z-10 border-b border-slate-100">
+          <div className="flex items-center justify-between px-5 py-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { onClose(); onEdit(account); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                Editar
+              </button>
+              <Link
+                href={`/finanzas/transacciones?accountId=${account.id}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1e3a5f] border border-[#1e3a5f]/20 rounded-lg hover:bg-[#1e3a5f]/5 transition-colors"
+              >
+                Historial <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
+              <X className="w-5 h-5" />
             </button>
-            <Link
-              href={`/finanzas/transacciones?accountId=${account.id}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1e3a5f] border border-[#1e3a5f]/20 rounded-lg hover:bg-[#1e3a5f]/5 transition-colors"
-            >
-              Transacciones <ChevronRight className="w-3 h-3" />
-            </Link>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50">
-            <X className="w-5 h-5" />
-          </button>
+          {/* Quick-add transaction bar */}
+          <div className="flex gap-2 px-5 pb-3">
+            {(["income", "expense", "transfer"] as const).map((t) => {
+              const cfg = {
+                income:   { label: "+ Ingreso",      cls: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200" },
+                expense:  { label: "− Egreso",        cls: "bg-red-50 text-red-700 hover:bg-red-100 border-red-200" },
+                transfer: { label: "⇄ Transferencia", cls: "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200" },
+              }[t];
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTxModal(t)}
+                  className={cn("flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors", cfg.cls)}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -457,6 +488,43 @@ function AccountDetailPanel({
           </div>
         </div>
       </div>
+
+      {/* Transaction modal — stopPropagation prevents backdrop from closing the panel */}
+      {txModal && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <TransactionModal
+            defaultAccountId={account.id}
+            defaultType={txModal}
+            accounts={accountOptions}
+            clients={[]}
+            projects={[]}
+            businesses={businesses}
+            onClose={() => setTxModal(null)}
+            onSaved={() => {
+              setTxModal(null);
+              const { start, end } = getPeriodDates(period);
+              const params = new URLSearchParams({ accountId: account.id, limit: "50" });
+              if (start) params.set("startDate", start);
+              if (end)   params.set("endDate",   end);
+              fetch(`/api/transactions?${params}`)
+                .then((r) => r.json())
+                .then((data: TxItem[]) => {
+                  setTxs(data);
+                  let income = 0, expense = 0;
+                  for (const tx of data) {
+                    if (tx.status !== "completed") continue;
+                    const isDestination = tx.accountId !== account.id;
+                    if (tx.type === "income") income += parseFloat(tx.amount);
+                    if (tx.type === "expense") { if (isDestination) income += parseFloat(tx.amount); else expense += parseFloat(tx.amount); }
+                    if (tx.type === "transfer") { if (isDestination) income += parseFloat(tx.amount); else expense += parseFloat(tx.amount); }
+                  }
+                  setStats({ income, expense });
+                })
+                .catch(() => {});
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1049,6 +1117,8 @@ export function AccountsList({
           account={detailAccount}
           business={businesses.find((b) => b.id === detailAccount.businessId)}
           computedBalance={computedBalances[detailAccount.id] ?? parseFloat(detailAccount.initialBalance ?? "0")}
+          allAccounts={accountList}
+          businesses={businesses}
           onClose={() => setDetailAccount(null)}
           onEdit={(a) => { setDetailAccount(null); openEdit(a); }}
         />

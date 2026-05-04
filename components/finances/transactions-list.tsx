@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, ArrowUpRight, ArrowDownRight, ArrowLeftRight,
@@ -24,6 +24,7 @@ export type TransactionRow = {
   amount: string;
   currency: string;
   exchangeRateMXN: string | null;
+  toAmount: string | null;
   category: string | null;
   description: string;
   date: string;
@@ -124,6 +125,12 @@ function TxRow({
     day: "2-digit", month: "short", year: "numeric",
   });
 
+  const hasCrossRate = tx.type === "transfer" && tx.toAmount && tx.toAmount !== tx.amount;
+  const toAmountFmt  = tx.toAmount ? formatAmount(tx.toAmount, tx.currency, tx.type) : null;
+  const rateFmt      = tx.exchangeRateMXN
+    ? `TC ${parseFloat(tx.exchangeRateMXN).toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN`
+    : null;
+
   return (
     <div className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl transition-colors">
       {/* Icon */}
@@ -164,7 +171,31 @@ function TxRow({
               <span className="text-xs text-slate-400">{tx.clientName}</span>
             </>
           )}
+          {tx.projectName && (
+            <>
+              <span className="text-slate-200 text-xs">·</span>
+              <span className="text-xs text-slate-400">📁 {tx.projectName}</span>
+            </>
+          )}
+          {tx.notes && (
+            <>
+              <span className="text-slate-200 text-xs">·</span>
+              <span className="text-xs text-slate-400 italic truncate max-w-[120px]">{tx.notes}</span>
+            </>
+          )}
         </div>
+        {/* Cross-currency line */}
+        {hasCrossRate && tx.toAmount && (
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-blue-500 tabular-nums font-medium">
+              {formatAmount(tx.amount, tx.currency, "transfer")} → {parseFloat(tx.toAmount).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+            </span>
+            {rateFmt && <span className="text-xs text-slate-400">{rateFmt}</span>}
+          </div>
+        )}
+        {!hasCrossRate && rateFmt && (
+          <p className="text-xs text-slate-400 mt-0.5">{rateFmt}</p>
+        )}
       </div>
 
       {/* Status dot */}
@@ -175,10 +206,17 @@ function TxRow({
         </div>
       )}
 
-      {/* Amount */}
-      <p className={cn("text-sm font-semibold tabular-nums flex-shrink-0", cfg.amount)}>
-        {formatAmount(tx.amount, tx.currency, tx.type, incoming)}
-      </p>
+      {/* Amount — main (origin side) */}
+      <div className="text-right flex-shrink-0">
+        <p className={cn("text-sm font-semibold tabular-nums", cfg.amount)}>
+          {formatAmount(tx.amount, tx.currency, tx.type, incoming)}
+        </p>
+        {hasCrossRate && tx.toAmount && (
+          <p className="text-xs text-blue-500 tabular-nums">
+            {parseFloat(tx.toAmount).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+          </p>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -270,7 +308,6 @@ export function TransactionsList({
       ? initialTransactions.filter((t) => t.accountId === initialAccountId)
       : initialTransactions
   );
-  const [stats, setStats]             = useState(initialStats);
   const [modal, setModal]             = useState<TransactionRow | null | undefined>(undefined);
   const [loading, setLoading]         = useState(false);
 
@@ -280,6 +317,31 @@ export function TransactionsList({
   const [filterAccount, setFilterAccount] = useState(initialAccountId);
   const [filterStatus, setFilterStatus]   = useState("");
   const [showFilters, setShowFilters] = useState(!!initialAccountId);
+
+  // Stats computed live from txList — always in sync with active filters
+  const stats = useMemo<StatsData>(() => {
+    const income:  Record<string, number> = {};
+    const expense: Record<string, number> = {};
+    for (const tx of txList) {
+      if (tx.status !== "completed") continue;
+      const isDestination = !!filterAccount
+        && tx.accountId !== filterAccount
+        && tx.toAccountId === filterAccount;
+      const amt = parseFloat(isDestination && tx.toAmount ? tx.toAmount : tx.amount);
+      const cur = tx.currency;
+      if (tx.type === "income") {
+        income[cur] = (income[cur] ?? 0) + amt;
+      } else if (tx.type === "expense") {
+        if (isDestination) income[cur] = (income[cur] ?? 0) + amt;   // received salary
+        else               expense[cur] = (expense[cur] ?? 0) + amt;
+      } else if (tx.type === "transfer") {
+        if (isDestination)                          income[cur]  = (income[cur]  ?? 0) + amt;
+        else if (filterAccount && !isDestination)   expense[cur] = (expense[cur] ?? 0) + amt;
+        // without account filter: transfers are neutral (in/out cancel)
+      }
+    }
+    return { income, expense };
+  }, [txList, filterAccount]);
 
   useEffect(() => {
     if (initialAccountId) fetchData({ fa: initialAccountId });
@@ -304,16 +366,8 @@ export function TransactionsList({
       if (fa)    params.set("accountId", fa);
       if (fs)    params.set("status", fs);
 
-      const statsParams = new URLSearchParams();
-      if (start) statsParams.set("startDate", start);
-      if (end)   statsParams.set("endDate", end);
-
-      const [txRes, stRes] = await Promise.all([
-        fetch(`/api/transactions?${params}`),
-        fetch(`/api/transactions/stats?${statsParams}`),
-      ]);
-      if (txRes.ok)  setTxList(await txRes.json());
-      if (stRes.ok)  setStats(await stRes.json());
+      const txRes = await fetch(`/api/transactions?${params}`);
+      if (txRes.ok) setTxList(await txRes.json());
     } finally {
       setLoading(false);
     }

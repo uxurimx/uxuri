@@ -33,6 +33,7 @@ const updateSchema = z.object({
   projectId: z.string().uuid().optional().nullable(),
   type: z.enum(["income", "expense", "transfer"]).optional(),
   amount: z.number().positive().optional(),
+  toAmount: z.number().positive().optional().nullable(),
   currency: z.enum(["MXN", "USD", "EUR", "BTC", "ETH", "USDT", "other"]).optional(),
   exchangeRateMXN: z.number().optional().nullable(),
   category: z.string().max(50).optional().nullable(),
@@ -70,9 +71,10 @@ export async function PATCH(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { amount, exchangeRateMXN, ...rest } = parsed.data;
+  const { amount, toAmount, exchangeRateMXN, ...rest } = parsed.data;
   const update: Record<string, unknown> = { ...rest, updatedAt: new Date() };
   if (amount !== undefined) update.amount = amount.toString();
+  if (toAmount !== undefined) update.toAmount = toAmount?.toString() ?? null;
   if (exchangeRateMXN !== undefined) update.exchangeRateMXN = exchangeRateMXN?.toString() ?? null;
 
   const [updated] = await db.update(transactions).set(update as never).where(eq(transactions.id, id)).returning();

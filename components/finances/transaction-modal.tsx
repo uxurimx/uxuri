@@ -103,6 +103,7 @@ export function TransactionModal({
     !!(transaction?.clientId || transaction?.projectId || transaction?.businessId || transaction?.notes || transaction?.exchangeRateMXN)
   );
   const [exchangeRate, setExchangeRate] = useState(transaction?.exchangeRateMXN ?? "");
+  const [crossRate, setCrossRate]      = useState("");
   const [saving, setSaving]           = useState(false);
 
   // External account lookup (for transfer to other users)
@@ -117,10 +118,25 @@ export function TransactionModal({
   const categories = type === "income" ? INCOME_CATEGORIES : type === "expense" ? EXPENSE_CATEGORIES : [];
   const showToAccount = type === "transfer" || (type === "expense" && category === "Sueldos");
 
+  // Cross-currency detection for transfers
+  const destAccountObj = type === "transfer"
+    ? (destMode === "own" ? accounts.find((a) => a.id === toAccountId) : extAccount)
+    : null;
+  const originCurrency = selectedAccount?.currency ?? "";
+  const destCurrency   = destAccountObj?.currency ?? "";
+  const crossCurrency  = type === "transfer" && !!originCurrency && !!destCurrency && originCurrency !== destCurrency;
+  const crossRateNum   = parseFloat(crossRate);
+  const toAmountNum    = crossCurrency && crossRateNum > 0 && amount
+    ? parseFloat(amount) / crossRateNum
+    : null;
+
   // Reset dest mode when switching away from transfer
   useEffect(() => {
-    if (type !== "transfer") { setDestMode("own"); setExtAccount(null); setExtError(""); }
+    if (type !== "transfer") { setDestMode("own"); setExtAccount(null); setExtError(""); setCrossRate(""); }
   }, [type]);
+
+  // Reset crossRate when dest account changes
+  useEffect(() => { setCrossRate(""); }, [toAccountId]);
 
   // Sueldos: lookup nomina by wallet address
   const [sueldosAddr, setSueldosAddr]       = useState("");
@@ -179,12 +195,14 @@ export function TransactionModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!accountId || !amount || !description || !date) return;
+    if (crossCurrency && !crossRate) return; // require rate for cross-currency
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
         accountId,
         type,
         amount: parseFloat(amount),
+        toAmount: toAmountNum ?? null,
         currency: selectedAccount?.currency ?? "MXN",
         description: description.trim(),
         date,
@@ -403,6 +421,42 @@ export function TransactionModal({
               </div>
             )}
           </div>
+
+          {/* Cross-currency exchange rate — required when currencies differ */}
+          {crossCurrency && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-700">
+                  Tipo de cambio <span className="text-red-500">*</span>
+                </label>
+                <span className="text-xs text-blue-600 font-medium">
+                  {originCurrency} → {destCurrency}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 flex-shrink-0">1 {destCurrency} =</span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.000001"
+                  value={crossRate}
+                  onChange={(e) => setCrossRate(e.target.value)}
+                  placeholder="0.00"
+                  className="flex-1 px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  required
+                />
+                <span className="text-xs text-slate-500 flex-shrink-0">{originCurrency}</span>
+              </div>
+              {toAmountNum !== null && toAmountNum > 0 && (
+                <div className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-blue-200">
+                  <span className="text-xs text-slate-500">Destino recibirá</span>
+                  <span className="text-sm font-bold text-blue-700 tabular-nums">
+                    {toAmountNum.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 6 })} {destCurrency}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Description + Date */}
           <div>
@@ -633,7 +687,7 @@ export function TransactionModal({
             </button>
             <button
               type="submit"
-              disabled={saving || !accountId || !amount || !description || !date}
+              disabled={saving || !accountId || !amount || !description || !date || (crossCurrency && !crossRate)}
               className={cn(
                 "flex-1 px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
                 type === "income"   ? "bg-emerald-600 hover:bg-emerald-700" :

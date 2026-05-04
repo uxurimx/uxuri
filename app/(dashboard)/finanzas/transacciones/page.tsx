@@ -77,6 +77,7 @@ export default async function TransaccionesPage({
             projectId: transactions.projectId,
             type: transactions.type,
             amount: transactions.amount,
+            toAmount: transactions.toAmount,
             currency: transactions.currency,
             exchangeRateMXN: transactions.exchangeRateMXN,
             category: transactions.category,

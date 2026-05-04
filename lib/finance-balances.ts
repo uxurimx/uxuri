@@ -38,12 +38,11 @@ export async function applyTransactionsToBalances(
     if (row.type === "transfer") balances[row.accountId] = (balances[row.accountId] ?? 0) - amt; // outgoing debit
   }
 
-  // Incoming credits: any completed tx where toAccountId is one of our accounts
-  // (transfers AND expenses like Sueldos that target a nomina account)
+  // Incoming credits — use toAmount when present (cross-currency), else amount
   const inTransfers = await db
     .select({
       toAccountId: transactions.toAccountId,
-      total: sql<string>`cast(sum(${transactions.amount}) as text)`,
+      total: sql<string>`cast(sum(COALESCE(${transactions.toAmount}, ${transactions.amount})) as text)`,
     })
     .from(transactions)
     .where(and(

@@ -47,6 +47,8 @@ export const transactions = pgTable("transactions", {
   currency: currencyEnum("currency").default("MXN").notNull(),
   // Para normalizar reportes cuando la cuenta es USD/EUR/etc
   exchangeRateMXN: numeric("exchange_rate_mxn", { precision: 18, scale: 6 }),
+  // Monto real recibido en la cuenta destino (diferente a amount cuando hay conversión de moneda)
+  toAmount: numeric("to_amount", { precision: 18, scale: 6 }),
   // Clasificación
   category: varchar("category", { length: 50 }),
   description: varchar("description", { length: 500 }).notNull(),

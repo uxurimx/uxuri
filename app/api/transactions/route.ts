@@ -15,6 +15,7 @@ const createSchema = z.object({
   projectId: z.string().uuid().optional().nullable(),
   type: z.enum(["income", "expense", "transfer"]),
   amount: z.number().positive(),
+  toAmount: z.number().positive().optional().nullable(),
   currency: z.enum(["MXN", "USD", "EUR", "BTC", "ETH", "USDT", "other"]).optional(),
   exchangeRateMXN: z.number().optional().nullable(),
   category: z.string().max(50).optional().nullable(),
@@ -93,6 +94,7 @@ export async function GET(req: Request) {
       projectId: transactions.projectId,
       type: transactions.type,
       amount: transactions.amount,
+      toAmount: transactions.toAmount,
       currency: transactions.currency,
       exchangeRateMXN: transactions.exchangeRateMXN,
       category: transactions.category,
@@ -137,13 +139,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
-  const { amount, exchangeRateMXN, ...rest } = parsed.data;
+  const { amount, toAmount, exchangeRateMXN, ...rest } = parsed.data;
   const [tx] = await db
     .insert(transactions)
     .values({
       ...rest,
       userId,
       amount: amount.toString(),
+      toAmount: toAmount?.toString() ?? null,
       exchangeRateMXN: exchangeRateMXN?.toString() ?? null,
     })
     .returning();
