@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { pusherServer } from "@/lib/pusher";
 import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { mobileConversationMembers } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -17,9 +20,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing params" }, { status: 400 });
   }
 
-  // Only allow users to subscribe to their own private channels
   if (channel.startsWith("private-user-") && !channel.endsWith(userId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (channel.startsWith("private-mobile-conversation-")) {
+    const conversationId = channel.replace("private-mobile-conversation-", "");
+    const [member] = await db
+      .select({ id: mobileConversationMembers.id })
+      .from(mobileConversationMembers)
+      .where(
+        and(
+          eq(mobileConversationMembers.conversationId, conversationId),
+          eq(mobileConversationMembers.userId, userId)
+        )
+      );
+    if (!member) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const authResponse = pusherServer.authorizeChannel(socketId, channel);
