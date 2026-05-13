@@ -9,7 +9,7 @@ export const mobileConversationMembers = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     conversationId: uuid('conversation_id').notNull().references(() => mobileConversations.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull().references(() => users.userId, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: memberRoleEnum('role').notNull().default('member'),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
     lastReadAt: timestamp('last_read_at', { withTimezone: true }),

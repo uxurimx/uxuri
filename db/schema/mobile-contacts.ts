@@ -7,8 +7,8 @@ export const mobileContacts = pgTable(
   'mobile_contacts',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: text('user_id').notNull().references(() => users.userId, { onDelete: 'cascade' }),
-    contactId: text('contact_id').notNull().references(() => users.userId, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    contactId: text('contact_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     status: contactStatusEnum('status').notNull().default('pending'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

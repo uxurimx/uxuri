@@ -138,8 +138,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .where(
       and(
         eq(mobileConversationMembers.conversationId, conversationId),
-        sql`${mobileConversationMembers.user_id} != ${userId}`,
-        sql`${mobileProfiles.push_token} IS NOT NULL`
+        sql`${mobileConversationMembers.userId} != ${userId}`,
+        sql`${mobileProfiles.pushToken} IS NOT NULL`
       )
     )
 

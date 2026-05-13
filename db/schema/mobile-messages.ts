@@ -7,7 +7,7 @@ export const messageTypeEnum = pgEnum('message_type', ['text', 'image', 'file', 
 export const mobileMessages = pgTable('mobile_messages', {
   id: uuid('id').primaryKey().defaultRandom(),
   conversationId: uuid('conversation_id').notNull().references(() => mobileConversations.id, { onDelete: 'cascade' }),
-  senderId: text('sender_id').notNull().references(() => users.userId, { onDelete: 'cascade' }),
+  senderId: text('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   type: messageTypeEnum('type').notNull().default('text'),
   fileUrl: text('file_url'),

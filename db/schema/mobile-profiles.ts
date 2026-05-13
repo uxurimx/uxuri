@@ -3,7 +3,7 @@ import { users } from './users'
 
 export const mobileProfiles = pgTable('mobile_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id').notNull().unique().references(() => users.userId, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
   username: text('username').notNull().unique(),
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),

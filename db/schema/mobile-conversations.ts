@@ -8,7 +8,7 @@ export const mobileConversations = pgTable('mobile_conversations', {
   type: conversationTypeEnum('type').notNull(),
   name: text('name'),
   avatarUrl: text('avatar_url'),
-  createdBy: text('created_by').notNull().references(() => users.userId, { onDelete: 'cascade' }),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
