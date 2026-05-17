@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Leaf, Plus, Clock, TrendingUp, Star, ChevronRight, Zap, FileText, History, BarChart2 } from "lucide-react";
+import { Leaf, Plus, Clock, TrendingUp, Star, Zap, FileText, History, BarChart2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SessionStartModal } from "./session-start-modal";
-import { SessionCurve } from "./session-curve";
+import { SessionDetailModal } from "./session-detail-modal";
 
 const THEMES = {
   green:  { accent: "#00c896", glow: "rgba(0,200,150,0.4)",  text: "#a8f5d1", bg: "#070e0a" },
@@ -71,6 +71,7 @@ export function Dashboard420({ activeSession, sessions, stats }: Props) {
   const [startOpen, setStartOpen] = useState(false);
   const [activeElapsed, setActiveElapsed] = useState(0);
   const [tab, setTab] = useState<"home" | "history" | "stats">("home");
+  const [detailSessionId, setDetailSessionId] = useState<string | null>(null);
 
   const theme = THEMES[themeKey];
 
@@ -252,42 +253,12 @@ export function Dashboard420({ activeSession, sessions, stats }: Props) {
               </div>
               <div className="space-y-2">
                 {sessions.slice(0, 5).map((s) => (
-                  <div
+                  <SessionCard
                     key={s.id}
-                    className="rounded-2xl p-4"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-white font-semibold text-sm">
-                          {TYPE_EMOJIS[s.type]} {s.type} · {METHOD_LABELS[s.method]}
-                        </p>
-                        <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                          {formatDate(s.startedAt)} · {formatDuration(s.elapsedSeconds ?? 0)}
-                        </p>
-                      </div>
-                      {s.overallRating && (
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3" style={{ color: theme.accent }} fill={theme.accent} />
-                          <span className="text-xs font-bold" style={{ color: theme.accent }}>
-                            {s.overallRating}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      {s.checkinCount !== undefined && (
-                        <span className="flex items-center gap-1">
-                          <Zap className="w-3 h-3" /> {s.checkinCount}
-                        </span>
-                      )}
-                      {s.noteCount !== undefined && (
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> {s.noteCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    session={s}
+                    accent={theme.accent}
+                    onClick={() => setDetailSessionId(s.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -315,38 +286,13 @@ export function Dashboard420({ activeSession, sessions, stats }: Props) {
             </div>
           ) : (
             sessions.map((s) => (
-              <div
+              <SessionCard
                 key={s.id}
-                className="rounded-2xl p-4"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-white font-bold">
-                      {TYPE_EMOJIS[s.type]} {s.type}
-                    </p>
-                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-                      {METHOD_LABELS[s.method]}
-                      {s.strain && ` · ${s.strain}`}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
-                      {formatDate(s.startedAt)} · {formatDuration(s.elapsedSeconds ?? 0)}
-                    </p>
-                  </div>
-                  {s.overallRating && (
-                    <div
-                      className="px-2.5 py-1 rounded-full text-xs font-bold"
-                      style={{ background: `${theme.accent}20`, color: theme.accent }}
-                    >
-                      ★ {s.overallRating}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  {(s.checkinCount ?? 0) > 0 && <span>⚡ {s.checkinCount} check-ins</span>}
-                  {(s.noteCount ?? 0) > 0 && <span>📝 {s.noteCount} notas</span>}
-                </div>
-              </div>
+                session={s}
+                accent={theme.accent}
+                onClick={() => setDetailSessionId(s.id)}
+                expanded
+              />
             ))
           )}
         </div>
@@ -409,6 +355,74 @@ export function Dashboard420({ activeSession, sessions, stats }: Props) {
         onClose={() => setStartOpen(false)}
         color={theme.accent}
       />
+
+      <SessionDetailModal
+        sessionId={detailSessionId}
+        color={theme.accent}
+        onClose={() => setDetailSessionId(null)}
+      />
     </div>
+  );
+}
+
+// ─── Session Card ─────────────────────────────────────────────────────────────
+
+interface SessionCardProps {
+  session: Session;
+  accent: string;
+  onClick: () => void;
+  expanded?: boolean;
+}
+
+function SessionCard({ session: s, accent, onClick, expanded = false }: SessionCardProps) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-2xl p-4 transition-all active:scale-[0.98]"
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
+      <div className="flex items-start justify-between mb-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-white font-bold text-sm truncate">
+            {TYPE_EMOJIS[s.type]} {s.type}
+            {s.strain && <span className="text-white/40 font-normal"> · {s.strain}</span>}
+          </p>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.38)" }}>
+            {METHOD_LABELS[s.method]} · {formatDate(s.startedAt)} · {formatDuration(s.elapsedSeconds ?? 0)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {s.overallRating && (
+            <div
+              className="px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1"
+              style={{ background: `${accent}20`, color: accent }}
+            >
+              <Star className="w-3 h-3" fill={accent} />
+              {s.overallRating}
+            </div>
+          )}
+          <span className="text-white/20 text-xs">›</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+        {(s.checkinCount ?? 0) > 0 && (
+          <span className="flex items-center gap-1">
+            <Zap className="w-3 h-3" style={{ color: accent }} /> {s.checkinCount} check-in{s.checkinCount !== 1 ? "s" : ""}
+          </span>
+        )}
+        {(s.noteCount ?? 0) > 0 && (
+          <span className="flex items-center gap-1">
+            <FileText className="w-3 h-3" style={{ color: accent }} /> {s.noteCount} nota{s.noteCount !== 1 ? "s" : ""}
+          </span>
+        )}
+        {!(s.checkinCount) && !(s.noteCount) && (
+          <span className="text-white/20">Sin notas · toca para ver</span>
+        )}
+      </div>
+    </button>
   );
 }
