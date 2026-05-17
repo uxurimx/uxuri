@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Zap, FileText, Lightbulb, CheckSquare, Mic, X } from "lucide-react";
+import { ArrowLeft, Zap, FileText, Lightbulb, CheckSquare, Mic, X, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { SmokeSession } from "@/db/schema";
 import { NoteCapture } from "./note-capture";
@@ -45,15 +45,9 @@ const PSYCHEDELIC_COLORS = [
 
 type ColorMode = "default" | "flow" | "psychedelic";
 
-const MODE_ICONS: Record<ColorMode, string> = {
-  default: "●",
-  flow: "◐",
-  psychedelic: "✦",
-};
+const MODE_ICONS: Record<ColorMode, string> = { default: "●", flow: "◐", psychedelic: "✦" };
 const MODE_NEXT_LABEL: Record<ColorMode, string> = {
-  default: "flow",
-  flow: "psicodélico",
-  psychedelic: "estático",
+  default: "flow", flow: "psicodélico", psychedelic: "estático",
 };
 
 function formatTime(s: number) {
@@ -69,9 +63,7 @@ function isTimerPattern(s: number): boolean {
   const display = formatTime(s);
   const special = ["11:11", "22:22", "33:33", "44:44", "55:55", "12:34", "23:45", "1:11:11", "1:23:45", "2:22:22"];
   if (special.includes(display)) return true;
-  // every 10 minutes exactly
   if (s > 0 && s % 600 === 0) return true;
-  // round hours
   if (s > 0 && s % 3600 === 0) return true;
   return false;
 }
@@ -95,7 +87,6 @@ const NOTE_TYPE_ICONS: Record<string, { emoji: string; color: string }> = {
 
 interface LiveNote { id: string; content: string; type: string; minutesMark: number | null; createdAt: string; }
 interface LiveCheckin { id: string; intensity: number; minutesMark: number; tags: string[] | null; }
-
 interface Props { session: SmokeSession; }
 
 export function ActiveSessionClient({ session }: Props) {
@@ -108,11 +99,11 @@ export function ActiveSessionClient({ session }: Props) {
   const hueRef = useRef(120);
   const psychIndexRef = useRef(0);
 
-  // ── Timer & session state ──────────────────────────────────────
+  // ── Timer & patterns ──────────────────────────────────────────
   const [elapsed, setElapsed] = useState(0);
   const [patternGlow, setPatternGlow] = useState(false);
   const [showAnchor, setShowAnchor] = useState(false);
-  const [anchorKey, setAnchorKey] = useState(0); // forces re-mount of anchor animation
+  const [anchorKey, setAnchorKey] = useState(0);
   const [anchorWord, setAnchorWord] = useState("presente");
   const lastPatternSecRef = useRef(-1);
 
@@ -122,6 +113,25 @@ export function ActiveSessionClient({ session }: Props) {
 
   // ── Objective ─────────────────────────────────────────────────
   const [objective, setObjective] = useState<string | null>(null);
+
+  // ── Breathing rate (Sprint 2) ─────────────────────────────────
+  const [breatheDuration, setBreatheDuration] = useState(4);
+  const [showBreathControls, setShowBreathControls] = useState(false);
+
+  // ── Timer display mode ────────────────────────────────────────
+  type TimerMode = "elapsed" | "clock" | "minutes";
+  const [timerMode, setTimerMode] = useState<TimerMode>("elapsed");
+
+  // ── Sound / metrónomo (Sprint 2) ──────────────────────────────
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const soundIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Music widget (Sprint 2) ───────────────────────────────────
+  const [musicOpen, setMusicOpen] = useState(false);
+  const [trackName, setTrackName] = useState("");
+  const [trackInput, setTrackInput] = useState("");
+  const [openfyStatus, setOpenfyStatus] = useState<"idle" | "syncing" | "found" | "offline">("idle");
 
   // ── Notes / checkins / UI ─────────────────────────────────────
   const [noteOpen, setNoteOpen] = useState(false);
@@ -150,6 +160,12 @@ export function ActiveSessionClient({ session }: Props) {
 
     const obj = localStorage.getItem(`verde-objective-${session.id}`);
     if (obj) setObjective(obj);
+
+    const rate = parseFloat(localStorage.getItem("verde-breathe-rate") ?? "4");
+    setBreatheDuration(Math.min(8, Math.max(2, isNaN(rate) ? 4 : rate)));
+
+    const track = localStorage.getItem("verde-music-track");
+    if (track) { setTrackName(track); setTrackInput(track); }
   }, [session.id]);
 
   // ── Load triggered check-in marks ────────────────────────────
@@ -178,10 +194,7 @@ export function ActiveSessionClient({ session }: Props) {
               const key = `verde-triggered-${session.id}`;
               const stored = localStorage.getItem(key);
               const marks: number[] = stored ? JSON.parse(stored) : [];
-              if (!marks.includes(closestMark)) {
-                marks.push(closestMark);
-                localStorage.setItem(key, JSON.stringify(marks));
-              }
+              if (!marks.includes(closestMark)) { marks.push(closestMark); localStorage.setItem(key, JSON.stringify(marks)); }
             } catch {}
           }
         });
@@ -227,6 +240,7 @@ export function ActiveSessionClient({ session }: Props) {
   useEffect(() => {
     if (isTimerPattern(elapsed) && elapsed !== lastPatternSecRef.current) {
       lastPatternSecRef.current = elapsed;
+      try { if ("vibrate" in navigator) navigator.vibrate([20, 80, 20, 80, 20]); } catch {}
       setPatternGlow(true);
       setShowAnchor(true);
       setAnchorKey((k) => k + 1);
@@ -255,28 +269,133 @@ export function ActiveSessionClient({ session }: Props) {
   useEffect(() => {
     const id = setInterval(() => {
       setPhraseVisible(false);
-      setTimeout(() => {
-        setPhraseIndex((i) => (i + 1) % PHRASES.length);
-        setPhraseVisible(true);
-      }, 700);
+      setTimeout(() => { setPhraseIndex((i) => (i + 1) % PHRASES.length); setPhraseVisible(true); }, 700);
     }, 45000);
     return () => clearInterval(id);
   }, []);
 
+  // ── Sound metrónomo ───────────────────────────────────────────
+  useEffect(() => {
+    if (soundIntervalRef.current) { clearInterval(soundIntervalRef.current); soundIntervalRef.current = null; }
+    if (!soundEnabled) return;
+
+    function beat() {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+      function bump(freq: number, delay: number, dur: number, gain: number) {
+        const osc = ctx!.createOscillator();
+        const g = ctx!.createGain();
+        osc.connect(g); g.connect(ctx!.destination);
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, ctx!.currentTime + delay);
+        g.gain.linearRampToValueAtTime(gain, ctx!.currentTime + delay + 0.025);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx!.currentTime + delay + dur);
+        osc.start(ctx!.currentTime + delay);
+        osc.stop(ctx!.currentTime + delay + dur + 0.05);
+      }
+      // lub-dub heartbeat
+      bump(65, 0,    0.13, 0.22);
+      bump(55, 0,    0.15, 0.16);
+      bump(72, 0.22, 0.11, 0.18);
+      bump(62, 0.22, 0.13, 0.12);
+    }
+
+    beat();
+    soundIntervalRef.current = setInterval(beat, breatheDuration * 1000);
+    return () => { if (soundIntervalRef.current) clearInterval(soundIntervalRef.current); };
+  }, [soundEnabled, breatheDuration]);
+
   // ── Helpers ───────────────────────────────────────────────────
+  function haptic(pattern: number | number[] = 10) {
+    try { if ("vibrate" in navigator) navigator.vibrate(pattern); } catch {}
+  }
+
   function cycleColorMode() {
+    haptic(8);
     const modes: ColorMode[] = ["default", "flow", "psychedelic"];
     const next = modes[(modes.indexOf(colorMode) + 1) % 3];
     setColorMode(next);
     localStorage.setItem("verde-color-mode", next);
   }
 
+  function toggleSound() {
+    if (!soundEnabled && !audioCtxRef.current) {
+      type AC = typeof window.AudioContext;
+      const ACtx = (window.AudioContext ?? (window as unknown as Record<string, unknown>).webkitAudioContext) as AC;
+      audioCtxRef.current = new ACtx();
+    }
+    haptic(12);
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+  }
+
+  function updateBreatheRate(v: number) {
+    setBreatheDuration(v);
+    localStorage.setItem("verde-breathe-rate", String(v));
+  }
+
+  function cycleTimerMode() {
+    haptic(8);
+    setTimerMode((m) => m === "elapsed" ? "clock" : m === "clock" ? "minutes" : "elapsed");
+  }
+
+  function getTimerDisplay() {
+    if (timerMode === "clock") {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    }
+    if (timerMode === "minutes") return `${Math.floor(elapsed / 60)}min`;
+    return formatTime(elapsed);
+  }
+
+  function getTimerLabel() {
+    if (timerMode === "clock") return "hora actual";
+    if (timerMode === "minutes") return "transcurridos";
+    return "en sesión";
+  }
+
+  async function syncOpenfy() {
+    setOpenfyStatus("syncing");
+    try {
+      // Openfy has no "current" endpoint — pull last played from history (userId=1)
+      const res = await fetch("http://localhost:3001/api/history?userId=1&limit=1", {
+        signal: AbortSignal.timeout(2500),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const title: string | undefined =
+          Array.isArray(data) && data.length > 0 ? data[0].title : undefined;
+        if (title) {
+          setTrackInput(title);
+          setOpenfyStatus("found");
+        } else {
+          setOpenfyStatus("offline");
+        }
+      } else {
+        setOpenfyStatus("offline");
+      }
+    } catch {
+      setOpenfyStatus("offline");
+    }
+  }
+
+  function saveMusic() {
+    const val = trackInput.trim();
+    setTrackName(val);
+    localStorage.setItem("verde-music-track", val);
+    setMusicOpen(false);
+  }
+
   function openNote(type: "text" | "insight" | "task" | "voice") {
+    haptic(10);
     setNoteDefaultType(type);
     setNoteOpen(true);
   }
 
   function onNoteSaved() {
+    haptic([12, 50, 12]);
     fetch(`/api/420/sessions/${session.id}/notes`)
       .then((r) => r.json())
       .then((data) => setNotes(Array.isArray(data) ? data : []))
@@ -321,7 +440,6 @@ export function ActiveSessionClient({ session }: Props) {
               border: `1px solid ${displayColor}28`,
               color: displayColor,
             }}
-            title={`Modo: ${colorMode} → ${MODE_NEXT_LABEL[colorMode]}`}
           >
             <span className="text-[13px]">{MODE_ICONS[colorMode]}</span>
             <span className="text-[10px] font-semibold uppercase tracking-widest opacity-70">
@@ -329,45 +447,45 @@ export function ActiveSessionClient({ session }: Props) {
             </span>
           </button>
 
-          {/* Live elapsed — top */}
-          <span
-            className="font-mono font-black text-white text-lg"
+          {/* Timer — tappable to cycle mode */}
+          <button
+            onClick={cycleTimerMode}
+            className="font-mono font-black text-white text-lg transition-all active:scale-90"
             style={{
               letterSpacing: "-0.02em",
               textShadow: `0 0 12px ${displayColor}70`,
               animation: patternGlow ? "timer-flash-verde 3.8s ease-out" : "none",
+              background: "none", border: "none",
             }}
           >
-            {formatTime(elapsed)}
-          </span>
+            {getTimerDisplay()}
+          </button>
         </div>
 
-        {/* ── Session label ── */}
+        {/* ── Session label + objective ── */}
         <div className="px-5 pb-1 shrink-0">
           <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.38)" }}>
             {TYPE_EMOJIS[session.type]} {session.type} · {METHOD_LABELS[session.method]} · {AMOUNT_LABELS[session.amount]}
             {session.strain && ` · ${session.strain}`}
           </p>
           {objective && (
-            <p
-              className="text-xs text-center mt-1 font-medium"
-              style={{ color: `${displayColor}90` }}
-            >
+            <p className="text-xs text-center mt-1 font-medium" style={{ color: `${displayColor}90` }}>
               ✦ {objective}
             </p>
           )}
         </div>
 
-        {/* ── Breathing circle + phrase ── */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-5">
+        {/* ── Breathing circle + controls + phrase ── */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+
+          {/* Circle */}
           <div className="relative flex items-center justify-center">
-            {/* Outer ring */}
             <div
               className="absolute rounded-full"
               style={{
                 width: 280, height: 280,
                 background: `radial-gradient(circle, ${displayColor}22 0%, transparent 70%)`,
-                animation: "pulse-ring-verde 4s ease-in-out infinite",
+                animation: `pulse-ring-verde ${breatheDuration}s ease-in-out infinite`,
               }}
             />
             <div
@@ -375,13 +493,12 @@ export function ActiveSessionClient({ session }: Props) {
               style={{
                 width: 220, height: 220,
                 background: `radial-gradient(circle, ${displayColor}33 0%, transparent 70%)`,
-                animation: "pulse-ring-inner-verde 4s ease-in-out infinite",
-                animationDelay: "0.4s",
+                animation: `pulse-ring-inner-verde ${breatheDuration}s ease-in-out infinite`,
+                animationDelay: `${breatheDuration * 0.1}s`,
               }}
             />
-
-            {/* Main circle */}
-            <div
+            <button
+              onClick={cycleTimerMode}
               style={{
                 width: 176, height: 176,
                 borderRadius: "50%",
@@ -389,14 +506,15 @@ export function ActiveSessionClient({ session }: Props) {
                 border: `1.5px solid ${displayColor}55`,
                 boxShadow: `0 0 50px ${displayColor}${glowHex}, inset 0 0 35px ${displayColor}12`,
                 display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-                animation: "breathe-verde 4s ease-in-out infinite",
+                animation: `breathe-verde ${breatheDuration}s ease-in-out infinite`,
                 transition: "border-color 0.8s ease, box-shadow 0.8s ease",
+                cursor: "pointer",
               }}
             >
               <span
                 className="font-mono font-black leading-none"
                 style={{
-                  fontSize: elapsed >= 3600 ? 26 : 32,
+                  fontSize: timerMode === "minutes" ? 28 : elapsed >= 3600 ? 26 : 32,
                   color: "#fff",
                   textShadow: patternGlow
                     ? `0 0 30px ${displayColor}, 0 0 60px #fff`
@@ -404,14 +522,14 @@ export function ActiveSessionClient({ session }: Props) {
                   animation: patternGlow ? "timer-flash-verde 3.8s ease-out" : "none",
                 }}
               >
-                {formatTime(elapsed)}
+                {getTimerDisplay()}
               </span>
               <span className="text-[11px] mt-1 font-medium" style={{ color: `${displayColor}88` }}>
-                en sesión
+                {getTimerLabel()}
               </span>
-            </div>
+            </button>
 
-            {/* Anchor word — floats up on pattern */}
+            {/* Anchor word */}
             {showAnchor && (
               <span
                 key={anchorKey}
@@ -429,8 +547,63 @@ export function ActiveSessionClient({ session }: Props) {
             )}
           </div>
 
+          {/* ── Breath toggle pill ── */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { haptic(8); setShowBreathControls((v) => !v); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-90"
+              style={{
+                background: showBreathControls ? `${displayColor}18` : "rgba(255,255,255,0.05)",
+                border: `1px solid ${showBreathControls ? displayColor + "45" : "rgba(255,255,255,0.09)"}`,
+                color: showBreathControls ? displayColor : "rgba(255,255,255,0.3)",
+              }}
+            >
+              <span className="text-sm leading-none">🫧</span>
+              <span className="text-[10px] font-mono">{breatheDuration}s</span>
+            </button>
+
+            <button
+              onClick={toggleSound}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-90"
+              style={{
+                background: soundEnabled ? `${displayColor}18` : "rgba(255,255,255,0.05)",
+                border: `1px solid ${soundEnabled ? displayColor + "45" : "rgba(255,255,255,0.09)"}`,
+                color: soundEnabled ? displayColor : "rgba(255,255,255,0.28)",
+              }}
+            >
+              <span className="text-sm leading-none">{soundEnabled ? "♫" : "♪"}</span>
+              <span className="text-[10px] font-semibold">
+                {soundEnabled ? "latido" : "silencio"}
+              </span>
+            </button>
+          </div>
+
+          {/* Slider — visible solo cuando showBreathControls */}
+          <AnimatePresence>
+            {showBreathControls && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: "easeInOut" }}
+                className="overflow-hidden flex items-center gap-3 px-5"
+              >
+                <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>2s</span>
+                <input
+                  type="range"
+                  min={2} max={8} step={0.5}
+                  value={breatheDuration}
+                  onChange={(e) => { updateBreatheRate(Number(e.target.value)); haptic(6); }}
+                  className="flex-1 h-1"
+                  style={{ accentColor: displayColor }}
+                />
+                <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>8s</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Rotating phrase */}
-          <div className="h-10 flex items-center justify-center px-8">
+          <div className="h-9 flex items-center justify-center px-8">
             <p
               className="text-center text-[11px] leading-relaxed"
               style={{
@@ -446,8 +619,8 @@ export function ActiveSessionClient({ session }: Props) {
           </div>
         </div>
 
-        {/* ── Notes/checkins preview strip ── */}
-        <div className="px-5 mb-3 shrink-0">
+        {/* ── Notes/checkins strip ── */}
+        <div className="px-5 mb-2 shrink-0">
           <button
             onClick={() => setNotesOpen(true)}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all active:scale-[0.98]"
@@ -476,9 +649,32 @@ export function ActiveSessionClient({ session }: Props) {
                 </>
               )}
             </div>
-            {totalItems > 0 && (
-              <span className="text-xs shrink-0" style={{ color: displayColor }}>Ver →</span>
-            )}
+            {totalItems > 0 && <span className="text-xs shrink-0" style={{ color: displayColor }}>Ver →</span>}
+          </button>
+        </div>
+
+        {/* ── Music strip ── */}
+        <div className="px-5 mb-2.5 shrink-0">
+          <button
+            onClick={() => { setTrackInput(trackName); setOpenfyStatus("idle"); setMusicOpen(true); }}
+            className="w-full flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all active:scale-[0.98]"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            <span className="text-sm leading-none" style={{ color: trackName ? displayColor : "rgba(255,255,255,0.18)" }}>
+              ♫
+            </span>
+            <span
+              className="text-xs flex-1 text-left truncate"
+              style={{ color: trackName ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)" }}
+            >
+              {trackName || "¿Qué estás escuchando?"}
+            </span>
+            <span className="text-[10px] shrink-0" style={{ color: "rgba(255,255,255,0.18)" }}>
+              editar
+            </span>
           </button>
         </div>
 
@@ -509,7 +705,7 @@ export function ActiveSessionClient({ session }: Props) {
           </div>
 
           <button
-            onClick={() => { setCheckinMinute(Math.floor(elapsed / 60)); setCheckinOpen(true); }}
+            onClick={() => { haptic(15); setCheckinMinute(Math.floor(elapsed / 60)); setCheckinOpen(true); }}
             className="w-full py-3 rounded-xl text-sm font-semibold mb-2.5 flex items-center justify-center gap-2 transition-all active:scale-95"
             style={{ background: `${displayColor}14`, border: `1px solid ${displayColor}38`, color: displayColor }}
           >
@@ -518,7 +714,7 @@ export function ActiveSessionClient({ session }: Props) {
           </button>
 
           <button
-            onClick={() => setCloseOpen(true)}
+            onClick={() => { haptic([25, 50, 25]); setCloseOpen(true); }}
             className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95"
             style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171" }}
           >
@@ -532,16 +728,12 @@ export function ActiveSessionClient({ session }: Props) {
         {notesOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[60] bg-black/50"
               onClick={() => setNotesOpen(false)}
             />
             <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 360 }}
               className="fixed bottom-0 left-0 right-0 z-[61] rounded-t-3xl flex flex-col"
               style={{ background: "#0a1010", maxHeight: "80dvh" }}
@@ -560,7 +752,6 @@ export function ActiveSessionClient({ session }: Props) {
                   <X className="w-4 h-4 text-white/50" />
                 </button>
               </div>
-
               <div className="flex-1 overflow-y-auto px-5 pb-8 space-y-4">
                 {notes.length > 0 && (
                   <div>
@@ -571,18 +762,12 @@ export function ActiveSessionClient({ session }: Props) {
                       {[...notes].reverse().map((n) => {
                         const cfg = NOTE_TYPE_ICONS[n.type] ?? NOTE_TYPE_ICONS.text;
                         return (
-                          <div
-                            key={n.id}
-                            className="rounded-xl px-4 py-3 flex items-start gap-3"
-                            style={{ background: "rgba(255,255,255,0.05)" }}
-                          >
+                          <div key={n.id} className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: "rgba(255,255,255,0.05)" }}>
                             <span className="text-base shrink-0 mt-0.5">{cfg.emoji}</span>
                             <div className="flex-1 min-w-0">
                               <p className="text-white text-sm leading-relaxed">{n.content}</p>
                               {n.minutesMark !== null && (
-                                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.28)" }}>
-                                  min {n.minutesMark}
-                                </p>
+                                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.28)" }}>min {n.minutesMark}</p>
                               )}
                             </div>
                           </div>
@@ -591,7 +776,6 @@ export function ActiveSessionClient({ session }: Props) {
                     </div>
                   </div>
                 )}
-
                 {checkins.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
@@ -599,24 +783,17 @@ export function ActiveSessionClient({ session }: Props) {
                     </p>
                     <div className="flex gap-2 flex-wrap">
                       {checkins.map((c) => (
-                        <div
-                          key={c.id}
-                          className="rounded-xl px-3 py-2 flex items-center gap-2"
-                          style={{ background: `${displayColor}12`, border: `1px solid ${displayColor}30` }}
-                        >
+                        <div key={c.id} className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: `${displayColor}12`, border: `1px solid ${displayColor}30` }}>
                           <span className="font-black text-sm" style={{ color: displayColor }}>{c.intensity}</span>
                           <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>min {c.minutesMark}</span>
                           {(c.tags ?? []).length > 0 && (
-                            <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                              · {(c.tags ?? []).join(", ")}
-                            </span>
+                            <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>· {(c.tags ?? []).join(", ")}</span>
                           )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-
                 {totalItems === 0 && (
                   <div className="text-center py-10">
                     <p className="text-3xl mb-2">🌱</p>
@@ -624,6 +801,88 @@ export function ActiveSessionClient({ session }: Props) {
                       Todavía no hay nada — agrega tu primera nota
                     </p>
                   </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Music sheet ── */}
+      <AnimatePresence>
+        {musicOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] bg-black/60"
+              onClick={() => setMusicOpen(false)}
+            />
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 360 }}
+              className="fixed bottom-0 left-0 right-0 z-[61] rounded-t-3xl"
+              style={{ background: "#080e0a" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-white/20" />
+              </div>
+              <div className="px-5 pb-10 pt-3">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold text-white text-base">¿Qué estás escuchando?</h3>
+                  <button
+                    onClick={() => setMusicOpen(false)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(255,255,255,0.08)" }}
+                  >
+                    <X className="w-4 h-4 text-white/50" />
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={trackInput}
+                  onChange={(e) => setTrackInput(e.target.value)}
+                  placeholder="Canción, artista o playlist..."
+                  autoFocus
+                  className="w-full py-3 px-4 rounded-xl text-white placeholder-white/25 outline-none mb-3 text-sm"
+                  style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${displayColor}30` }}
+                />
+
+                {/* Openfy sync */}
+                <button
+                  onClick={syncOpenfy}
+                  disabled={openfyStatus === "syncing"}
+                  className="w-full py-2.5 rounded-xl text-sm font-medium mb-4 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: openfyStatus === "found" ? displayColor : openfyStatus === "offline" ? "#f87171" : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${openfyStatus === "syncing" ? "animate-spin" : ""}`} />
+                  {openfyStatus === "idle"    && "↺ Última reproducida en Openfy"}
+                  {openfyStatus === "syncing" && "Buscando..."}
+                  {openfyStatus === "found"   && "✓ Encontrada — revisa el campo"}
+                  {openfyStatus === "offline" && "Openfy no disponible o sin historial"}
+                </button>
+
+                <button
+                  onClick={saveMusic}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95"
+                  style={{ background: displayColor, color: "#020a06" }}
+                >
+                  Guardar
+                </button>
+
+                {trackName && (
+                  <button
+                    onClick={() => { setTrackName(""); setTrackInput(""); localStorage.removeItem("verde-music-track"); setMusicOpen(false); }}
+                    className="w-full py-2 mt-2 text-xs text-center"
+                    style={{ color: "rgba(255,255,255,0.25)" }}
+                  >
+                    Borrar
+                  </button>
                 )}
               </div>
             </motion.div>
