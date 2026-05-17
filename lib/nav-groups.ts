@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Briefcase, CheckSquare, UserCog,
   MessageSquare, Bot, Target, Zap, Sun, Repeat2,
   BookOpen, StickyNote, CalendarDays, RefreshCw, Megaphone,
-  Building2, Wallet, UtensilsCrossed, GitBranch, Layers,
+  Building2, Wallet, UtensilsCrossed, GitBranch, Layers, Leaf,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -40,6 +40,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
       { href: "/notes",    label: "Notas",    icon: StickyNote },
       { href: "/schedule", label: "Agenda",   icon: CalendarDays },
       { href: "/review",   label: "Revisión", icon: RefreshCw },
+      { href: "/420",      label: "Flow",     icon: Leaf },
     ],
   },
   {

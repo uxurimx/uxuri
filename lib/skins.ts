@@ -355,6 +355,20 @@ export const BUILTIN_SKINS: Skin[] = [
     type: "builtin",
     preview: { bg: "#07090f", surface: "#0d1117", accent: "#22d3ee", text: "#c9d1d9" },
   },
+  {
+    id: "green-dark",
+    name: "Bosque",
+    description: "Verde esmeralda — modo flow",
+    type: "builtin",
+    preview: { bg: "#07120e", surface: "#0d1f17", accent: "#00c896", text: "#c8f5e0" },
+  },
+  {
+    id: "violet-dark",
+    name: "Cosmos",
+    description: "Violeta profundo — modo cosmos",
+    type: "builtin",
+    preview: { bg: "#06040d", surface: "#0d0a1f", accent: "#9945ff", text: "#e8d5ff" },
+  },
 ];
 
 // ─── CSS var map ──────────────────────────────────────────────────────────────
