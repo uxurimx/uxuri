@@ -8,6 +8,7 @@ import type { SmokeSession } from "@/db/schema";
 import { NoteCapture } from "./note-capture";
 import { CheckinWidget } from "./checkin-widget";
 import { SessionCloseFlow } from "./session-close-flow";
+import { startSpotifyAuth, getSpotifyToken, getSpotifyCurrentTrack, hasSpotifyConfig } from "@/lib/spotify-pkce";
 
 const CHECKIN_MARKS = [5, 15, 30, 60];
 const THEMES = { green: "#00c896", violet: "#9945ff" };
@@ -133,6 +134,19 @@ export function ActiveSessionClient({ session }: Props) {
   const [trackInput, setTrackInput] = useState("");
   const [openfyStatus, setOpenfyStatus] = useState<"idle" | "syncing" | "found" | "offline">("idle");
 
+  // ── Deep breath gesture (Sprint 3) ───────────────────────────
+  const [deepBreathActive, setDeepBreathActive] = useState(false);
+  const [deepBreathSecs, setDeepBreathSecs] = useState(0);
+  const [deepBreathToast, setDeepBreathToast] = useState<string | null>(null);
+  const deepBreathIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const deepBreathStartRef = useRef<number | null>(null);
+  const gestureRef = useRef({ startY: 0, active: false, activated: false });
+
+  // ── Spotify (Sprint 3) ────────────────────────────────────────
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [spotifyStatus, setSpotifyStatus] = useState<"idle" | "syncing" | "found" | "error">("idle");
+  const spotifyConfigured = hasSpotifyConfig();
+
   // ── Notes / checkins / UI ─────────────────────────────────────
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDefaultType, setNoteDefaultType] = useState<"text" | "insight" | "task" | "voice">("text");
@@ -166,6 +180,8 @@ export function ActiveSessionClient({ session }: Props) {
 
     const track = localStorage.getItem("verde-music-track");
     if (track) { setTrackName(track); setTrackInput(track); }
+
+    setSpotifyConnected(!!getSpotifyToken());
   }, [session.id]);
 
   // ── Load triggered check-in marks ────────────────────────────
@@ -272,6 +288,13 @@ export function ActiveSessionClient({ session }: Props) {
       setTimeout(() => { setPhraseIndex((i) => (i + 1) % PHRASES.length); setPhraseVisible(true); }, 700);
     }, 45000);
     return () => clearInterval(id);
+  }, []);
+
+  // ── Deep breath cleanup on unmount ───────────────────────────
+  useEffect(() => {
+    return () => {
+      if (deepBreathIntervalRef.current) clearInterval(deepBreathIntervalRef.current);
+    };
   }, []);
 
   // ── Sound metrónomo ───────────────────────────────────────────
@@ -388,6 +411,91 @@ export function ActiveSessionClient({ session }: Props) {
     setMusicOpen(false);
   }
 
+  // ── Deep breath gesture handlers ─────────────────────────────
+  function onCirclePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    gestureRef.current = { startY: e.clientY, active: true, activated: false };
+  }
+
+  function onCirclePointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!gestureRef.current.active || gestureRef.current.activated) return;
+    const deltaY = e.clientY - gestureRef.current.startY;
+    if (deltaY > 38) {
+      gestureRef.current.activated = true;
+      haptic([30, 100, 30]);
+      setDeepBreathActive(true);
+      setDeepBreathSecs(0);
+      deepBreathStartRef.current = Date.now();
+      deepBreathIntervalRef.current = setInterval(() => {
+        const secs = Math.floor((Date.now() - deepBreathStartRef.current!) / 1000);
+        setDeepBreathSecs(secs);
+        haptic(20);
+      }, 1000);
+    }
+  }
+
+  async function onCirclePointerUp() {
+    gestureRef.current.active = false;
+    if (!gestureRef.current.activated) return;
+
+    // Cleanup interval
+    if (deepBreathIntervalRef.current) {
+      clearInterval(deepBreathIntervalRef.current);
+      deepBreathIntervalRef.current = null;
+    }
+
+    const duration = Math.floor((Date.now() - (deepBreathStartRef.current ?? Date.now())) / 1000);
+    deepBreathStartRef.current = null;
+    setDeepBreathActive(false);
+    setDeepBreathSecs(0);
+
+    if (duration < 2) return; // ignore accidental gestures
+
+    haptic([25, 60, 25, 60, 25]);
+
+    // Save as insight note
+    await fetch(`/api/420/sessions/${session.id}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: `Respiración profunda: ${duration}s`,
+        type: "insight",
+        tags: ["respiración", "profunda"],
+        minutesMark: Math.floor(elapsed / 60),
+      }),
+    }).catch(() => {});
+    onNoteSaved();
+
+    // Brief toast
+    setDeepBreathToast(`💨 ${duration}s guardados`);
+    setTimeout(() => setDeepBreathToast(null), 2500);
+  }
+
+  function handleCircleClick() {
+    // Suppress click when deep breath gesture just ended
+    if (gestureRef.current.activated) {
+      gestureRef.current.activated = false;
+      return;
+    }
+    cycleTimerMode();
+  }
+
+  // ── Spotify ───────────────────────────────────────────────────
+  async function syncSpotify() {
+    setSpotifyStatus("syncing");
+    try {
+      const track = await getSpotifyCurrentTrack();
+      if (track) {
+        setTrackInput(track);
+        setSpotifyStatus("found");
+      } else {
+        setSpotifyStatus("error");
+      }
+    } catch {
+      setSpotifyStatus("error");
+    }
+  }
+
   function openNote(type: "text" | "insight" | "task" | "voice") {
     haptic(10);
     setNoteDefaultType(type);
@@ -497,36 +605,74 @@ export function ActiveSessionClient({ session }: Props) {
                 animationDelay: `${breatheDuration * 0.1}s`,
               }}
             />
+            {/* Dynamic glow — pulses bright at peak expansion */}
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 176, height: 176,
+                background: `radial-gradient(circle, ${displayColor}55 0%, ${displayColor}18 55%, transparent 72%)`,
+                filter: "blur(14px)",
+                animation: deepBreathActive
+                  ? `deep-breath-pulse 1.2s ease-in-out infinite`
+                  : `breathe-glow-verde ${breatheDuration}s ease-in-out infinite`,
+              }}
+            />
+
             <button
-              onClick={cycleTimerMode}
+              onClick={handleCircleClick}
+              onPointerDown={onCirclePointerDown}
+              onPointerMove={onCirclePointerMove}
+              onPointerUp={onCirclePointerUp}
+              onPointerCancel={onCirclePointerUp}
               style={{
                 width: 176, height: 176,
                 borderRadius: "50%",
-                background: `radial-gradient(circle at 38% 32%, ${displayColor}28 0%, ${displayColor}08 100%)`,
-                border: `1.5px solid ${displayColor}55`,
+                background: deepBreathActive
+                  ? `radial-gradient(circle at 38% 32%, ${displayColor}45 0%, ${displayColor}15 100%)`
+                  : `radial-gradient(circle at 38% 32%, ${displayColor}28 0%, ${displayColor}08 100%)`,
+                border: `1.5px solid ${deepBreathActive ? displayColor + "99" : displayColor + "55"}`,
                 boxShadow: `0 0 50px ${displayColor}${glowHex}, inset 0 0 35px ${displayColor}12`,
                 display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-                animation: `breathe-verde ${breatheDuration}s ease-in-out infinite`,
-                transition: "border-color 0.8s ease, box-shadow 0.8s ease",
+                animation: deepBreathActive
+                  ? `breathe-verde 1.8s ease-in-out infinite`
+                  : `breathe-verde ${breatheDuration}s ease-in-out infinite`,
+                transition: "border-color 0.4s ease, box-shadow 0.8s ease, background 0.4s ease",
                 cursor: "pointer",
+                touchAction: "none",
               }}
             >
-              <span
-                className="font-mono font-black leading-none"
-                style={{
-                  fontSize: timerMode === "minutes" ? 28 : elapsed >= 3600 ? 26 : 32,
-                  color: "#fff",
-                  textShadow: patternGlow
-                    ? `0 0 30px ${displayColor}, 0 0 60px #fff`
-                    : `0 0 16px ${displayColor}80`,
-                  animation: patternGlow ? "timer-flash-verde 3.8s ease-out" : "none",
-                }}
-              >
-                {getTimerDisplay()}
-              </span>
-              <span className="text-[11px] mt-1 font-medium" style={{ color: `${displayColor}88` }}>
-                {getTimerLabel()}
-              </span>
+              {deepBreathActive ? (
+                <>
+                  <span
+                    className="font-mono font-black leading-none"
+                    style={{ fontSize: 38, color: "#fff", textShadow: `0 0 20px ${displayColor}` }}
+                  >
+                    {deepBreathSecs}
+                  </span>
+                  <span className="text-[11px] mt-1 font-medium" style={{ color: `${displayColor}cc` }}>
+                    inhala...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span
+                    className="font-mono font-black leading-none"
+                    style={{
+                      fontSize: timerMode === "minutes" ? 28 : elapsed >= 3600 ? 26 : 32,
+                      color: "#fff",
+                      textShadow: patternGlow
+                        ? `0 0 30px ${displayColor}, 0 0 60px #fff`
+                        : `0 0 16px ${displayColor}80`,
+                      animation: patternGlow ? "timer-flash-verde 3.8s ease-out" : "none",
+                    }}
+                  >
+                    {getTimerDisplay()}
+                  </span>
+                  <span className="text-[11px] mt-1 font-medium" style={{ color: `${displayColor}88` }}>
+                    {getTimerLabel()}
+                  </span>
+                </>
+              )}
             </button>
 
             {/* Anchor word */}
@@ -591,13 +737,13 @@ export function ActiveSessionClient({ session }: Props) {
                 <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>2s</span>
                 <input
                   type="range"
-                  min={2} max={8} step={0.5}
+                  min={2} max={60} step={1}
                   value={breatheDuration}
                   onChange={(e) => { updateBreatheRate(Number(e.target.value)); haptic(6); }}
                   className="flex-1 h-1"
                   style={{ accentColor: displayColor }}
                 />
-                <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>8s</span>
+                <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>60s</span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -721,6 +867,25 @@ export function ActiveSessionClient({ session }: Props) {
             Terminar sesión
           </button>
         </div>
+
+        {/* ── Deep breath toast ── */}
+        <AnimatePresence>
+          {deepBreathToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute left-1/2 -translate-x-1/2 bottom-32 pointer-events-none"
+            >
+              <div
+                className="px-4 py-2 rounded-full text-xs font-bold"
+                style={{ background: `${displayColor}22`, border: `1px solid ${displayColor}55`, color: displayColor }}
+              >
+                {deepBreathToast}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── Live notes sheet ── */}
@@ -849,23 +1014,60 @@ export function ActiveSessionClient({ session }: Props) {
                   style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${displayColor}30` }}
                 />
 
-                {/* Openfy sync */}
-                <button
-                  onClick={syncOpenfy}
-                  disabled={openfyStatus === "syncing"}
-                  className="w-full py-2.5 rounded-xl text-sm font-medium mb-4 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: openfyStatus === "found" ? displayColor : openfyStatus === "offline" ? "#f87171" : "rgba(255,255,255,0.5)",
-                  }}
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${openfyStatus === "syncing" ? "animate-spin" : ""}`} />
-                  {openfyStatus === "idle"    && "↺ Última reproducida en Openfy"}
-                  {openfyStatus === "syncing" && "Buscando..."}
-                  {openfyStatus === "found"   && "✓ Encontrada — revisa el campo"}
-                  {openfyStatus === "offline" && "Openfy no disponible o sin historial"}
-                </button>
+                {/* Sync row */}
+                <div className="flex gap-2 mb-4">
+                  {/* Openfy */}
+                  <button
+                    onClick={syncOpenfy}
+                    disabled={openfyStatus === "syncing"}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: openfyStatus === "found" ? displayColor : openfyStatus === "offline" ? "#f87171" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${openfyStatus === "syncing" ? "animate-spin" : ""}`} />
+                    {openfyStatus === "idle"    && "Openfy"}
+                    {openfyStatus === "syncing" && "..."}
+                    {openfyStatus === "found"   && "✓ Openfy"}
+                    {openfyStatus === "offline" && "Sin Openfy"}
+                  </button>
+
+                  {/* Spotify */}
+                  {spotifyConfigured ? (
+                    spotifyConnected ? (
+                      <button
+                        onClick={() => { syncSpotify().then(() => setSpotifyConnected(!!getSpotifyToken())); }}
+                        disabled={spotifyStatus === "syncing"}
+                        className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                        style={{
+                          background: "rgba(30,215,96,0.08)",
+                          border: "1px solid rgba(30,215,96,0.2)",
+                          color: spotifyStatus === "found" ? "#1ed760" : spotifyStatus === "error" ? "#f87171" : "#1ed760aa",
+                        }}
+                      >
+                        <RefreshCw className={`w-3 h-3 ${spotifyStatus === "syncing" ? "animate-spin" : ""}`} />
+                        {spotifyStatus === "idle"    && "♫ Spotify"}
+                        {spotifyStatus === "syncing" && "..."}
+                        {spotifyStatus === "found"   && "✓ Spotify"}
+                        {spotifyStatus === "error"   && "Sin música"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => startSpotifyAuth()}
+                        className="flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                        style={{
+                          background: "rgba(30,215,96,0.06)",
+                          border: "1px solid rgba(30,215,96,0.18)",
+                          color: "rgba(30,215,96,0.6)",
+                        }}
+                      >
+                        Conectar Spotify
+                      </button>
+                    )
+                  ) : null}
+                </div>
 
                 <button
                   onClick={saveMusic}
