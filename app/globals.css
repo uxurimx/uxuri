@@ -312,6 +312,20 @@
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
 }
+@keyframes timer-flash-verde {
+  0%   { filter: brightness(1); }
+  18%  { filter: brightness(2.8) drop-shadow(0 0 14px white); }
+  36%  { filter: brightness(1.4); }
+  55%  { filter: brightness(2.2) drop-shadow(0 0 9px white); }
+  75%  { filter: brightness(1.4); }
+  100% { filter: brightness(1); }
+}
+@keyframes anchor-rise {
+  0%   { opacity: 0; transform: translate(-50%, 14px); }
+  18%  { opacity: 1; transform: translate(-50%, 0); }
+  75%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -10px); }
+}
 
 /* ============================================================
    Bosque (green-dark) skin — verde esmeralda / modo flow

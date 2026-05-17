@@ -46,6 +46,7 @@ export function SessionStartModal({ open, onClose, color }: Props) {
   const [amount, setAmount] = useState("medium");
   const [strain, setStrain] = useState("");
   const [mood, setMood] = useState(5);
+  const [objective, setObjective] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleStart() {
@@ -57,6 +58,9 @@ export function SessionStartModal({ open, onClose, color }: Props) {
         body: JSON.stringify({ type, method, amount, strain: strain || null, moodBefore: mood }),
       });
       const session = await res.json();
+      if (objective.trim()) {
+        localStorage.setItem(`verde-objective-${session.id}`, objective.trim());
+      }
       router.push(`/420/session/${session.id}`);
     } finally {
       setLoading(false);
@@ -176,6 +180,19 @@ export function SessionStartModal({ open, onClose, color }: Props) {
                 value={strain}
                 onChange={(e) => setStrain(e.target.value)}
                 placeholder="Ej. OG Kush, Amnesia..."
+                className="w-full py-3 px-4 rounded-xl text-white placeholder-white/25 outline-none mb-6 text-sm"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              />
+
+              {/* Objective */}
+              <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Intención <span style={{ color: "rgba(255,255,255,0.2)" }}>(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={objective}
+                onChange={(e) => setObjective(e.target.value)}
+                placeholder="¿Qué quieres lograr o explorar?"
                 className="w-full py-3 px-4 rounded-xl text-white placeholder-white/25 outline-none mb-6 text-sm"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
               />
