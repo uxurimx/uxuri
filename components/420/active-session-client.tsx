@@ -8,6 +8,7 @@ import type { SmokeSession } from "@/db/schema";
 import { NoteCapture } from "./note-capture";
 import { CheckinWidget } from "./checkin-widget";
 import { SessionCloseFlow } from "./session-close-flow";
+import { DeepBreathCompetition, TripForm, type BreathRecord } from "./deep-breath-competition";
 import { startSpotifyAuth, getSpotifyToken, getSpotifyCurrentTrack, hasSpotifyConfig } from "@/lib/spotify-pkce";
 
 const CHECKIN_MARKS = [5, 15, 30, 60];
@@ -86,7 +87,7 @@ const NOTE_TYPE_ICONS: Record<string, { emoji: string; color: string }> = {
   voice:   { emoji: "🎤", color: "#c084fc" },
 };
 
-interface LiveNote { id: string; content: string; type: string; minutesMark: number | null; createdAt: string; }
+interface LiveNote { id: string; content: string; type: string; tags?: string[] | null; minutesMark: number | null; createdAt: string; }
 interface LiveCheckin { id: string; intensity: number; minutesMark: number; tags: string[] | null; }
 interface Props { session: SmokeSession; }
 
@@ -120,8 +121,9 @@ export function ActiveSessionClient({ session }: Props) {
   const [showBreathControls, setShowBreathControls] = useState(false);
 
   // ── Timer display mode ────────────────────────────────────────
-  type TimerMode = "elapsed" | "clock" | "minutes";
+  type TimerMode = "elapsed" | "clock" | "minutes" | "countdown";
   const [timerMode, setTimerMode] = useState<TimerMode>("elapsed");
+  const [targetDuration, setTargetDuration] = useState(0);
 
   // ── Sound / metrónomo (Sprint 2) ──────────────────────────────
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -138,14 +140,20 @@ export function ActiveSessionClient({ session }: Props) {
   const [deepBreathActive, setDeepBreathActive] = useState(false);
   const [deepBreathSecs, setDeepBreathSecs] = useState(0);
   const [deepBreathToast, setDeepBreathToast] = useState<string | null>(null);
+  const [deepBreathRefreshKey, setDeepBreathRefreshKey] = useState(0);
+  const [recentBreaths, setRecentBreaths] = useState<Record<string, BreathRecord>>({});
+  const [tripNoteBreathId, setTripNoteBreathId] = useState<string | null>(null);
   const deepBreathIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deepBreathStartRef = useRef<number | null>(null);
-  const gestureRef = useRef({ startY: 0, active: false, activated: false });
+  const gestureRef = useRef({ startY: 0, startX: 0, active: false, activated: false });
 
   // ── Spotify (Sprint 3) ────────────────────────────────────────
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyStatus, setSpotifyStatus] = useState<"idle" | "syncing" | "found" | "error">("idle");
   const spotifyConfigured = hasSpotifyConfig();
+
+  // ── Re-fumar events ───────────────────────────────────────────
+  const [smokeEventCount, setSmokeEventCount] = useState(0);
 
   // ── Notes / checkins / UI ─────────────────────────────────────
   const [noteOpen, setNoteOpen] = useState(false);
@@ -176,7 +184,10 @@ export function ActiveSessionClient({ session }: Props) {
     if (obj) setObjective(obj);
 
     const rate = parseFloat(localStorage.getItem("verde-breathe-rate") ?? "4");
-    setBreatheDuration(Math.min(8, Math.max(2, isNaN(rate) ? 4 : rate)));
+    setBreatheDuration(Math.min(60, Math.max(2, isNaN(rate) ? 4 : rate)));
+
+    const target = parseInt(localStorage.getItem(`verde-target-${session.id}`) ?? "0", 10);
+    if (target > 0) setTargetDuration(target);
 
     const track = localStorage.getItem("verde-music-track");
     if (track) { setTrackName(track); setTrackInput(track); }
@@ -361,7 +372,12 @@ export function ActiveSessionClient({ session }: Props) {
 
   function cycleTimerMode() {
     haptic(8);
-    setTimerMode((m) => m === "elapsed" ? "clock" : m === "clock" ? "minutes" : "elapsed");
+    setTimerMode((m) => {
+      if (m === "elapsed") return "clock";
+      if (m === "clock") return "minutes";
+      if (m === "minutes") return targetDuration > 0 ? "countdown" : "elapsed";
+      return "elapsed";
+    });
   }
 
   function getTimerDisplay() {
@@ -370,13 +386,31 @@ export function ActiveSessionClient({ session }: Props) {
       return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     }
     if (timerMode === "minutes") return `${Math.floor(elapsed / 60)}min`;
+    if (timerMode === "countdown") {
+      const remaining = Math.max(0, targetDuration - elapsed);
+      return formatTime(remaining);
+    }
     return formatTime(elapsed);
   }
 
   function getTimerLabel() {
     if (timerMode === "clock") return "hora actual";
     if (timerMode === "minutes") return "transcurridos";
+    if (timerMode === "countdown") return elapsed >= targetDuration ? "tiempo!" : "restante";
     return "en sesión";
+  }
+
+  async function saveTripFromNote(breathId: string, data: { tripDurationSeconds?: number; tripDetails?: string }) {
+    await fetch(`/api/420/deep-breaths/${breathId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(() => {});
+    setRecentBreaths((prev) => ({
+      ...prev,
+      [breathId]: { ...(prev[breathId] ?? {}), tripDetails: data.tripDetails ?? null, tripDurationSeconds: data.tripDurationSeconds ?? null } as BreathRecord,
+    }));
+    setTripNoteBreathId(null);
   }
 
   async function syncOpenfy() {
@@ -414,7 +448,7 @@ export function ActiveSessionClient({ session }: Props) {
   // ── Deep breath gesture handlers ─────────────────────────────
   function onCirclePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     e.currentTarget.setPointerCapture(e.pointerId);
-    gestureRef.current = { startY: e.clientY, active: true, activated: false };
+    gestureRef.current = { startY: e.clientY, startX: e.clientX, active: true, activated: false };
   }
 
   function onCirclePointerMove(e: React.PointerEvent<HTMLButtonElement>) {
@@ -434,40 +468,64 @@ export function ActiveSessionClient({ session }: Props) {
     }
   }
 
-  async function onCirclePointerUp() {
+  async function onCirclePointerUp(e: React.PointerEvent<HTMLButtonElement>) {
     gestureRef.current.active = false;
     if (!gestureRef.current.activated) return;
 
-    // Cleanup interval
     if (deepBreathIntervalRef.current) {
       clearInterval(deepBreathIntervalRef.current);
       deepBreathIntervalRef.current = null;
     }
 
     const duration = Math.floor((Date.now() - (deepBreathStartRef.current ?? Date.now())) / 1000);
+    const deltaX = e.clientX - gestureRef.current.startX;
+    const breathType: "inhale" | "inhale_hold" = deltaX < -50 ? "inhale_hold" : "inhale";
+
     deepBreathStartRef.current = null;
     setDeepBreathActive(false);
     setDeepBreathSecs(0);
 
-    if (duration < 2) return; // ignore accidental gestures
+    if (duration < 2) return;
 
     haptic([25, 60, 25, 60, 25]);
 
-    // Save as insight note
+    // Save to deep-breaths (competition + history)
+    const breathRes = await fetch("/api/420/deep-breaths", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        durationSeconds: duration,
+        breathType,
+        sessionId: session.id,
+        minutesMark: Math.floor(elapsed / 60),
+      }),
+    }).catch(() => null);
+
+    const breathRecord: BreathRecord | null = breathRes?.ok ? await breathRes.json().catch(() => null) : null;
+    if (breathRecord?.id) {
+      setRecentBreaths((prev) => ({ ...prev, [breathRecord.id]: breathRecord }));
+      setDeepBreathRefreshKey((k) => k + 1);
+    }
+
+    // Label based on type
+    const typeLabel = breathType === "inhale_hold" ? "Inhalación + sostén" : "Inhalación";
+    const breathTag = breathRecord?.id ? `deepBreath:${breathRecord.id}` : null;
+
+    // Save as insight note (linked to breath record via tag)
     await fetch(`/api/420/sessions/${session.id}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        content: `Respiración profunda: ${duration}s`,
+        content: `${typeLabel}: ${duration}s`,
         type: "insight",
-        tags: ["respiración", "profunda"],
+        tags: ["respiración", breathType === "inhale_hold" ? "sostén" : "inhalación", ...(breathTag ? [breathTag] : [])],
         minutesMark: Math.floor(elapsed / 60),
       }),
     }).catch(() => {});
     onNoteSaved();
 
-    // Brief toast
-    setDeepBreathToast(`💨 ${duration}s guardados`);
+    const toastLabel = breathType === "inhale_hold" ? `🫁 Sostén ${duration}s` : `💨 Inhalación ${duration}s`;
+    setDeepBreathToast(toastLabel);
     setTimeout(() => setDeepBreathToast(null), 2500);
   }
 
@@ -533,7 +591,7 @@ export function ActiveSessionClient({ session }: Props) {
           <button
             onClick={() => router.push("/420")}
             className="flex items-center gap-1.5 text-sm"
-            style={{ color: "rgba(255,255,255,0.35)" }}
+            style={{ color: "rgba(255,255,255,0.35)", touchAction: "manipulation" }}
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="text-xs">Flow</span>
@@ -547,26 +605,13 @@ export function ActiveSessionClient({ session }: Props) {
               background: `${displayColor}12`,
               border: `1px solid ${displayColor}28`,
               color: displayColor,
+              touchAction: "manipulation",
             }}
           >
             <span className="text-[13px]">{MODE_ICONS[colorMode]}</span>
             <span className="text-[10px] font-semibold uppercase tracking-widest opacity-70">
               {colorMode === "default" ? "fijo" : colorMode === "flow" ? "flow" : "psico"}
             </span>
-          </button>
-
-          {/* Timer — tappable to cycle mode */}
-          <button
-            onClick={cycleTimerMode}
-            className="font-mono font-black text-white text-lg transition-all active:scale-90"
-            style={{
-              letterSpacing: "-0.02em",
-              textShadow: `0 0 12px ${displayColor}70`,
-              animation: patternGlow ? "timer-flash-verde 3.8s ease-out" : "none",
-              background: "none", border: "none",
-            }}
-          >
-            {getTimerDisplay()}
           </button>
         </div>
 
@@ -702,6 +747,7 @@ export function ActiveSessionClient({ session }: Props) {
                 background: showBreathControls ? `${displayColor}18` : "rgba(255,255,255,0.05)",
                 border: `1px solid ${showBreathControls ? displayColor + "45" : "rgba(255,255,255,0.09)"}`,
                 color: showBreathControls ? displayColor : "rgba(255,255,255,0.3)",
+                touchAction: "manipulation",
               }}
             >
               <span className="text-sm leading-none">🫧</span>
@@ -715,6 +761,7 @@ export function ActiveSessionClient({ session }: Props) {
                 background: soundEnabled ? `${displayColor}18` : "rgba(255,255,255,0.05)",
                 border: `1px solid ${soundEnabled ? displayColor + "45" : "rgba(255,255,255,0.09)"}`,
                 color: soundEnabled ? displayColor : "rgba(255,255,255,0.28)",
+                touchAction: "manipulation",
               }}
             >
               <span className="text-sm leading-none">{soundEnabled ? "♫" : "♪"}</span>
@@ -773,6 +820,7 @@ export function ActiveSessionClient({ session }: Props) {
             style={{
               background: totalItems > 0 ? `${displayColor}10` : "rgba(255,255,255,0.04)",
               border: `1px solid ${totalItems > 0 ? displayColor + "30" : "rgba(255,255,255,0.07)"}`,
+              touchAction: "manipulation",
             }}
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -799,6 +847,26 @@ export function ActiveSessionClient({ session }: Props) {
           </button>
         </div>
 
+        {/* ── Deep breath competition strip ── */}
+        <div className="px-5 mb-2 shrink-0">
+          <DeepBreathCompetition
+            color={displayColor}
+            refreshKey={deepBreathRefreshKey}
+            soundUnlockMinBreaths={3}
+            soundUnlockMinSecs={30}
+            onSoundUnlocked={() => {
+              if (!soundEnabled) {
+                if (!audioCtxRef.current) {
+                  type AC = typeof window.AudioContext;
+                  const ACtx = (window.AudioContext ?? (window as unknown as Record<string, unknown>).webkitAudioContext) as AC;
+                  audioCtxRef.current = new ACtx();
+                }
+                setSoundEnabled(true);
+              }
+            }}
+          />
+        </div>
+
         {/* ── Music strip ── */}
         <div className="px-5 mb-2.5 shrink-0">
           <button
@@ -807,6 +875,7 @@ export function ActiveSessionClient({ session }: Props) {
             style={{
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(255,255,255,0.07)",
+              touchAction: "manipulation",
             }}
           >
             <span className="text-sm leading-none" style={{ color: trackName ? displayColor : "rgba(255,255,255,0.18)" }}>
@@ -840,6 +909,7 @@ export function ActiveSessionClient({ session }: Props) {
                 style={{
                   background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.08)",
+                  touchAction: "manipulation",
                 }}
               >
                 <Icon className="w-5 h-5" style={{ color: displayColor }} />
@@ -850,19 +920,37 @@ export function ActiveSessionClient({ session }: Props) {
             ))}
           </div>
 
-          <button
-            onClick={() => { haptic(15); setCheckinMinute(Math.floor(elapsed / 60)); setCheckinOpen(true); }}
-            className="w-full py-3 rounded-xl text-sm font-semibold mb-2.5 flex items-center justify-center gap-2 transition-all active:scale-95"
-            style={{ background: `${displayColor}14`, border: `1px solid ${displayColor}38`, color: displayColor }}
-          >
-            <Zap className="w-4 h-4" />
-            Marcar momento
-          </button>
+          <div className="flex gap-2 mb-2.5">
+            <button
+              onClick={() => { haptic(15); setCheckinMinute(Math.floor(elapsed / 60)); setCheckinOpen(true); }}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-95"
+              style={{ background: `${displayColor}14`, border: `1px solid ${displayColor}38`, color: displayColor, touchAction: "manipulation" }}
+            >
+              <Zap className="w-4 h-4" />
+              Momento
+            </button>
+            <button
+              onClick={async () => {
+                haptic([15, 60, 15]);
+                await fetch(`/api/420/sessions/${session.id}/events`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ minutesMark: Math.floor(elapsed / 60) }),
+                }).catch(() => {});
+                setSmokeEventCount((n) => n + 1);
+              }}
+              className="px-4 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.45)", touchAction: "manipulation" }}
+            >
+              <span className="text-base leading-none">{TYPE_EMOJIS[session.type]}</span>
+              <span className="text-[11px]">{smokeEventCount > 0 ? `×${smokeEventCount + 1}` : "+1"}</span>
+            </button>
+          </div>
 
           <button
             onClick={() => { haptic([25, 50, 25]); setCloseOpen(true); }}
             className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95"
-            style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171" }}
+            style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.22)", color: "#f87171", touchAction: "manipulation" }}
           >
             Terminar sesión
           </button>
@@ -908,64 +996,99 @@ export function ActiveSessionClient({ session }: Props) {
                 <div className="w-10 h-1 rounded-full bg-white/20" />
               </div>
               <div className="flex items-center justify-between px-5 py-3 shrink-0">
-                <h3 className="font-bold text-white text-base">Esta sesión</h3>
+                <h3 className="font-bold text-white text-base">
+                  {tripNoteBreathId ? "Detalles del viaje" : "Esta sesión"}
+                </h3>
                 <button
-                  onClick={() => setNotesOpen(false)}
+                  onClick={() => tripNoteBreathId ? setTripNoteBreathId(null) : setNotesOpen(false)}
                   className="w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(255,255,255,0.08)" }}
+                  style={{ background: "rgba(255,255,255,0.08)", touchAction: "manipulation" }}
                 >
                   <X className="w-4 h-4 text-white/50" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto px-5 pb-8 space-y-4">
-                {notes.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      Notas ({notes.length})
-                    </p>
-                    <div className="space-y-2">
-                      {[...notes].reverse().map((n) => {
-                        const cfg = NOTE_TYPE_ICONS[n.type] ?? NOTE_TYPE_ICONS.text;
-                        return (
-                          <div key={n.id} className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: "rgba(255,255,255,0.05)" }}>
-                            <span className="text-base shrink-0 mt-0.5">{cfg.emoji}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white text-sm leading-relaxed">{n.content}</p>
-                              {n.minutesMark !== null && (
-                                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.28)" }}>min {n.minutesMark}</p>
+                {/* TripForm inline cuando se selecciona un breath del feed */}
+                {tripNoteBreathId && recentBreaths[tripNoteBreathId] && (
+                  <TripForm
+                    breath={recentBreaths[tripNoteBreathId]}
+                    color={displayColor}
+                    onSave={saveTripFromNote}
+                    onClose={() => setTripNoteBreathId(null)}
+                  />
+                )}
+                {!tripNoteBreathId && (
+                  <>
+                    {notes.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          Notas ({notes.length})
+                        </p>
+                        <div className="space-y-2">
+                          {[...notes].reverse().map((n) => {
+                            const cfg = NOTE_TYPE_ICONS[n.type] ?? NOTE_TYPE_ICONS.text;
+                            const breathTag = n.tags?.find((t) => t.startsWith("deepBreath:"));
+                            const breathId = breathTag?.split(":")?.[1];
+                            const breathRec = breathId ? recentBreaths[breathId] : null;
+                            const hasTripDetails = breathRec?.tripDetails;
+                            return (
+                              <div key={n.id} className="rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.05)" }}>
+                                <div className="flex items-start gap-3">
+                                  <span className="text-base shrink-0 mt-0.5">{cfg.emoji}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-white text-sm leading-relaxed">{n.content}</p>
+                                    {hasTripDetails && (
+                                      <p className="text-xs mt-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+                                        ☯ {breathRec!.tripDetails}
+                                      </p>
+                                    )}
+                                    {n.minutesMark !== null && (
+                                      <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.28)" }}>min {n.minutesMark}</p>
+                                    )}
+                                  </div>
+                                  {breathId && !hasTripDetails && (
+                                    <button
+                                      onClick={() => setTripNoteBreathId(breathId)}
+                                      className="shrink-0 text-[10px] px-2 py-1 rounded-full font-semibold"
+                                      style={{ background: `${displayColor}18`, color: displayColor, border: `1px solid ${displayColor}30`, touchAction: "manipulation" }}
+                                    >
+                                      + viaje
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {checkins.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          Check-ins ({checkins.length})
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {checkins.map((c) => (
+                            <div key={c.id} className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: `${displayColor}12`, border: `1px solid ${displayColor}30` }}>
+                              <span className="font-black text-sm" style={{ color: displayColor }}>{c.intensity}</span>
+                              <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>min {c.minutesMark}</span>
+                              {(c.tags ?? []).length > 0 && (
+                                <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>· {(c.tags ?? []).join(", ")}</span>
                               )}
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {checkins.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      Check-ins ({checkins.length})
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      {checkins.map((c) => (
-                        <div key={c.id} className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: `${displayColor}12`, border: `1px solid ${displayColor}30` }}>
-                          <span className="font-black text-sm" style={{ color: displayColor }}>{c.intensity}</span>
-                          <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>min {c.minutesMark}</span>
-                          {(c.tags ?? []).length > 0 && (
-                            <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>· {(c.tags ?? []).join(", ")}</span>
-                          )}
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {totalItems === 0 && (
-                  <div className="text-center py-10">
-                    <p className="text-3xl mb-2">🌱</p>
-                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      Todavía no hay nada — agrega tu primera nota
-                    </p>
-                  </div>
+                      </div>
+                    )}
+                    {totalItems === 0 && (
+                      <div className="text-center py-10">
+                        <p className="text-3xl mb-2">🌱</p>
+                        <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          Todavía no hay nada — agrega tu primera nota
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>

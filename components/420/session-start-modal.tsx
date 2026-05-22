@@ -47,6 +47,7 @@ export function SessionStartModal({ open, onClose, color }: Props) {
   const [strain, setStrain] = useState("");
   const [mood, setMood] = useState(5);
   const [objective, setObjective] = useState("");
+  const [targetMinutes, setTargetMinutes] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleStart() {
@@ -60,6 +61,10 @@ export function SessionStartModal({ open, onClose, color }: Props) {
       const session = await res.json();
       if (objective.trim()) {
         localStorage.setItem(`verde-objective-${session.id}`, objective.trim());
+      }
+      const mins = parseInt(targetMinutes, 10);
+      if (mins > 0) {
+        localStorage.setItem(`verde-target-${session.id}`, String(mins * 60));
       }
       router.push(`/420/session/${session.id}`);
     } finally {
@@ -193,6 +198,19 @@ export function SessionStartModal({ open, onClose, color }: Props) {
                 value={objective}
                 onChange={(e) => setObjective(e.target.value)}
                 placeholder="¿Qué quieres lograr o explorar?"
+                className="w-full py-3 px-4 rounded-xl text-white placeholder-white/25 outline-none mb-6 text-sm"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              />
+
+              {/* Timer target */}
+              <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Timer <span style={{ color: "rgba(255,255,255,0.2)" }}>(minutos, opcional)</span>
+              </label>
+              <input
+                type="number"
+                value={targetMinutes}
+                onChange={(e) => setTargetMinutes(e.target.value)}
+                placeholder="Ej. 60"
                 className="w-full py-3 px-4 rounded-xl text-white placeholder-white/25 outline-none mb-6 text-sm"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
               />

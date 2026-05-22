@@ -8,6 +8,10 @@ import { callAI } from "@/lib/ai-call";
 
 const patchSchema = z.object({
   status: z.enum(["active", "closed"]).optional(),
+  type: z.enum(["sativa", "indica", "hybrid", "cbd", "hash", "concentrate"]).optional(),
+  method: z.enum(["joint", "pipe", "vape", "edible", "bong", "dab"]).optional(),
+  amount: z.enum(["micro", "low", "medium", "heavy", "very_heavy"]).optional(),
+  strain: z.string().max(255).optional().nullable(),
   creativityRating: z.number().int().min(1).max(10).optional().nullable(),
   relaxRating: z.number().int().min(1).max(10).optional().nullable(),
   focusRating: z.number().int().min(1).max(10).optional().nullable(),
@@ -105,4 +109,22 @@ Reflexión del usuario: ${rest.summary || "(ninguna)"}`;
     .returning();
 
   return NextResponse.json(updated);
+}
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await require420Access();
+  if (is420Forbidden(guard)) return guard;
+  const { userId } = guard;
+  const { id } = await params;
+
+  const [session] = await db
+    .select({ id: smokeSessions.id })
+    .from(smokeSessions)
+    .where(and(eq(smokeSessions.id, id), eq(smokeSessions.userId, userId)))
+    .limit(1);
+
+  if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await db.delete(smokeSessions).where(eq(smokeSessions.id, id));
+  return NextResponse.json({ ok: true });
 }

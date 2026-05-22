@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Lightbulb, FileText, Mic, CheckSquare, Zap, Star, Clock, Sparkles } from "lucide-react";
+import { X, Lightbulb, FileText, Mic, CheckSquare, Zap, Star, Clock, Sparkles, Trash2 } from "lucide-react";
 import { SessionCurve, type CurveCheckin } from "./session-curve";
 
 const TYPE_EMOJIS: Record<string, string> = {
@@ -93,22 +93,35 @@ interface Props {
   sessionId: string | null;
   color: string;
   onClose: () => void;
+  onDeleted?: () => void;
 }
 
-export function SessionDetailModal({ sessionId, color, onClose }: Props) {
+export function SessionDetailModal({ sessionId, color, onClose, onDeleted }: Props) {
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"notas" | "curva" | "ratings">("notas");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (!sessionId) { setData(null); return; }
+    if (!sessionId) { setData(null); setConfirmDelete(false); return; }
     setLoading(true);
     setActiveTab("notas");
+    setConfirmDelete(false);
     fetch(`/api/420/sessions/${sessionId}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  async function handleDelete() {
+    if (!s) return;
+    setDeleting(true);
+    await fetch(`/api/420/sessions/${s.id}`, { method: "DELETE" }).catch(() => {});
+    setDeleting(false);
+    onClose();
+    onDeleted?.();
+  }
 
   const open = !!sessionId;
   const s = data?.session;
@@ -175,13 +188,42 @@ export function SessionDetailModal({ sessionId, color, onClose }: Props) {
                         {formatDate(s.startedAt)}
                       </p>
                     </div>
-                    <button
-                      onClick={onClose}
-                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: "rgba(255,255,255,0.08)" }}
-                    >
-                      <X className="w-4 h-4 text-white/60" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {confirmDelete ? (
+                        <>
+                          <button
+                            onClick={() => setConfirmDelete(false)}
+                            className="text-xs px-3 py-1.5 rounded-full"
+                            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="text-xs px-3 py-1.5 rounded-full font-bold disabled:opacity-50"
+                            style={{ background: "rgba(248,113,113,0.18)", color: "#f87171" }}
+                          >
+                            {deleting ? "..." : "Eliminar"}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(true)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center"
+                          style={{ background: "rgba(248,113,113,0.1)" }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" style={{ color: "#f87171aa" }} />
+                        </button>
+                      )}
+                      <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-full flex items-center justify-center"
+                        style={{ background: "rgba(255,255,255,0.08)" }}
+                      >
+                        <X className="w-4 h-4 text-white/60" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Quick stats row */}

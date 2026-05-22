@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Leaf, Plus, Clock, TrendingUp, Star, Zap, FileText, History, BarChart2 } from "lucide-react";
+import { Leaf, Plus, Clock, TrendingUp, Star, Zap, FileText, History, BarChart2, BookOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SessionStartModal } from "./session-start-modal";
 import { SessionDetailModal } from "./session-detail-modal";
@@ -273,6 +273,23 @@ export function Dashboard420({ activeSession, sessions, stats }: Props) {
               </p>
             </div>
           )}
+
+          {/* Quick links */}
+          <button
+            onClick={() => router.push("/420/notes")}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              touchAction: "manipulation",
+            }}
+          >
+            <BookOpen className="w-4 h-4 shrink-0" style={{ color: theme.accent }} />
+            <span className="text-sm flex-1 text-left" style={{ color: "rgba(255,255,255,0.55)" }}>
+              Todas las notas e insights
+            </span>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>→</span>
+          </button>
         </div>
       )}
 
@@ -360,6 +377,7 @@ export function Dashboard420({ activeSession, sessions, stats }: Props) {
         sessionId={detailSessionId}
         color={theme.accent}
         onClose={() => setDetailSessionId(null)}
+        onDeleted={() => { setDetailSessionId(null); router.refresh(); }}
       />
     </div>
   );
