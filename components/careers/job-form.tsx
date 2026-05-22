@@ -71,6 +71,10 @@ export function JobForm({
   const [status, setStatus] = useState(job?.status ?? "draft");
   const [isPublic, setIsPublic] = useState(job?.isPublic ?? true);
   const [businessId, setBusinessId] = useState(job?.businessId ?? "");
+  const [applicationType, setApplicationType] = useState((job as { applicationType?: string })?.applicationType ?? "form");
+  const [challengeBrief, setChallengeBrief] = useState((job as { challengeBrief?: string | null })?.challengeBrief ?? "");
+  const [challengeDeadlineHours, setChallengeDeadlineHours] = useState((job as { challengeDeadlineHours?: number | null })?.challengeDeadlineHours ?? 48);
+  const [conversationContext, setConversationContext] = useState((job as { conversationContext?: string | null })?.conversationContext ?? "");
   const [questions, setQuestions] = useState<Question[]>(initialQuestions ?? []);
   const [newOption, setNewOption] = useState<Record<number, string>>({});
 
@@ -117,8 +121,12 @@ export function JobForm({
     const payload = {
       title, slug, tagline, description, requirements,
       employmentType, status, isPublic,
+      applicationType,
+      challengeBrief: applicationType === "challenge" ? challengeBrief : undefined,
+      challengeDeadlineHours: applicationType === "challenge" ? challengeDeadlineHours : undefined,
+      conversationContext: applicationType === "conversation" ? conversationContext : undefined,
       businessId: businessId || undefined,
-      questions: questions.map((q, i) => ({ ...q, sortOrder: i })),
+      questions: applicationType === "form" ? questions.map((q, i) => ({ ...q, sortOrder: i })) : [],
     };
 
     const res = isEdit
@@ -190,6 +198,38 @@ export function JobForm({
               onChange={e => { setSlug(e.target.value); setSlugEdited(true); }}
               className="flex-1 py-3 pr-4 text-[var(--skin-text,#0f172a)] focus:outline-none bg-transparent"
             />
+          </div>
+        </div>
+
+        {/* Tipo de aplicación */}
+        <div>
+          <label className="block text-sm font-semibold text-[var(--skin-text-muted,#64748b)] mb-1.5">
+            Modo de aplicación
+          </label>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { value: "form",         label: "Formulario",       desc: "Preguntas multi-step clásico", disabled: false },
+              { value: "challenge",    label: "⚡ Reto",           desc: "Brief + deadline + evidencia", disabled: false },
+              { value: "conversation", label: "💬 Entrevista IA",  desc: "Pre-entrevista con agente IA", disabled: false },
+              { value: "video",        label: "Video",             desc: "Respuestas grabadas (pronto)", disabled: true },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={opt.disabled}
+                onClick={() => setApplicationType(opt.value)}
+                className={`text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                  applicationType === opt.value
+                    ? "border-[#1e3a5f] bg-blue-50"
+                    : "border-[var(--skin-border,#e2e8f0)] hover:border-slate-300"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                <p className={`text-sm font-bold ${applicationType === opt.value ? "text-[#1e3a5f]" : "text-[var(--skin-text,#0f172a)]"}`}>
+                  {opt.label}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -293,8 +333,78 @@ export function JobForm({
         </div>
       </section>
 
-      {/* Preguntas */}
-      <section className="bg-[var(--skin-card-bg,#fff)] rounded-2xl border border-[var(--skin-border,#e2e8f0)] p-6 space-y-5">
+      {/* Challenge brief — solo si tipo = challenge */}
+      {applicationType === "challenge" && (
+        <section className="bg-[var(--skin-card-bg,#fff)] rounded-2xl border-2 border-amber-200 p-6 space-y-5">
+          <div>
+            <h2 className="font-bold text-[var(--skin-text,#0f172a)]">⚡ Brief del reto</h2>
+            <p className="text-sm text-[var(--skin-text-muted,#64748b)] mt-0.5">
+              El candidato verá esto como un "mission briefing" en su pantalla. Sé específico y concreto.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-[var(--skin-text-muted,#64748b)] mb-1.5">
+              Descripción del reto <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={challengeBrief}
+              onChange={e => setChallengeBrief(e.target.value)}
+              rows={6}
+              placeholder={"Tienes 48 horas y $0 de presupuesto.\n\nConsigue 10 leads reales para una agencia de IA y automatización.\n\nReglas:\n• Solo canales orgánicos\n• Debes tener al menos un reply o confirmación de interés\n• Documenta todo el proceso\n\nEntrega: Un Google Doc o Notion con el proceso y los resultados."}
+              className="w-full px-4 py-3 rounded-xl border border-[var(--skin-border,#e2e8f0)] text-[var(--skin-text,#0f172a)] focus:outline-none focus:ring-2 focus:ring-amber-400 transition resize-none font-mono text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-[var(--skin-text-muted,#64748b)] mb-1.5">
+              Ventana de tiempo
+            </label>
+            <div className="flex items-center gap-3">
+              {[24, 48, 72].map(h => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setChallengeDeadlineHours(h)}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${
+                    challengeDeadlineHours === h
+                      ? "border-amber-400 bg-amber-50 text-amber-700"
+                      : "border-[var(--skin-border,#e2e8f0)] text-slate-500 hover:border-slate-300"
+                  }`}
+                >
+                  {h}h
+                </button>
+              ))}
+              <span className="text-sm text-slate-400">para completar el reto</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Briefing para Kairos — solo modo conversation */}
+      {applicationType === "conversation" && (
+        <section className="bg-[var(--skin-card-bg,#fff)] rounded-2xl border-2 border-violet-200 p-6 space-y-5">
+          <div>
+            <h2 className="font-bold text-[var(--skin-text,#0f172a)]">💬 Briefing para Kairos</h2>
+            <p className="text-sm text-[var(--skin-text-muted,#64748b)] mt-0.5">
+              Todo lo que Kairos debe saber sobre tu empresa para responder preguntas del candidato. Sé específico.
+            </p>
+          </div>
+          <textarea
+            value={conversationContext}
+            onChange={e => setConversationContext(e.target.value)}
+            rows={8}
+            placeholder={"Empresa: Uxuri\nQué hacemos: SaaS de gestión y automatización para agencias y freelancers latinoamericanos\nFundador: Jesus Torres\nUbicación: 100% remoto\nCuándo empezar: Inmediato\nCompensación: Esquema mixto — base + comisión por resultados\nCultura: Ejecutores, no teóricos. Velocidad sobre perfección. Construimos con IA.\nLo que más valoramos: Evidencia real de crecimiento. Que ya lo haya hecho antes."}
+            className="w-full px-4 py-3 rounded-xl border border-[var(--skin-border,#e2e8f0)] text-[var(--skin-text,#0f172a)] focus:outline-none focus:ring-2 focus:ring-violet-400 transition resize-none text-sm"
+          />
+          <p className="text-xs text-slate-400">
+            Este texto va directo al prompt de Kairos. Incluye todo lo que un candidato legítimo preguntaría.
+          </p>
+        </section>
+      )}
+
+      {/* Preguntas — solo modo form */}
+      {applicationType === "form" && <section className="bg-[var(--skin-card-bg,#fff)] rounded-2xl border border-[var(--skin-border,#e2e8f0)] p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-bold text-[var(--skin-text,#0f172a)]">Preguntas del formulario</h2>
@@ -418,7 +528,7 @@ export function JobForm({
           <Plus className="w-4 h-4" />
           Agregar pregunta
         </button>
-      </section>
+      </section>}
 
       {error && (
         <p className="text-red-600 text-sm font-medium bg-red-50 px-4 py-3 rounded-xl border border-red-100">

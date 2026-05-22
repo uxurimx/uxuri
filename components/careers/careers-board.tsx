@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ExternalLink, Copy, Star, ChevronDown, Pencil,
-  Eye, Users, Mail, Phone, Calendar, Video, X,
+  Eye, Users, Mail, Phone, Calendar, Video, X, Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import type { JobPosting, JobQuestion, JobApplication } from "@/db/schema";
@@ -191,11 +191,40 @@ export function CareersBoard({
                     onClick={() => setSelected(app)}
                     className="w-full text-left bg-[var(--skin-card-bg,#fff)] rounded-xl border border-[var(--skin-border,#e2e8f0)] p-3.5 hover:border-[#1e3a5f]/30 hover:shadow-sm transition-all"
                   >
-                    <p className="font-semibold text-sm text-[var(--skin-text,#0f172a)] truncate">{app.name}</p>
-                    <p className="text-xs text-[var(--skin-text-muted,#64748b)] truncate mt-0.5">{app.email}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-[var(--skin-text,#0f172a)] truncate">{app.name}</p>
+                        <p className="text-xs text-[var(--skin-text-muted,#64748b)] truncate mt-0.5">{app.email}</p>
+                      </div>
+                      {/* AI score badge */}
+                      {app.aiScore != null && (
+                        <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${
+                          app.aiScore >= 8 ? "bg-emerald-100 text-emerald-700" :
+                          app.aiScore >= 5 ? "bg-amber-100 text-amber-700" :
+                          "bg-red-100 text-red-600"
+                        }`}>
+                          {app.aiScore}/10
+                        </span>
+                      )}
+                    </div>
 
-                    <div className="flex items-center justify-between mt-3">
-                      {/* Stars */}
+                    {/* Type badge */}
+                    <div className="flex items-center gap-1.5 mt-2">
+                      {job.applicationType === "conversation" && (
+                        <span className="text-xs text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded font-medium">💬 IA</span>
+                      )}
+                      {job.applicationType === "challenge" && (
+                        <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-medium">⚡ Reto</span>
+                      )}
+                      {app.aiRecommendation === "shortlist" && (
+                        <span className="text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">✓ Shortlist</span>
+                      )}
+                      {app.aiRecommendation === "reject" && (
+                        <span className="text-xs text-red-500 bg-red-50 px-1.5 py-0.5 rounded font-medium">✗ Descartar</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-0.5">
                         {[1,2,3,4,5].map(n => (
                           <Star
@@ -210,7 +239,7 @@ export function CareersBoard({
                     </div>
 
                     {app.source && (
-                      <span className="mt-2 inline-block text-xs bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full border border-slate-100">
+                      <span className="mt-1.5 inline-block text-xs bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full border border-slate-100">
                         {app.source}
                       </span>
                     )}
@@ -234,6 +263,7 @@ export function CareersBoard({
           app={selected}
           questions={questions}
           jobId={job.id}
+          applicationType={job.applicationType}
           onClose={() => setSelected(null)}
           onMove={(status) => moveApplication(selected.id, status)}
           onScore={(score) => setScore(selected.id, score)}
@@ -250,6 +280,7 @@ function ApplicationPanel({
   app,
   questions,
   jobId,
+  applicationType,
   onClose,
   onMove,
   onScore,
@@ -258,6 +289,7 @@ function ApplicationPanel({
   app: JobApplication;
   questions: JobQuestion[];
   jobId: string;
+  applicationType: string;
   onClose: () => void;
   onMove: (status: StageKey) => void;
   onScore: (score: number) => void;
@@ -265,6 +297,21 @@ function ApplicationPanel({
 }) {
   const [notesVal, setNotesVal] = useState(app.notes ?? "");
   const [notesSaved, setNotesSaved] = useState(true);
+  const [appData, setAppData] = useState(app);
+  const [scoring, setScoring] = useState(false);
+
+  async function requestScore() {
+    setScoring(true);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/applications/${app.id}/score`, { method: "POST" });
+      if (res.ok) {
+        const updated = await res.json();
+        setAppData(updated);
+      }
+    } finally {
+      setScoring(false);
+    }
+  }
 
   const answers = (app.answers as Answer[]) ?? [];
 
@@ -347,6 +394,94 @@ function ApplicationPanel({
             </span>
           </div>
         </div>
+
+        {/* AI Scorecard */}
+        <div className="px-6 py-4 bg-slate-50 border-b border-[var(--skin-border,#e2e8f0)] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Análisis IA</span>
+            <div className="flex items-center gap-2">
+              {appData.aiRecommendation && (
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                  appData.aiRecommendation === "shortlist" ? "bg-emerald-50 text-emerald-700" :
+                  appData.aiRecommendation === "reject"    ? "bg-red-50 text-red-600" :
+                  "bg-amber-50 text-amber-700"
+                }`}>
+                  {appData.aiRecommendation === "shortlist" ? "✓ Preseleccionar" :
+                   appData.aiRecommendation === "reject"    ? "✗ Descartar" : "? Revisar"}
+                </span>
+              )}
+              {appData.aiScore != null && (
+                <span className={`text-sm font-black px-2.5 py-1 rounded-full ${
+                  appData.aiScore >= 8 ? "bg-emerald-100 text-emerald-700" :
+                  appData.aiScore >= 5 ? "bg-amber-100 text-amber-700" :
+                  "bg-red-100 text-red-600"
+                }`}>
+                  {appData.aiScore}/10
+                </span>
+              )}
+              <button
+                onClick={requestScore}
+                disabled={scoring}
+                className="text-xs font-semibold text-[#1e3a5f] hover:underline disabled:opacity-50 flex items-center gap-1"
+              >
+                {scoring ? <><Loader2 className="w-3 h-3 animate-spin" /> Analizando...</> : appData.aiScore != null ? "Re-analizar" : "Generar análisis"}
+              </button>
+            </div>
+          </div>
+          {appData.aiSummary && (
+            <p className="text-sm text-slate-600 leading-relaxed">{appData.aiSummary}</p>
+          )}
+          {((appData.aiFlags as { type: string; label: string; detail?: string }[] | null)?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {(appData.aiFlags as { type: string; label: string; detail?: string }[]).map((flag, i) => (
+                <span
+                  key={i}
+                  title={flag.detail}
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium cursor-help ${
+                    flag.type === "green_flag" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
+                    flag.type === "red_flag"   ? "bg-red-50 text-red-600 border border-red-100" :
+                    "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {flag.type === "green_flag" ? "✓" : flag.type === "red_flag" ? "⚠" : "·"} {flag.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {!appData.aiScore && !scoring && (
+            <p className="text-xs text-slate-400 italic">Sin análisis todavía. Haz clic en "Generar análisis" para evaluarlo.</p>
+          )}
+        </div>
+
+        {/* Conversation mode indicator */}
+        {applicationType === "conversation" && !app.submissionUrl && (
+          <div className="px-6 py-4 bg-violet-50/60 border-b border-violet-100 flex items-center gap-3">
+            <span className="text-lg">💬</span>
+            <div>
+              <p className="text-xs font-bold text-violet-700 uppercase tracking-wide">Pre-entrevista IA</p>
+              <p className="text-xs text-slate-500 mt-0.5">Conversación con agente completada</p>
+            </div>
+          </div>
+        )}
+
+        {/* Challenge submission */}
+        {(app.submissionUrl || app.submissionNotes) && (
+          <div className="px-6 py-4 bg-amber-50/50 border-b border-amber-100 space-y-3">
+            <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">⚡ Evidencia del reto</span>
+            {app.submissionUrl && (
+              <a href={app.submissionUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm font-semibold text-[#1e3a5f] hover:underline break-all">
+                <ExternalLink className="w-4 h-4 shrink-0" />
+                {app.submissionUrl}
+              </a>
+            )}
+            {app.submissionNotes && (
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-xl px-4 py-3 border border-amber-100">
+                {app.submissionNotes}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Answers */}
         <div className="flex-1 px-6 py-5 space-y-6">

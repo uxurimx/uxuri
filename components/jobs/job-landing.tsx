@@ -4,13 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight, ArrowLeft, CheckCircle2, Check,
-  MapPin, Clock, DollarSign, ChevronRight, Loader2,
+  MapPin, Clock, DollarSign, ChevronRight, Loader2, Zap, MessageSquare,
 } from "lucide-react";
 import type { JobPosting, JobQuestion } from "@/db/schema";
+import { ChallengeApply } from "./challenge-apply";
+import { ConversationApply } from "./conversation-apply";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type View = "landing" | "form" | "success";
+type View = "landing" | "form" | "challenge" | "conversation" | "success";
 
 interface FormData {
   name: string;
@@ -50,14 +52,18 @@ export function JobLanding({
   }, [job.slug]);
 
   const isClosed = job.status !== "open";
-  const totalSteps = questions.length + 1; // +1 for basic info step
+  const isChallenge = job.applicationType === "challenge";
+  const isConversation = job.applicationType === "conversation";
+  const totalSteps = questions.length + 1;
 
   function scrollTop() {
     topRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
   function startForm() {
-    setView("form");
+    if (isChallenge) setView("challenge");
+    else if (isConversation) setView("conversation");
+    else setView("form");
     setStep(0);
     setTimeout(scrollTop, 50);
   }
@@ -181,6 +187,18 @@ export function JobLanding({
                   transition={{ duration: 0.5 }}
                 >
                   <div className="flex flex-wrap gap-3 mb-6">
+                    {isChallenge && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        <Zap className="w-3 h-3" />
+                        Reto · {job.challengeDeadlineHours ?? 48}h para completar
+                      </span>
+                    )}
+                    {isConversation && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                        <MessageSquare className="w-3 h-3" />
+                        Pre-entrevista IA · ~10 min
+                      </span>
+                    )}
                     {job.employmentType && (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/20">
                         <DollarSign className="w-3 h-3" />
@@ -216,7 +234,7 @@ export function JobLanding({
                       whileTap={{ scale: 0.98 }}
                       className="mt-10 inline-flex items-center gap-3 bg-white text-slate-900 px-8 py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-slate-100 transition-colors"
                     >
-                      Quiero aplicar
+                      {isChallenge ? "Acepta el reto" : isConversation ? "Comenzar entrevista" : "Quiero aplicar"}
                       <ArrowRight className="w-5 h-5" />
                     </motion.button>
                   )}
@@ -301,12 +319,45 @@ export function JobLanding({
                     whileTap={{ scale: 0.97 }}
                     className="inline-flex items-center gap-3 bg-white text-[#1e3a5f] px-10 py-5 rounded-2xl font-black text-xl shadow-2xl hover:bg-slate-100 transition-colors"
                   >
-                    Llenar formulario ahora
+                    {isChallenge ? "Acepta el reto ahora" : isConversation ? "Comenzar entrevista" : "Aplicar ahora"}
                     <ArrowRight className="w-6 h-6" />
                   </motion.button>
                 </div>
               </section>
             )}
+          </motion.div>
+        )}
+
+        {/* ─── CHALLENGE VIEW ───────────────────────────────────────────── */}
+        {view === "challenge" && (
+          <motion.div
+            key="challenge"
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -60 }}
+            transition={{ duration: 0.3 }}
+          >
+            <ChallengeApply
+              job={job}
+              onBack={() => { setView("landing"); setTimeout(scrollTop, 50); }}
+            />
+          </motion.div>
+        )}
+
+        {/* ─── CONVERSATION VIEW ────────────────────────────────────────── */}
+        {view === "conversation" && (
+          <motion.div
+            key="conversation"
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -60 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col min-h-screen"
+          >
+            <ConversationApply
+              job={job}
+              onBack={() => { setView("landing"); setTimeout(scrollTop, 50); }}
+            />
           </motion.div>
         )}
 

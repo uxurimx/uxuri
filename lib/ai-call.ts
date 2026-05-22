@@ -97,26 +97,27 @@ export async function callAI({
         signal: AbortSignal.timeout(8000),
       });
 
-      if (!res.ok) {
-        const err = await res.text().catch(() => "unknown");
-        process.stderr?.write?.(`[callAI Anthropic error] ${res.status}: ${err}\n`);
-        return null;
+      if (res.ok) {
+        const data = await res.json();
+        return (data.content?.[0]?.text as string | undefined)?.trim() ?? null;
       }
 
-      const data = await res.json();
-      return (data.content?.[0]?.text as string | undefined)?.trim() ?? null;
+      // Claude falló (auth, rate limit, etc.) → caer a OpenAI
+      const err = await res.text().catch(() => "unknown");
+      process.stderr?.write?.(`[callAI Anthropic error] ${res.status}: ${err}\n`);
     } catch (e) {
       if (!isNetworkError(e)) throw e;
-      // Sin internet → Ollama
+      // Sin internet → Ollama directamente
       return callOllama(effectiveModel, systemPrompt, userMessage, effectiveMaxTokens, effectiveTemp);
     }
+    // Llegar aquí = Claude falló pero hay internet → intentar OpenAI
   }
 
-  // OpenAI (default)
+  // OpenAI (default + fallback de Claude)
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   try {
     const response = await openai.chat.completions.create({
-      model: effectiveModel,
+      model: effectiveModel.startsWith("claude-") ? "gpt-4o-mini" : effectiveModel,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },

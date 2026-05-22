@@ -26,6 +26,14 @@ export const jobEmploymentTypeEnum = pgEnum("job_employment_type", [
   "equity_partner",
 ]);
 
+export const jobApplicationTypeEnum = pgEnum("job_application_type", [
+  "form",         // Formulario clásico multi-step
+  "challenge",    // Reto con deadline + submit de evidencia
+  "conversation", // Pre-entrevista con agente IA
+  "video",        // Preguntas con respuesta en video (90s c/u)
+  "hybrid",       // Secuencia de gates configurables
+]);
+
 export const jobPostings = pgTable("job_postings", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").references(() => workspaces.id),
@@ -38,6 +46,14 @@ export const jobPostings = pgTable("job_postings", {
   requirements: text("requirements"),
   employmentType: jobEmploymentTypeEnum("employment_type").default("commission"),
   status: jobStatusEnum("status").default("draft").notNull(),
+  // ── Tipo de aplicación ────────────────────────────────────────────────────
+  applicationType: jobApplicationTypeEnum("application_type").default("form").notNull(),
+  // ── Challenge mode ────────────────────────────────────────────────────────
+  challengeBrief: text("challenge_brief"),
+  challengeDeadlineHours: integer("challenge_deadline_hours").default(48),
+  // ── Conversation mode (briefing para Kairos) ──────────────────────────────
+  conversationContext: text("conversation_context"),
+  // ─────────────────────────────────────────────────────────────────────────
   closesAt: timestamp("closes_at"),
   maxApplications: integer("max_applications"),
   isPublic: boolean("is_public").default(true).notNull(),
