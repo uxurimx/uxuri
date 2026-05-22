@@ -16,6 +16,7 @@ export const smokeSessions = pgTable("smoke_sessions", {
   startedAt: timestamp("started_at").defaultNow().notNull(),
   endedAt: timestamp("ended_at"),
   elapsedSeconds: integer("elapsed_seconds"),
+  targetDuration: integer("target_duration"),
   status: smokeStatusEnum("status").default("active").notNull(),
   moodBefore: integer("mood_before"),
   creativityRating: integer("creativity_rating"),

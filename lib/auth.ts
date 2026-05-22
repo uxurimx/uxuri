@@ -81,6 +81,7 @@ export function augmentPermissions(raw: string[]): string[] {
   if (p.includes("/projects") && !p.includes("/comidas"))   p = [...p, "/comidas"];
   if (p.includes("/clients") && !p.includes("/marketing"))        p = [...p, "/marketing"];
   if (p.includes("/clients") && !p.includes("/clients/pipeline")) p = [...p, "/clients/pipeline"];
+  if (p.includes("/clients") && !p.includes("/careers"))          p = [...p, "/careers"];
   // Acceso al gestor de workspaces y settings siempre disponible si tiene dashboard
   if (p.includes("/dashboard") && !p.includes("/workspaces")) p = [...p, "/workspaces"];
   if (p.includes("/dashboard") && !p.includes("/settings"))   p = [...p, "/settings"];
