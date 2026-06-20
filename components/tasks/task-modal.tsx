@@ -11,7 +11,7 @@ import {
   Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap, Brain, Sun,
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
-import { startTimer } from "@/components/flow/flow-widget";
+import { startTimer } from "@/components/timer/active-timer";
 import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 import { CategoryPicker } from "./category-picker";
 import { MentionInput, renderWithMentions } from "./mention-input";
