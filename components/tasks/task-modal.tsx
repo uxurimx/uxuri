@@ -11,7 +11,7 @@ import {
   Play, Pause, StopCircle, Bot, ListChecks, Plus, Zap, Brain, Sun,
 } from "lucide-react";
 import { AgentChat } from "@/components/agents/agent-chat";
-import { startTimer } from "@/components/timer/active-timer";
+import { startTimer } from "@/components/flow/flow-widget";
 import { WorkspacePicker } from "@/components/workspaces/workspace-picker";
 import { CategoryPicker } from "./category-picker";
 import { MentionInput, renderWithMentions } from "./mention-input";
@@ -828,7 +828,7 @@ export function TaskModal({
               )}
 
               {task.description && (
-                <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{task.description}</p>
               )}
 
               {/* ── Subtasks ── */}
